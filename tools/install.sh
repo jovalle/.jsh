@@ -27,20 +27,20 @@ main() {
   set -e
 
   if [ ! -n "$JSH" ]; then
-    JSH=$HOME/.oh-my-bash
+    JSH=$HOME/.jsh
   fi
   printf "${BLUE}Looking for an existing bash config...${NORMAL}\n"
   if [ -f $HOME/.bashrc ] || [ -h $HOME/.bashrc ]; then
-    printf "${YELLOW}Found ~/.bashrc.${NORMAL} ${GREEN}Backing up to ~/.bashrc.pre-oh-my-bash${NORMAL}\n";
-    mv $HOME/.bashrc $HOME/.bashrc.pre-oh-my-bash;
+    printf "${YELLOW}Found ~/.bashrc.${NORMAL} ${GREEN}Backing up to ~/.bashrc.pre-jsh${NORMAL}\n";
+    mv $HOME/.bashrc $HOME/.bashrc.pre-jsh;
   fi
   
   printf "${BLUE}Using the Oh My Bash template file and adding it to ~/.bashrc${NORMAL}\n"
   cp $JSH/.bashrc $HOME/.bashrc
   sed "/^export JSH=/ c\\
 export JSH=$JSH
-  " $HOME/.bashrc > $HOME/.bashrc-ombtemp
-  mv -f $HOME/.bashrc-ombtemp $HOME/.bashrc
+  " $HOME/.bashrc > $HOME/.bashrc-jshtemp
+  mv -f $HOME/.bashrc-jshtemp $HOME/.bashrc
 
 printf '%s' "$YELLOW"                                                              
 printf '%s\n' '          _____                _____       __     __        '

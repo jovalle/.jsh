@@ -16,7 +16,7 @@ if [ -f $HOME/.bashrc.pre-jsh ] || [ -h $HOME/.bashrc.pre-jsh ]; then
   echo "Found ~/.bashrc.pre-jsh -- Restoring to ~/.bashrc";
 
   if [ -f $HOME/.bashrc ] || [ -h $HOME/.bashrc ]; then
-    bashrc_SAVE=".bashrc.omb-uninstalled-$(date +%Y%m%d%H%M%S)";
+    bashrc_SAVE=".bashrc.jsh-uninstalled-$(date +%Y%m%d%H%M%S)";
     echo "Found ~/.bashrc -- Renaming to ~/${bashrc_SAVE}";
     mv $HOME/.bashrc $HOME/"${bashrc_SAVE}";
   fi
