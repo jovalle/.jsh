@@ -1,0 +1,37 @@
+#  /usr/bin/env vim
+#  -------------------------------------------------------------------------------------
+#
+#  Description:  This file contains the expected symlink state when leveraging .jsh
+#
+#  Usage:
+#    ^dest, src  # create symlink pointing dest to src
+#    ^@dest, src # same as above but only when macOS is detected
+#
+#  Notes:
+#  - src is relative to the location of the program that reads this file (i.e. install.sh)!
+#
+#  Sections:
+#  1.   General
+#  2.   macOS 
+#
+#  -------------------------------------------------------------------------------------
+
+#   -------------------------------
+#   1. GENERAL 
+#   -------------------------------
+~/.bash_aliases, .bash_aliases
+%~/.bash_profile, .bash_profile
+~/.bashrc, .bashrc
+~/.bin, bin
+~/.gitconfig, .gitconfig
+~/.inputrc, .inputrc
+~/.sshrc, .bashrc
+~/.tmux, tmux/
+~/.tmux.conf, .tmux.conf
+~/.vim, vim/
+~/.vimrc, .vimrc
+
+#   -------------------------------
+#   2. MACOS
+#   -------------------------------
+@~/Library/Application\ Support/Sublime\ Text\ 3/Packages/User, sublime/
