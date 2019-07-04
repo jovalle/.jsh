@@ -29,8 +29,6 @@
 #   -------------------------------
 #   1. ENVIRONMENT VARIABLES
 #   -------------------------------
-export PAGER='less'                     # Use less for pagination
-export LESS='-R'                        # Output "raw" control characters
 export PROMPT_DIRTRIM=2                 # Trim long paths in prompt to x levels (requires BASH>=4)
 export CDPATH="."                       # Colon-separate list of cd targets
 export GOPATH=~/.go/
@@ -41,6 +39,7 @@ export JSH_THEME=font
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 export PLATFORM=$(uname -s)
+export TERM="xterm-256color"
 export VISUAL=vim
 export SHM=/dev/shm/$USER
 
@@ -114,6 +113,7 @@ alias rd='rmdir'                            # Remove directory (no force)
 alias d='dirs -v | head -10'                # Display dir
 alias _='sudo'                              # Evolve into superuser
 alias please='sudo'                         # Politely ask for superuser
+alias tmux='tmux -2'                        # tmux with 256 colors
 
 #   Directory Listing aliases
 #   -----------------------------------------------------
@@ -438,7 +438,7 @@ zipf () { zip -r "$1".zip "$1" ; }                                           # z
 #   --------------------------------------------------------------------
     myip () {
       res=$(curl -s checkip.dyndns.org | grep -Eo '[0-9\.]+')
-      echo -e "Your public IP is: ${echo_bold_green} $res ${echo_normal}" 
+      echo -e "Your public IP is: ${green} $res ${reset}" 
     }
 
 #   isitdown:  checks whether a website is down for you, or everybody
@@ -738,7 +738,7 @@ fi
           local prompt="${ret}${prompt_symbol} ${reset}"
           PS1="${prompt}${dir}${git}${workspace} "
         elif [[ $PROMPT == 'full' ]]; then
-          PS1="${bold}┌─[${reset}${user}@${host}:${dir}${git}${BOLD}]${reset}${workspace}\n${prompt}"
+          PS1="${bold}┌─[${reset}${user}@${host}:${dir}${git}${bold}]${reset}${workspace}\n${prompt}"
         else
           PS1="${workspace}${user}@${host}:${dir}${git}${ret}$ ${reset}"
         fi
