@@ -1,0 +1,31 @@
+#!/bin/bash
+
+SSH_KEY=${HOME}/.ssh/id_rsa
+if [[ $(ssh-add -l | grep "${SSH_KEY}" | wc -l) == 0 ]]; then
+    eval $(ssh-agent)
+    ssh-add ~/.ssh/id_rsa
+fi
+
+REPOS=($(echo "$BITBUCKET_REPOS" | tr ',' '\n'))
+for REPO in ${REPOS[@]}
+do
+  echo "Checking for ${REPO} repository."
+  TARGET_DIR=$(pwd)
+  if [[ $# == 0 ]]; then
+    TARGET_DIR="${HOME}"
+  fi
+  cd ${TARGET_DIR}
+  REPO_DIR="${TARGET_DIR}/$(echo ${REPO} | sed 's/^\w*\///g')"
+  echo $REPO_DIR
+  BRANCH=master
+  R=$(echo ${REPO} | sed 's/^\w*\///g')
+  if [ -d "${REPO_DIR}" ]
+  then
+    echo "${R}@${BRANCH} found locally. Overwriting master branch with latest remote."
+    pushd ${REPO_DIR} && git checkout -f ${BRANCH} && git fetch --all && git reset --hard origin/${BRANCH} && popd
+  else
+    echo "${R}@${BRANCH} not found locally. Pulling from remote."
+    git clone ssh://git@$BITBUCKET_URL:7999/${REPO}.git
+    pushd ${REPO_DIR} && git checkout -f ${BRANCH} && git pull && popd
+  fi
+done
