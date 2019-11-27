@@ -84,6 +84,13 @@ if [ ! -d "$SHM" ]; then
   chmod 700 $SHM
 fi
 
+# Enable shell completion
+if [[ -f /etc/${SH}_completion ]]; then
+  source /etc/${SH}_completion
+elif [[ -f /usr/local/etc/${SH}_completion ]]; then
+  source /usr/local/etc/${SH}_completion
+fi
+
 # Enable k8s completion
 # --------------------------------------------------------------------
 if [[ $(which kubectl 2>/dev/null 1>&2) ]]; then
@@ -210,15 +217,11 @@ fi
 
 # Color fallback
 # --------------------------------------------------------------------
-if [[ $(which grc 2>/dev/null) ]]; then
-  alias colorize="$(which grc) -es --colour=auto"
-  alias as='colorize as'
-
 if ls --help 2>&1 | grep -q -- --color
 then
-    alias ls='ls --color=auto -F'
+  alias ls='ls --color=auto -F'
 else
-    alias ls='ls -FG'
+  alias ls='ls -FG'
 fi
 
 # Assorted
@@ -349,7 +352,6 @@ alias apacheRestart='sudo apachectl graceful' # apacheRestart: Restart Apache
 alias editHosts='sudo edit /etc/hosts' # editHosts: Edit /etc/hosts file
 alias herr='tail /var/log/httpd/error_log' # herr: Tails HTTP error logs
 alias apacheLogs="less +F /var/log/apache2/error_log" # Apachelogs: Shows apache error logs
-
 
 # kubectl
 # -----------------------------------------------------
@@ -1358,17 +1360,5 @@ usage () {
 viw() {
   if [[ $# == 1 && -n $EDITOR ]]; then
     $EDITOR $(which $1)
-  fi
-}
-
-# xsource: check resource before sourcing
-# -------------------------------------------------------------------
-xsource () {
-  if [ -f "$JSH/lib/${1}.sh" ]; then
-    source $JSH/lib/${1}.sh
-  elif [ -f "$JSH/completions/${1}.completion.sh" ]; then
-    source $JSH/completions/${1}.completion.sh
-  elif [ -f "$JSH/plugins/${1}.plugin.sh" ]; then
-    source $JSH/plugins/${1}.plugin.sh
   fi
 }
