@@ -48,13 +48,14 @@ usage() {
 
 install() {
   for t in ${TARGETS[@]}; do
-    if [[ ! -f $HOME/$t ]]; then
+    if [[ ! -f $HOME/$t && ! -d $HOME/$t ]]; then
       echo "${BLUE}$HOME/$t -> $JSH/$t${NORMAL}"
       ln -s $JSH/$t $HOME/$t
     else
-      unlink $HOME/$t
-      ln -s $JSH/$t $HOME/$t
-      if [[ $? != 0 ]]; then
+      if [[ -L $HOME/$t ]]; then
+        unlink $HOME/$t
+        ln -s $JSH/$t $HOME/$t
+      else
         echo "${RED}File found for $HOME/$t. Please backup and remove before executing j.sh${NORMAL}"
         exit
       fi
