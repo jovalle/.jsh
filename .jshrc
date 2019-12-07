@@ -93,7 +93,7 @@ fi
 
 # Enable k8s completion
 # --------------------------------------------------------------------
-if [[ $(which kubectl 2>/dev/null 1>&2) ]]; then
+if [[ $(which kubectl 2>/dev/null) ]]; then
   source <(kubectl completion $SH)
 fi
 
