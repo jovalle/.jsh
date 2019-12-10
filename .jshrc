@@ -60,7 +60,10 @@ PROMPT_DIRTRIM=2
 
 # Rid PATH of duplicates (https://www.linuxjournal.com/content/removing-duplicate-path-entries)
 # --------------------------------------------------------------------
-export PATH=$(echo -n $PATH | awk -v RS=: '!($0 in a) {a[$0]; printf("%s%s", length(a) > 1 ? ":" : "", $0)}')
+if echo -n $PATH | awk -v RS=: '!($0 in a) {a[$0]; printf("%s%s", length(a) > 1 ? ":" : "", $0)}' 2>/dev/null 1>&2
+then
+  export PATH=$(echo -n $PATH | awk -v RS=: '!($0 in a) {a[$0]; printf("%s%s", length(a) > 1 ? ":" : "", $0)}')
+fi
 
 # Enable vi mode
 # --------------------------------------------------------------------
@@ -68,91 +71,52 @@ set -o vi
 
 # Disable CTRL-S and CTRL-Q
 # --------------------------------------------------------------------
-if [[ $- =~ i ]]; then
+if [[ $- =~ i ]]
+then
   stty -ixoff -ixon
 fi
 
 # Use SHM for storing sensitive information
 # --------------------------------------------------------------------
-if [[ "$(uname)" =~ "Darwin" ]]; then
+if [[ "$(uname)" =~ "Darwin" ]]
+then
   export SHM=$HOME/.vault
 else
   export SHM=/dev/shm/$USER
 fi
-if [ ! -d "$SHM" ]; then
+if [ ! -d "$SHM" ]
+then
   mkdir $SHM
   chmod 700 $SHM
 fi
 
 # Enable shell completion
-if [[ -f /etc/${SH}_completion ]]; then
+if [[ -f /etc/${SH}_completion ]]
+then
   source /etc/${SH}_completion
-elif [[ -f /usr/local/etc/${SH}_completion ]]; then
+elif [[ -f /usr/local/etc/${SH}_completion ]]
+then
   source /usr/local/etc/${SH}_completion
 fi
 
 # Enable k8s completion
 # --------------------------------------------------------------------
-if [[ $(which kubectl 2>/dev/null) ]]; then
+if [[ $(which kubectl 2>/dev/null) ]]
+then
   source <(kubectl completion $SH)
 fi
 
-## Set variable identifying the chroot you work in (used in the prompt below)
-## -----------------------------------------------------
-#if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
-#  debian_chroot=$(cat /etc/debian_chroot)
-#fi
-#
-## Set a fancy prompt (non-color, unless we know we "want" color)
-## -----------------------------------------------------
-#case "$TERM" in
-#  xterm-color|*-256color) color_prompt=yes;;
-#esac
-
-# Uncomment for a colored prompt, if the terminal has the capability; turned
-# off by default to not distract the user: the focus in a terminal window
-# should be on the output of commands, not on the prompt
-# --------------------------------------------------------------------
-force_color_prompt=yes
-
-if [ -n "$force_color_prompt" ]; then
-  if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
-    # We have color support; assume it's compliant with Ecma-48
-    # (ISO/IEC-6429). (Lack of such support is extremely rare, and such
-    # a case would tend to support setf rather than setaf.)
-    color_prompt=yes
-  else
-    color_prompt=
-  fi
-fi
-
-if [ "$color_prompt" = yes ]; then
-  PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
-else
-  PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
-fi
-unset color_prompt force_color_prompt
-
-# If this is an xterm set the title to user@host:dir
-# --------------------------------------------------------------------
-case "$TERM" in
-  xterm*|rxvt*)
-    PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
-    ;;
-  *)
-    ;;
-esac
-
 # Enable color support of ls and also add handy aliases
 # --------------------------------------------------------------------
-if [ -x /usr/bin/dircolors ]; then
+if [ -x /usr/bin/dircolors ]
+then
   test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
 fi
 
-
 # Ancillary functionality
 # --------------------------------------------------------------------
-if [[ -n $JSH_CUSTOM && -f $JSH_CUSTOM ]]; then
+if [[ -n $JSH_CUSTOM && -f $JSH_CUSTOM ]]
+then
   source $JSH_CUSTOM
 fi
 
@@ -168,16 +132,20 @@ prompt_cmd() {
   local git="${purple}\$(git branch 2>/dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/')${reset}"
   local host="${yellow}\h${reset}"
   local user="${orange}\u${reset}"
-  if [[ -n "$WORKSPACE" ]]; then
+  if [[ -n "$WORKSPACE" ]]
+  then
     local workspace="${red}[$WORKSPACE]${reset}"
   fi
-  if [[ -n $PROMPT_CUSTOM ]]; then
+  if [[ -n $PROMPT_CUSTOM ]]
+  then
     PS1=${PROMPT_CUSTOM}
   else
-    if [[ $PROMPT == 'mini' ]]; then
+    if [[ $PROMPT == 'mini' ]]
+    then
       local prompt="${ret}${prompt_symbol} ${reset}"
       PS1="${prompt}${dir}${git}${workspace} "
-    elif [[ $PROMPT == 'full' ]]; then
+    elif [[ $PROMPT == 'full' ]]
+    then
       local prompt="${ret}└─╼ ${reset}"
       PS1="${bold}┌─[${reset}${user}@${host}:${dir}${git}${bold}]${reset}${workspace}\n${prompt}"
     else
@@ -193,7 +161,8 @@ export PROMPT_COMMAND=prompt_cmd
 
 # Colourize tool for more elaborate coloring
 # --------------------------------------------------------------------
-if [[ $(which grc 2>/dev/null) ]]; then
+if [[ $(which grc 2>/dev/null) ]]
+then
   alias colorize="$(which grc) -es --colour=auto"
   alias as='colorize as'
   alias configure='colorize ./configure'
@@ -219,9 +188,9 @@ fi
 # --------------------------------------------------------------------
 if ls --help 2>&1 | grep -q -- --color
 then
-  alias ls='ls --color=auto -F'
+  alias ls='ls --color=auto -F -N'
 else
-  alias ls='ls -FG'
+  alias ls='ls -FG -N'
 fi
 
 # Assorted
@@ -1217,7 +1186,8 @@ lsgrep () { ls | grep "$*" ; }
 # show the n most used commands. defaults to 10
 # ------------------------------------------------------------
 hstats() {
-  if [[ $# -lt 1 ]]; then
+  if [[ $# -lt 1 ]]
+  then
     NUM=10
   else
     NUM=${1}
@@ -1228,7 +1198,8 @@ hstats() {
 # extract: Extract most know archives with one command
 # ---------------------------------------------------------
 extract () {
-  if [ -f "$1" ] ; then
+  if [ -f "$1" ]
+  then
     case "$1" in
       *.tar.bz2)   tar xjf "$1"     ;;
       *.tar.gz)    tar xzf "$1"     ;;
@@ -1266,26 +1237,31 @@ del() {
 # mkiso: creates iso from current dir in the parent dir (unless defined)
 # ---------------------------------------------------------
 mkiso () {
-  if type "mkisofs" > /dev/null; then
-    if [ -z ${1+x} ]; then
+  if type "mkisofs" > /dev/null
+  then
+    if [ -z ${1+x} ]
+    then
       local isoname=${PWD##*/}
     else
       local isoname=$1
     fi
 
-    if [ -z ${2+x} ]; then
+    if [ -z ${2+x} ]
+    then
       local destpath=../
     else
       local destpath=$2
     fi
 
-    if [ -z ${3+x} ]; then
+    if [ -z ${3+x} ]
+    then
       local srcpath=${PWD}
     else
       local srcpath=$3
     fi
 
-    if [ ! -f "${destpath}${isoname}.iso" ]; then
+    if [ ! -f "${destpath}${isoname}.iso" ]
+    then
       echo "writing ${isoname}.iso to ${destpath} from ${srcpath}"
       mkisofs -V "${isoname}" -iso-level 3 -r -o "${destpath}${isoname}.iso" "${srcpath}"
     else
@@ -1302,7 +1278,8 @@ ff () { /usr/bin/find . -name "$@" ; }     # ff: Find file under the current dir
 ffs () { /usr/bin/find . -name "$@"'*' ; } # ffs: Find file whose name starts with a given string
 ffe () { /usr/bin/find . -name '*'"$@" ; } # ffe: Find file whose name ends with a given string
 bigfind() {
-  if [[ $# -lt 1 ]]; then
+  if [[ $# -lt 1 ]]
+  then
     echo_warn "Usage: bigfind DIRECTORY"
     return
   fi
@@ -1340,14 +1317,18 @@ ii() {
 # usage: disk usage per directory, in Mac OS X and Linux
 # -------------------------------------------------------------------
 usage () {
-  if [ "$(uname)" = "Darwin" ]; then
-    if [ -n "$1" ]; then
+  if [ "$(uname)" = "Darwin" ]
+  then
+    if [ -n "$1" ]
+    then
       du -hd 1 "$1"
     else
       du -hd 1
     fi
-  elif [ "$(uname)" = "Linux" ]; then
-    if [ -n "$1" ]; then
+  elif [ "$(uname)" = "Linux" ]
+  then
+    if [ -n "$1" ]
+    then
       du -h --max-depth=1 "$1"
     else
       du -h --max-depth=1
@@ -1358,7 +1339,8 @@ usage () {
 # viw: edit at source
 # -------------------------------------------------------------------
 viw() {
-  if [[ $# == 1 && -n $EDITOR ]]; then
+  if [[ $# == 1 && -n $EDITOR ]]
+  then
     $EDITOR $(which $1)
   fi
 }
