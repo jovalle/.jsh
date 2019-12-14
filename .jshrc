@@ -54,6 +54,14 @@ RESET=$(tput sgr0);            reset="\[\033[0m\]"
 # 2. Shell Enhancements
 # ---------------------------
 
+# Fix "command not found: compdef"
+# --------------------------------------------------------------------
+if [[ $SH == 'zsh' ]]
+then
+  autoload -Uz compinit
+  compinit
+fi
+
 # Show only two levels of pwd in prompt (Bash >=4 only)
 # --------------------------------------------------------------------
 PROMPT_DIRTRIM=2
@@ -190,7 +198,7 @@ if ls --help 2>&1 | grep -q -- --color
 then
   alias ls='ls --color=auto -F -N'
 else
-  alias ls='ls -FG -N'
+  alias ls='ls -FG'
 fi
 
 # Assorted
@@ -1284,6 +1292,17 @@ bigfind() {
     return
   fi
   du -a "$1" | sort -n -r | head -n 10
+}
+
+# git-reset-history: replace all commits with an initial commit
+# -------------------------------------------------------------------
+function git-reset-history {
+  git checkout --orphan TEMP_BRANCH && \
+  git add -A && \
+  git commit -m "Initial commit" && \
+  git branch -D master && \
+  git branch -m master && \
+  git push -f origin master
 }
 
 # ips: display all ip addresses for this host

@@ -34,20 +34,13 @@ declare -a brews=(
   "vim"
   "watch"
   "wget"
+  "zsh-completion"
 )
 
 # GUI programs to install with brew cask
 declare -a casks=(
-  "docker"
-  "google-chrome"
-  "iterm2"
   "java"
   "signal"
-  "slack"
-  "spotify"
-  "vagrant"
-  "visual-studio-code"
-  "zoomus"
 )
 
 # run installation of command-line programs
