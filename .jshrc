@@ -114,7 +114,6 @@ then
   source <(kubectl completion $SH)
 fi
 
-
 # Enable fzf bindings
 # --------------------------------------------------------------------
 if [[ -f /usr/share/doc/fzf/examples/key-bindings.$SH ]]

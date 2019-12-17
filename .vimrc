@@ -89,9 +89,19 @@ set shiftwidth=2
 set lbr
 set tw=500
 
+" Preferred indentation and formatting
 set ai "Auto indent
 set si "Smart indent
 set wrap "Wrap lines
+
+" Always paste mode
+set paste
+
+" Attach to clipboard (working in macOS)
+noremap y "*y
+noremap p "*p
+noremap Y "+y
+noremap P "+p
 
 " Visual mode pressing * or # searches for the current selection
 " Super useful! From an idea by Michael Naumann
@@ -106,6 +116,11 @@ map <c-space> ?
 set ttyfast
 set ttymouse=xterm2
 set mouse=a
+
+" Return to last known position
+if has("autocmd")
+  au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
+endif
 
 " Remove all trailing whitespace by pressing F5
 nnoremap <F5> :let _s=@/<Bar>:%s/\s\+$//e<Bar>:let @/=_s<Bar><CR>
@@ -134,9 +149,6 @@ Plug 'ctrlpvim/ctrlp.vim'                  " Add file mode w fzf
 
 " Initialize plugin system
 call plug#end()
-
-" Always paste mode
-set paste
 
 " For NerdTree
 
