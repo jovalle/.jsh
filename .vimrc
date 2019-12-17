@@ -113,16 +113,6 @@ nnoremap <F5> :let _s=@/<Bar>:%s/\s\+$//e<Bar>:let @/=_s<Bar><CR>
 " Remove all trailing whitespace on save
 autocmd BufWritePre * %s/\s\+$//e
 
-" For NerdTree
-
-" Starts NERDTree when nvim is called without arguments
-autocmd StdinReadPre * let s:std_in=1
-autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
-map <C-n> :NERDTreeToggle<CR>
-
-let g:NERDTreeDirArrowExpandable = '▸'
-let g:NERDTreeDirArrowCollapsible = '▾'
-
 " Install Vim Plug if not installed
 if empty(glob('~/.vim/autoload/plug.vim'))
   silent !curl -fLo ~/.vim/autoload/plug.vim --create-dirs
@@ -140,12 +130,23 @@ Plug 'vim-airline/vim-airline'             " For modern status line
 Plug 'vim-airline/vim-airline-themes'      " For status line beauty
 Plug 'erichdongubler/vim-sublime-monokai'  " Preferred colorscheme
 Plug 'w0rp/ale'                            " For live syntax review (requires vim >=8)
+Plug 'ctrlpvim/ctrlp.vim'                  " Add file mode w fzf
 
 " Initialize plugin system
 call plug#end()
 
 " Always paste mode
 set paste
+
+" For NerdTree
+
+" Starts NERDTree when nvim is called without arguments
+autocmd StdinReadPre * let s:std_in=1
+autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
+map <C-n> :NERDTreeToggle<CR>
+
+let g:NERDTreeDirArrowExpandable = '▸'
+let g:NERDTreeDirArrowCollapsible = '▾'
 
 " For netrw
 let g:netrw_browse_split=4  " open in prior window
@@ -158,13 +159,12 @@ let g:ale_completion_enabled = 1
 " Set this. Airline will handle the rest.
 let g:airline#extensions#ale#enabled = 1
 
-" Choose airline theme
-let g:airline_theme='base16_monokai'
+"" Choose airline theme
+"let g:airline_theme='base16_monokai'
 
-" Theme
-syntax enable
+" Enable ctrlp
 try
-  colorscheme sublimemonokai
+  set runtimepath^=~/.vim/bundle/ctrlp.vim
 catch
 endtry
 

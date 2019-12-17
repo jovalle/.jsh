@@ -114,6 +114,14 @@ then
   source <(kubectl completion $SH)
 fi
 
+
+# Enable fzf bindings
+# --------------------------------------------------------------------
+if [[ -f /usr/share/doc/fzf/examples/key-bindings.$SH ]]
+then
+  source /usr/share/doc/fzf/examples/key-bindings.$SH
+fi
+
 # Enable color support of ls and also add handy aliases
 # --------------------------------------------------------------------
 if [ -x /usr/bin/dircolors ]
