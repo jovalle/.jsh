@@ -97,11 +97,11 @@ set wrap "Wrap lines
 " Always paste mode
 set paste
 
-" Attach to clipboard (working in macOS)
-noremap y "*y
-noremap p "*p
-noremap Y "+y
-noremap P "+p
+" Attach to clipboard (<Leader> == \)
+noremap <Leader>y "*y
+noremap <Leader>p "*p
+noremap <Leader>Y "+y
+noremap <Leader>P "+p
 
 " Visual mode pressing * or # searches for the current selection
 " Super useful! From an idea by Michael Naumann
