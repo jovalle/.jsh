@@ -154,14 +154,10 @@ Plug 'ctrlpvim/ctrlp.vim'                  " Add file mode w fzf
 call plug#end()
 
 " For NerdTree
-
-" Starts NERDTree when nvim is called without arguments
 autocmd StdinReadPre * let s:std_in=1
 autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
+autocmd VimEnter * if argc() == 1 && isdirectory(argv()[0]) && !exists("s:std_in") | exe 'NERDTree' argv()[0] | wincmd p | ene | exe 'cd '.argv()[0] | endif
 map <C-n> :NERDTreeToggle<CR>
-
-let g:NERDTreeDirArrowExpandable = '▸'
-let g:NERDTreeDirArrowCollapsible = '▾'
 
 " For netrw
 let g:netrw_browse_split=4  " open in prior window
@@ -173,9 +169,6 @@ let g:ale_completion_enabled = 1
 
 " Set this. Airline will handle the rest.
 let g:airline#extensions#ale#enabled = 1
-
-"" Choose airline theme
-"let g:airline_theme='base16_monokai'
 
 " Enable ctrlp
 try
