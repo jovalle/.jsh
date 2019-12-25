@@ -30,26 +30,47 @@ export VISUAL=vim
 
 # Color palette
 # ----------------------------------------------------------
-BLACK=$(tput setaf 0); [[ $(uname) == "Darwin" ]] && black="\033[30m" || black="\[\033[30m\]"
-RED=$(tput setaf 1); [[ $(uname) == "Darwin" ]] && red="\033[31m" || red="\[\033[31m\]"
-GREEN=$(tput setaf 2); [[ $(uname) == "Darwin" ]] && green="\033[32m" || green="\[\033[32m\]"
-ORANGE=$(tput setaf 3); [[ $(uname) == "Darwin" ]] && orange="\033[33m" || orange="\[\033[33m\]"
-BLUE=$(tput setaf 4); [[ $(uname) == "Darwin" ]] && blue="\033[34m" || blue="\[\033[34m\]"
-PURPLE=$(tput setaf 5); [[ $(uname) == "Darwin" ]] && purple="\033[35m" || purple="\[\033[35m\]"
-CYAN=$(tput setaf 6); [[ $(uname) == "Darwin" ]] && cyan="\033[36m" || cyan="\[\033[36m\]"
-LIGHTGRAY=$(tput setaf 7); [[ $(uname) == "Darwin" ]] && lightgray="\033[37m" || lightgray="\[\033[37m\]"
-DARKGRAY=$(tput setaf 8); [[ $(uname) == "Darwin" ]] && darkgray="\033[90m" || darkgray="\[\033[90m\]"
-PINK=$(tput setaf 9); [[ $(uname) == "Darwin" ]] && pink="\033[91m" || pink="\[\033[91m\]"
-LIME=$(tput setaf 10); [[ $(uname) == "Darwin" ]] && lime="\033[92m" || lime="\[\033[92m\]"
-YELLOW=$(tput setaf 11); [[ $(uname) == "Darwin" ]] && yellow="\033[93m" || yellow="\[\033[93m\]"
-AQUA=$(tput setaf 12); [[ $(uname) == "Darwin" ]] && aqua="\033[94m" || aqua="\[\033[94m\]"
-LAVENDER=$(tput setaf 13); [[ $(uname) == "Darwin" ]] && lavender="\033[95m" || lavender="\[\033[95m\]"
-ICE=$(tput setaf 14); [[ $(uname) == "Darwin" ]] && ice="\033[96m" || ice="\[\033[96m\]"
-WHITE=$(tput setaf 15); [[ $(uname) == "Darwin" ]] && white="\033[97m" || white="\[\033[97m\]"
-BOLD=$(tput bold); [[ $(uname) == "Darwin" ]] && bold="\033[1m" || bold="\[\033[1m\]"
-UNDERLINE=$(tput smul); [[ $(uname) == "Darwin" ]] && underline="\[\033[4m" || underline="\[\033[4m\]"
-RESET=$(tput sgr0); [[ $(uname) == "Darwin" ]] && reset="\033[0m" || reset="\[\033[0m\]"
-
+if [[ $(uname) == 'Darwin' || $(command -v tput 2>/dev/null) ]]; then
+	black="\001$(tput setaf 0)\002"
+	red="\001$(tput setaf 1)\002"
+	green="\001$(tput setaf 2)\002"
+	orange="\001$(tput setaf 3)\002"
+	blue="\001$(tput setaf 4)\002"
+	purple="\001$(tput setaf 5)\002"
+	cyan="\001$(tput setaf 6)\002"
+	lightgray="\001$(tput setaf 7)\002"
+	darkgray="\001$(tput setaf 8)\002"
+	pink="\001$(tput setaf 9)\002"
+	lime="\001$(tput setaf 10)\002"
+	yellow="\001$(tput setaf 11)\002"
+	aqua="\001$(tput setaf 12)\002"
+	lavender="\001$(tput setaf 13)\002"
+	ice="\001$(tput setaf 14)\002"
+	white="\001$(tput setaf 15)\002"
+	bold="\001$(tput bold)\002"
+	underline="\001$(tput smul)\002"
+	reset="\001$(tput sgr0)\002"
+else
+	black="\[\033[30m\]"
+	red="\[\033[31m\]"
+	green="\[\033[32m\]"
+	orange="\[\033[33m\]"
+	blue="\[\033[34m\]"
+	purple="\[\033[35m\]"
+	cyan="\[\033[36m\]"
+	lightgray="\[\033[37m\]"
+	darkgray="\[\033[90m\]"
+	pink="\[\033[91m\]"
+	lime="\[\033[92m\]"
+	yellow="\[\033[93m\]"
+	aqua="\[\033[94m\]"
+	lavender="\[\033[95m\]"
+	ice="\[\033[96m\]"
+	white="\[\033[97m\]"
+	bold="\[\033[1m\]"
+	underline="\[\033[4m\]"
+	reset="\[\033[0m\]"
+fi
 
 # --------------------------------------------------------------------
 # 2. Shell Enhancements
@@ -67,12 +88,9 @@ quiet() { [[ $# == 0 ]] && &> /dev/null || "$*" &> /dev/null ; }
 # ----------------------------------------------------------
 PROMPT_DIRTRIM=2
 
-# Rid PATH of duplicates (https://www.linuxjournal.com/content/removing-duplicate-path-entries)
+# Rid PATH of duplicates
 # ----------------------------------------------------------
-if echo -n $PATH | awk -v RS=: '!($0 in a) {a[$0]; printf("%s%s", length(a) > 1 ? ":" : "", $0)}' | quiet
-then
-  export PATH=$(echo -n $PATH | awk -v RS=: '!($0 in a) {a[$0]; printf("%s%s", length(a) > 1 ? ":" : "", $0)}')
-fi
+export PATH=$(echo "$PATH" | tr ':' '\n' | sort -u | tr '\n' ':' | sed 's/:$//g')
 
 # Enable vi mode
 # ----------------------------------------------------------
@@ -357,6 +375,24 @@ buf() {
   cp -a "${filename}" "${filename}_${filetime}"
 }
 
+# duh: Disk usage per directory, sorted by ascending size
+# ----------------------------------------------------------
+duh() {
+  if [[ $(uname) == "Darwin" ]]; then
+    if [[ -n $1 ]]; then
+      du -hd 1 "$1" | sort -h
+    else
+      du -hd 1 | sort -h
+    fi
+  elif [[ $(uname) == Linux ]]; then
+    if [[ -n $1 ]]; then
+      du -h --max-depth=1 "$1" | sort -h
+    else
+      du -h --max-depth=1 | sort -h
+    fi
+  fi
+}
+
 # extract: Extract most know archives with one command
 # ----------------------------------------------------------
 extract() {
@@ -512,24 +548,6 @@ myip() {
 # ----------------------------------------------------------
 myps() {
   ps "$@" -u "$USER" -o pid,%cpu,%mem,start,time,bsdtime,command
-}
-
-# usage: Disk usage per directory, in Mac OS X and Linux
-# ----------------------------------------------------------
-usage() {
-  if [[ $(uname) == "Darwin" ]]; then
-    if [[ -n $1 ]]; then
-      du -hd 1 "$1"
-    else
-      du -hd 1
-    fi
-  elif [[ $(uname) == Linux ]]; then
-    if [[ -n $1 ]]; then
-      du -h --max-depth=1 "$1"
-    else
-      du -h --max-depth=1
-    fi
-  fi
 }
 
 # viw: Edit at source
