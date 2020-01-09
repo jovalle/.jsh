@@ -1,8 +1,16 @@
 "  Be sure to have both curl and git installed on the machine.If you don't
 "  plugins will NOT be installed and notices will be shown ;)
 
+" Enable syntax
+syntax on
+
 " Enable 256 colors palette
 set t_Co=256
+
+" 24-bit true color
+if (has("termguicolors"))
+ set termguicolors
+endif
 
 " Set dark bg for tmux compatibility
 set background=dark
@@ -51,12 +59,6 @@ set magic
 " Show matching brackets when text indicator is over them
 set showmatch
 
-" How many tenths of a second to blink when matching brackets
-set mat=2
-
-" Enable row numbers
-" set number
-
 " No annoying sound on errors
 set noerrorbells
 set novisualbell
@@ -69,7 +71,7 @@ set encoding=utf8
 " Use Unix as the standard file type
 set ffs=unix,dos,mac
 
-" Turn backup off, since most stuff is in SVN, git et.c anyway...
+" Turn backup off, since most stuff is in SVN, git, etc. anyway...
 set nobackup
 set nowb
 set noswapfile
@@ -80,7 +82,7 @@ set expandtab
 " Be smart when using tabs ;)
 set smarttab
 
-" 1 tab == 4 spaces
+" 1 tab == 2 spaces
 set tabstop=2
 set softtabstop=2
 set shiftwidth=2
@@ -116,7 +118,6 @@ map <space> /
 map <c-space> ?
 
 " Enable mouse
-set ttyfast
 set ttymouse=xterm2
 set mouse=a
 
@@ -124,9 +125,6 @@ set mouse=a
 if has("autocmd")
   au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
 endif
-
-" Remove all trailing whitespace by pressing F5
-nnoremap <F5> :let _s=@/<Bar>:%s/\s\+$//e<Bar>:let @/=_s<Bar><CR>
 
 " Remove all trailing whitespace on save
 autocmd BufWritePre * %s/\s\+$//e
@@ -139,16 +137,12 @@ if empty(glob('~/.vim/autoload/plug.vim'))
 endif
 
 call plug#begin('~/.vim/plugged')
-Plug 'airblade/vim-gitgutter'              " Keeps track of git changes
+Plug 'tpope/vim-surround'                  " Show start/end of any surroundings
 Plug 'hashivim/vim-terraform'              " For terraform syntax
+Plug 'w0rp/ale'                            " For live syntax review (requires vim >=8)
 Plug 'junegunn/fzf'                        " Fuzzy finder (search algo)
 Plug 'scrooloose/nerdtree'                 " For NerdTree file explorer
-Plug 'tpope/vim-surround'                  " Show start/end of any surroundings
 Plug 'vim-airline/vim-airline'             " For modern status line
-Plug 'vim-airline/vim-airline-themes'      " For status line beauty
-Plug 'erichdongubler/vim-sublime-monokai'  " Preferred colorscheme
-Plug 'w0rp/ale'                            " For live syntax review (requires vim >=8)
-Plug 'ctrlpvim/ctrlp.vim'                  " Add file mode w fzf
 
 " Initialize plugin system
 call plug#end()
@@ -169,12 +163,6 @@ let g:ale_completion_enabled = 1
 
 " Set this. Airline will handle the rest.
 let g:airline#extensions#ale#enabled = 1
-
-" Enable ctrlp
-try
-  set runtimepath^=~/.vim/bundle/ctrlp.vim
-catch
-endtry
 
 " python
 autocmd FileType python setlocal shiftwidth=4 softtabstop=4 expandtab
