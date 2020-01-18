@@ -18,14 +18,14 @@
 # --------------------------------------------------------------------
 
 export BASH_SILENCE_DEPRECATION_WARNING=1
-export EDITOR='vim'
+export EDITOR=vim
 export GPG_TTY=$(tty)
 export GOPATH=$HOME/go
 export JSH=$HOME/.jsh
-export JSH_CUSTOM="$HOME/.jsh_local"
+export JSH_CUSTOM=$HOME/.jsh_local
 export PATH=$HOME/.bin:$PATH
-export SH=$(echo $SHELL | awk -F'/' '{print $NF}')
-export TERM="xterm-256color"
+export SH=${SHELL##*/}
+export TERM=xterm-256color
 export VISUAL=vim
 
 # Color palette
@@ -72,6 +72,7 @@ else
 	reset="\[\033[0m\]"
 fi
 
+
 # --------------------------------------------------------------------
 # 2. Shell Enhancements
 # --------------------------------------------------------------------
@@ -98,7 +99,7 @@ set -o vi
 
 # Disable CTRL-S and CTRL-Q
 # ----------------------------------------------------------
-[[ $- =~ i ]] && stty -ixoff -ixon
+[[ $- =~ i && $SH == 'bash' ]] && stty -ixoff -ixon
 
 # Use SHM for storing sensitive information
 # ----------------------------------------------------------
@@ -107,13 +108,13 @@ if [[ "$(uname)" =~ "Darwin" ]]; then
 else
   export SHM=/dev/shm/$USER
 fi
-if [ ! -d "$SHM" ]
-then
+if [[ ! -d "$SHM" ]]; then
   mkdir $SHM
   chmod 700 $SHM
 fi
 
 # Enable shell completion
+# ----------------------------------------------------------
 if [[ -f /etc/${SH}_completion ]]; then
   source /etc/${SH}_completion
 elif [[ -f /usr/local/etc/${SH}_completion ]]; then
@@ -122,20 +123,24 @@ fi
 
 # Enable k8s completion
 # ----------------------------------------------------------
-if [[ $(which kubectl 2>/dev/null) ]]; then
+if command -v &>/dev/null
+then
   source <(kubectl completion $SH)
 fi
 
-# Enable fzf bindings
+# Enable fzf 
 # ----------------------------------------------------------
-if [[ -f /usr/share/doc/fzf/examples/key-bindings.$SH ]]; then
-  source /usr/share/doc/fzf/examples/key-bindings.$SH
+if [[ -d /usr/local/opt/fzf/bin ]]; then
+  if [[ ! "$PATH" == */usr/local/opt/fzf/bin* ]]; then
+    export PATH="${PATH:+${PATH}:}/usr/local/opt/fzf/bin"
+  fi
+  [[ $- == *i* ]] && source "/usr/local/opt/fzf/shell/completion.$SH" 2>/dev/null
+  source "/usr/local/opt/fzf/shell/key-bindings.$SH"
 fi
 
 # Enable color support of ls and also add handy aliases
 # ----------------------------------------------------------
-if [ -x /usr/bin/dircolors ]
-then
+if [[ -x /usr/bin/dircolors ]]; then
   test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
 fi
 
@@ -174,7 +179,8 @@ prompt_cmd() {
     fi
   fi
 }
-export PROMPT_COMMAND=prompt_cmd
+[[ $SH == 'bash' ]] && export PROMPT_COMMAND=prompt_cmd || unset PROMPT_COMMAND
+
 
 # --------------------------------------------------------------------
 # 4. Aliases
@@ -215,8 +221,8 @@ fi
 # Assorted
 # ----------------------------------------------------------
 alias -- -='cd -' # Return to base dir
-alias ...='cd ../../' # Go back 2 directory levels
 alias ..='cd ../' # Go back 1 directory level
+alias ...='cd ../../' # Go back 2 directory levels
 alias .3='cd ../../../' # Go back 3 directory levels
 alias .4='cd ../../../../' # Go back 4 directory levels
 alias .5='cd ../../../../../' # Go back 5 directory levels
@@ -233,28 +239,30 @@ alias av='ansible-vault' # Abbreviation
 alias c='clear' # c: Clear terminal display
 alias cd..='cd ../' # Go back 1 directory level (for fast typers)
 alias cic='set completion-ignore-case On' # cic: Make tab-completion case-insensitive
-alias curl='curl -w "\n"'
 alias cp='cp -iv' # Preferred 'cp' implementation
+alias curl='curl -w "\n"'
 alias d='dirs -v | head -10' # Display dir
+alias dud='du -d 1 -h' # Short and human-readable file listing
+alias duf='du -sh *' # Short and human-readable directory listing
 alias fix_stty='stty sane' # fix_stty: Restore terminal settings when screwed up
 alias g='git' # Abbreviation
 alias gdiff='git diff --name-only master' # List files changed in this branch compared to master
 alias gdiffcp='gdiff | xargs -I{} rsync --relative {}' # Copy modified files to another dir
 alias gitv='git log --graph --format="%C(auto)%h%d %s %C(black)%C(bold)%cr"' # Beautify logs
 alias glances='glances -1 -t 0.5' # Faster output from glances
-alias grep="grep --color=auto -i" # Preferred 'grep' implementation
-alias k="kubectl" # Abbreviate kube control
+alias grep='grep --color=auto -i' # Preferred 'grep' implementation
+alias k='kubectl' # Abbreviate kube control
 alias kaf='kubectl apply -f' # Apply k8s manifest
-alias keti='kubectl exec -it' # Open terminal into pod
+alias kctx='kubectx' # Change kube context
 alias kdel='kubectl delete' # Delete resource
-alias kgp='kubectl get pods' # List all pods in ps output format
-alias kdp='kubectl describe pods' # Describe all pods
 alias kdelp='kubectl delete pods' # Delete all pods matching passed arguments
+alias kdp='kubectl describe pods' # Describe all pods
+alias keti='kubectl exec -it' # Open terminal into pod
 alias kgd='kubectl get deployments' # Get the deployment
-alias kctx="kubectx" # Change kube context
-alias kns="kubens" # Change kube namespace
-alias kres="kubectl api-resources --verbs=list --namespaced -o name | grep -v "events.events.k8s.io" | grep -v "events" | sort | uniq" # Get all possible kinds
-alias kver="kubectl api-versions" # List all APIs
+alias kgp='kubectl get pods' # List all pods in ps output format
+alias kns='kubens' # Change kube namespace
+alias kres='kubectl api-resources --verbs=list --namespaced -o name | grep -v "events.events.k8s.io" | grep -v "events" | sort | uniq' # Get all possible kinds
+alias kver='kubectl api-versions' # List all APIs
 alias less='less -FSRXc' # Preferred 'less' implementation
 alias make10mb='truncate -s 10m ./10MB.dat' # make10mb: Creates a file of 10mb size (all zeros)
 alias make1mb='truncate -s 1m ./1MB.dat' # make1mb: Creates a file of 1mb size (all zeros)
@@ -269,15 +277,18 @@ alias numFiles='echo $(ls -1 | wc -l)' # numFiles: Count of non-hidden files in 
 alias pass='openssl passwd -1' # pass: Generate salted hash for passwords
 alias path='echo -e ${PATH//:/\\n}' # path: Echo all executable Paths
 alias perm='stat --printf "%a %n \n "' # perm: Show permission of target in number
-alias proxy="http_proxy=${PROXY_ENDPOINT} https_proxy=${PROXY_ENDPOINT} no_proxy=${PROXY_EXCEPTION}" # proxy: set as per env and on command
-alias please='sudo' # Politely ask for superuser
-alias qfind="find . -name " # qfind: Quickly search for file
+alias pip='pip3'
+alias please='sudo ' # Politely ask for superuser
+alias proxy='http_proxy=$PROXY_ENDPOINT https_proxy=$PROXY_ENDPOINT no_proxy=$PROXY_EXCEPTION' # proxy: set as per env and on command
+alias python='python3'
+alias qfind='find . -name ' # qfind: Quickly search for file
 alias rd='rmdir' # Remove directory (no force)
 alias show_options='shopt' # Show_options: display bash options settings
-alias sshx='eval $(ssh-agent) && ssh-add 2>/dev/null' # sshx: Import SSH keys
 alias src='source ~/.jshrc' # src: Reload .jshrc file
+alias sshx='eval $(ssh-agent) && ssh-add 2>/dev/null' # sshx: Import SSH keys
+alias sudo='sudo '
 alias tf='terraform' # Abbreviation
-alias w='watch -n0.5 -d -t ' # Fast watch, highlight changes and no title
+alias w='watch -n1 -d -t ' # Faster watch, highlight changes and no title
 alias wget='wget -c' # Preferred 'wget' implementation (resume download)
 
 # Directory Listing aliases
@@ -296,12 +307,6 @@ alias lr='ls -lR' # recursive ls
 alias lt='ls -ltr' # sort by date
 alias lu='ls -lur' # sort by access time
 
-# lr: Full Recursive Directory Listing
-# ----------------------------------------------------------
-alias lr='ls -R | grep ":$" | sed -e '\''s/:$//'\'' -e '\''s/[^-][^\/]*\//--/g'\'' -e '\''s/^/ /'\'' -e '\''s/-/|/'\'' | less'
-alias dud='du -d 1 -h' # Short and human-readable file listing
-alias duf='du -sh *' # Short and human-readable directory listing
-
 # memHogsTop, memHogsPs: Find memory hogs
 # ----------------------------------------------------------
 alias memHogsTop='top -l 1 -o rsize | head -20'
@@ -313,18 +318,7 @@ alias cpu_hogs='ps wwaxr -o pid,stat,%cpu,time,command | head -10'
 
 # topForever: Continual 'top' listing (every 10 seconds)
 # ----------------------------------------------------------
-alias topForever='top -l 9999999 -s 10 -o cpu'
-
-# Networking
-# ----------------------------------------------------------
-alias netCons='lsof -i' # netCons: Show all open TCP/IP sockets
-alias lsock='sudo /usr/sbin/lsof -i -P' # lsock: Display open sockets
-alias lsockU='sudo /usr/sbin/lsof -nP | grep UDP' # lsockU: Display only open UDP sockets
-alias lsockT='sudo /usr/sbin/lsof -nP | grep TCP' # lsockT: Display only open TCP sockets
-alias ipInfo0='ifconfig getpacket en0' # ipInfo0: Get info on connections for en0
-alias ipInfo1='ifconfig getpacket en1' # ipInfo1: Get info on connections for en1
-alias openPorts='sudo lsof -i | grep LISTEN' # openPorts: All listening connections
-alias showBlocked='sudo ipfw list' # showBlocked: All ipfw rules inc/ blocked IPs
+alias topf='top -l 9999999 -s 10 -o cpu'
 
 # Date & Time Management
 # ----------------------------------------------------------
@@ -339,14 +333,6 @@ alias stamp='date "+%Y%m%d%a%H%M"'
 alias timestamp='date "+%Y%m%dT%H%M%S"'
 alias today='date +"%A, %B %-d, %Y"'
 alias weeknum='date +%V'
-
-# Web development
-# ----------------------------------------------------------
-alias apacheEdit='sudo edit /etc/httpd/httpd.conf' # apacheEdit: Edit httpd.conf
-alias apacheRestart='sudo apachectl graceful' # apacheRestart: Restart Apache
-alias editHosts='sudo edit /etc/hosts' # editHosts: Edit /etc/hosts file
-alias herr='tail /var/log/httpd/error_log' # herr: Tails HTTP error logs
-alias apacheLogs="less +F /var/log/apache2/error_log" # Apachelogs: Shows apache error logs
 
 
 # --------------------------------------------------------------------
@@ -380,6 +366,18 @@ buf() {
   filename=$1
   filetime=$(date +%Y%m%d_%H%M%S)
   cp -a "${filename}" "${filename}_${filetime}"
+}
+
+# curldebug: Download a web page and show info on what took time
+# ----------------------------------------------------------
+curldebug() {
+  /usr/bin/curl "$@" -o /dev/null -w "dns: %{time_namelookup} connect: %{time_connect} pretransfer: %{time_pretransfer} starttransfer: %{time_starttransfer} total: %{time_total}\\n"
+}
+
+# curlheader: Grabs headers from web page
+# ----------------------------------------------------------
+curlheader() {
+  /usr/bin/curl -I -L "$@"
 }
 
 # duh: Disk usage per directory, sorted by ascending size
@@ -452,18 +450,6 @@ hstats() {
   history | awk '{print $2}' | sort | uniq -c | sort -rn | head -"$NUM"
 }
 
-# httpDebug: Download a web page and show info on what took time
-# ----------------------------------------------------------
-httpDebug() {
-  /usr/bin/curl "$@" -o /dev/null -w "dns: %{time_namelookup} connect: %{time_connect} pretransfer: %{time_pretransfer} starttransfer: %{time_starttransfer} total: %{time_total}\\n"
-}
-
-# httpHeaders: Grabs headers from web page
-# ----------------------------------------------------------
-httpHeaders() {
-  /usr/bin/curl -I -L "$@"
-}
-
 # ii: Display useful host related informaton
 # ----------------------------------------------------------
 ii() {
@@ -490,12 +476,6 @@ ips() {
   else
     echo "You don't have ifconfig or ip command installed!"
   fi
-}
-
-# isitdown: Checks whether a website is down for you, or everybody
-# ----------------------------------------------------------
-isitdown() {
-  curl -s "http://www.downforeveryoneorjustme.com/$1" | sed '/just you/!d;s/<[^>]*>//g'
 }
 
 # lsgrep: Search through directory contents with grep
