@@ -1,6 +1,3 @@
-"  Be sure to have both curl and git installed on the machine.If you don't
-"  plugins will NOT be installed and notices will be shown ;)
-
 " Enable syntax
 syntax on
 
@@ -76,12 +73,6 @@ set nobackup
 set nowb
 set noswapfile
 
-" Use spaces instead of tabs
-set expandtab
-
-" Be smart when using tabs ;)
-set smarttab
-
 " 1 tab == 2 spaces
 set tabstop=2
 set softtabstop=2
@@ -143,8 +134,7 @@ Plug 'w0rp/ale'                            " For live syntax review (requires vi
 Plug 'junegunn/fzf'                        " Fuzzy finder (search algo)
 Plug 'scrooloose/nerdtree'                 " For NerdTree file explorer
 Plug 'vim-airline/vim-airline'             " For modern status line
-Plug 'vim-airline/vim-airline-themes'			 " Suite of themes
-
+Plug 'vim-airline/vim-airline-themes'      " Suite of themes
 
 " Initialize plugin system
 call plug#end()
@@ -198,3 +188,10 @@ au FileType yaml set ts=2 sts=2 sw=2 indentexpr= nosmartindent et
 au FileType yml set ts=2 sts=2 sw=2 indentexpr= nosmartindent et
 
 silent! helptags ALL
+
+" Use spaces instead of tabs
+set expandtab
+
+" Be smart when using tabs ;)
+set smarttab
+

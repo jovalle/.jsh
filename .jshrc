@@ -31,45 +31,45 @@ export VISUAL=vim
 # Color palette
 # ----------------------------------------------------------
 if [[ $(uname) == 'Darwin' || $(command -v tput 2>/dev/null) ]]; then
-	black="\001$(tput setaf 0)\002"
-	red="\001$(tput setaf 1)\002"
-	green="\001$(tput setaf 2)\002"
-	orange="\001$(tput setaf 3)\002"
-	blue="\001$(tput setaf 4)\002"
-	purple="\001$(tput setaf 5)\002"
-	cyan="\001$(tput setaf 6)\002"
-	lightgray="\001$(tput setaf 7)\002"
-	darkgray="\001$(tput setaf 8)\002"
-	pink="\001$(tput setaf 9)\002"
-	lime="\001$(tput setaf 10)\002"
-	yellow="\001$(tput setaf 11)\002"
-	aqua="\001$(tput setaf 12)\002"
-	lavender="\001$(tput setaf 13)\002"
-	ice="\001$(tput setaf 14)\002"
-	white="\001$(tput setaf 15)\002"
-	bold="\001$(tput bold)\002"
-	underline="\001$(tput smul)\002"
-	reset="\001$(tput sgr0)\002"
+  black="\001$(tput setaf 0)\002"
+  red="\001$(tput setaf 1)\002"
+  green="\001$(tput setaf 2)\002"
+  orange="\001$(tput setaf 3)\002"
+  blue="\001$(tput setaf 4)\002"
+  purple="\001$(tput setaf 5)\002"
+  cyan="\001$(tput setaf 6)\002"
+  lightgray="\001$(tput setaf 7)\002"
+  darkgray="\001$(tput setaf 8)\002"
+  pink="\001$(tput setaf 9)\002"
+  lime="\001$(tput setaf 10)\002"
+  yellow="\001$(tput setaf 11)\002"
+  aqua="\001$(tput setaf 12)\002"
+  lavender="\001$(tput setaf 13)\002"
+  ice="\001$(tput setaf 14)\002"
+  white="\001$(tput setaf 15)\002"
+  bold="\001$(tput bold)\002"
+  underline="\001$(tput smul)\002"
+  reset="\001$(tput sgr0)\002"
 else
-	black="\[\033[30m\]"
-	red="\[\033[31m\]"
-	green="\[\033[32m\]"
-	orange="\[\033[33m\]"
-	blue="\[\033[34m\]"
-	purple="\[\033[35m\]"
-	cyan="\[\033[36m\]"
-	lightgray="\[\033[37m\]"
-	darkgray="\[\033[90m\]"
-	pink="\[\033[91m\]"
-	lime="\[\033[92m\]"
-	yellow="\[\033[93m\]"
-	aqua="\[\033[94m\]"
-	lavender="\[\033[95m\]"
-	ice="\[\033[96m\]"
-	white="\[\033[97m\]"
-	bold="\[\033[1m\]"
-	underline="\[\033[4m\]"
-	reset="\[\033[0m\]"
+  black="\[\033[30m\]"
+  red="\[\033[31m\]"
+  green="\[\033[32m\]"
+  orange="\[\033[33m\]"
+  blue="\[\033[34m\]"
+  purple="\[\033[35m\]"
+  cyan="\[\033[36m\]"
+  lightgray="\[\033[37m\]"
+  darkgray="\[\033[90m\]"
+  pink="\[\033[91m\]"
+  lime="\[\033[92m\]"
+  yellow="\[\033[93m\]"
+  aqua="\[\033[94m\]"
+  lavender="\[\033[95m\]"
+  ice="\[\033[96m\]"
+  white="\[\033[97m\]"
+  bold="\[\033[1m\]"
+  underline="\[\033[4m\]"
+  reset="\[\033[0m\]"
 fi
 
 
@@ -128,7 +128,7 @@ then
   source <(kubectl completion $SH)
 fi
 
-# Enable fzf 
+# Enable fzf
 # ----------------------------------------------------------
 if [[ -d /usr/local/opt/fzf/bin ]]; then
   if [[ ! "$PATH" == */usr/local/opt/fzf/bin* ]]; then
@@ -280,7 +280,6 @@ alias perm='stat --printf "%a %n \n "' # perm: Show permission of target in numb
 alias pip='pip3'
 alias please='sudo ' # Politely ask for superuser
 alias proxy='http_proxy=$PROXY_ENDPOINT https_proxy=$PROXY_ENDPOINT no_proxy=$PROXY_EXCEPTION' # proxy: set as per env and on command
-alias python='python3'
 alias qfind='find . -name ' # qfind: Quickly search for file
 alias rd='rmdir' # Remove directory (no force)
 alias show_options='shopt' # Show_options: display bash options settings
@@ -557,6 +556,7 @@ vk() {
       read -s e_data
       echo ""
       echo $e_data > $target
+      chmod 600 $target
     fi
   else
     error "Usage: vk VAULT_NAME"
@@ -566,15 +566,15 @@ vk() {
 # ws: Change workspace
 # ----------------------------------------------------------
 ws() {
-	if [[ $# == 1 ]]; then
+  if [[ $# == 1 ]]; then
     export WORKSPACE=$1
   elif [[ $# > 1 ]]; then
-		error "Usage: ws WORKSPACE"
+    error "Usage: ws WORKSPACE"
   else
-    if [[ -n $DEFAULT_WORKSPACE ]]; then
+    if [[ -z $WORKSPACE && -n $DEFAULT_WORKSPACE ]]; then
       export WORKSPACE=$DEFAULT_WORKSPACE
     fi
-	fi
+  fi
 
   # Black box
   if [[ $(command -v setw 2>/dev/null) ]]; then
@@ -583,23 +583,28 @@ ws() {
 
   # Set ansible vault password
   if [[ $(command -v ansible-playbook 2>/dev/null) ]]; then
-    if [[ ! -z $WORKSPACE ]]; then
+    if [[ -n $WORKSPACE ]]; then
       [[ $(cat $SHM/.vault-$WORKSPACE) != '' ]] || vk $WORKSPACE
-      export ANSIBLE_VAULT_PASSWORD_FILE="$SHM/.vault-$WORKSPACE"
-      if [[ ! $(env | grep GIT_INV 2>/dev/null) ]]; then
+      if [[ -z $GIT_INV ]]; then
         if [[ $(git status 2>/dev/null) ]]; then
           GIT_INV=$(pwd)/inv
         else
           GIT_INV=./inv
         fi
       fi
-      alias a="ansible -i $GIT_INV/$WORKSPACE"
-      alias ap="ansible-playbook -i $GIT_INV/$WORKSPACE"
+      if [[ -d $GIT_INV/$WORKSPACE ]]; then
+        export ANSIBLE_INVENTORY="$GIT_INV/$WORKSPACE"
+      else
+        error "Ansible inventory $GIT_INV/$WORKSPACE not found!"
+      fi
+      if [[ -f $SHM/.vault-$WORKSPACE ]]; then
+        export ANSIBLE_VAULT_PASSWORD_FILE="$SHM/.vault-$WORKSPACE"
+      else
+        error "Ansible vault password file $SHM/.vault-$WORKSPACE not found!"
+      fi
     else
+      unset ANSIBLE_INVENTORY
       unset ANSIBLE_VAULT_PASSWORD_FILE
-      unalias a ap
-      alias a=ansible
-      alias ap=ansible-playbook
     fi
   fi
 }
