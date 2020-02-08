@@ -54,7 +54,7 @@ install() {
   for t in ${TARGETS[@]}; do
     TS=$(date '+%F')
     if [[ ! -f $HOME/$t && ! -d $HOME/$t ]]; then
-      info "${BLUE}$HOME/$t -> $JSH/$t${NORMAL}"
+      info "$HOME/$t -> $JSH/$t"
       ln -s $JSH/$t $HOME/$t
     else
       if [[ -L $HOME/$t ]]; then
