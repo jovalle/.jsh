@@ -1,68 +1,77 @@
 #!/usr/bin/env bash
 
-MODE=none
+#
+# j.sh - Shell augmentation tool
+# Released under the MIT License.
+#
+# https://github.com/jovalle/.jsh
+#
+
+[[ -z "$JSH" ]] && JSH=$HOME/.jsh
+
+VERSION="0.1.8"
+NO_BACKUP=0
 TARGETS=(
   ".bin"
   ".gitconfig"
   ".inputrc"
   ".jshrc"
+  ".oh-my-zsh"
+  ".p10k.zsh"
   ".sshrc"
   ".tmux.conf"
-  ".vimrc"
   ".vim"
+  ".vimrc"
+  ".zshrc"
 )
 
-if [[ -z "$JSH" ]]
-then
-  JSH=$HOME/.jsh
-fi
-
-if which tput >/dev/null 2>&1
-then
-    ncolors=$(tput colors)
-fi
-if [[ -t 1 ]] && [[ -n "$ncolors" ]] && [[ "$ncolors" -ge 8 ]]
-then
-  RED="$(tput setaf 1)"
-  GREEN="$(tput setaf 2)"
-  YELLOW="$(tput setaf 3)"
-  BLUE="$(tput setaf 4)"
-  BOLD="$(tput bold)"
-  NORMAL="$(tput sgr0)"
-else
-  RED=""
-  GREEN=""
-  YELLOW=""
-  BLUE=""
-  BOLD=""
-  NORMAL=""
-fi
-
+# Output usage information
 usage() {
-  echo "Usage:"
-  echo "  j.sh [flags]"
-  echo "Options:"
-  echo "  install    update bash, vim, tmux configs for jsh"
-  echo "  uninstall  remove all changes for jsh"
+  cat <<-EOF
+  Usage: j.sh command [options]
+  Commands:
+    install              replace shell, vim, tmux configs with jsh symlinks
+    remove               remove jsh symlinks and restore from backups
+  Options:
+    -V, --version        output program version
+    -h, --help           output help information
+    -np, --no-backup     skip backup creation/restoration
+EOF
 }
 
+# Output color-coded message
+abort() { echo ; echo "${red}$@${reset}" 1>&2; exit 1 ; }
+error() { echo -e $(tput setaf 1)$@$(tput sgr0); return 1 ; }
+warn() { echo -e $(tput setaf 3)$@$(tput sgr0) ; }
+success() { echo -e $(tput setaf 2)$@$(tput sgr0) ; }
+info() { echo -e $(tput setaf 4)$@$(tput sgr0) ; }
+
+# Output version
+version() { echo $VERSION ; }
+
+# Install targets
 install() {
   for t in ${TARGETS[@]}; do
+    TS=$(date '+%F')
     if [[ ! -f $HOME/$t && ! -d $HOME/$t ]]; then
-      echo "${BLUE}$HOME/$t -> $JSH/$t${NORMAL}"
+      info "${BLUE}$HOME/$t -> $JSH/$t${NORMAL}"
       ln -s $JSH/$t $HOME/$t
     else
       if [[ -L $HOME/$t ]]; then
         unlink $HOME/$t
         ln -s $JSH/$t $HOME/$t
+      elif [[ -f $HOME/$t || -d $HOME/$t ]]; then
+        mv $HOME/$t $HOME/${t}-${TS}
+        success Backing up $HOME/$t to $HOME/${t}-${TS}
+        ln -s $JSH/$t $HOME/$t
       else
-        echo "${RED}File found for $HOME/$t. Please backup and remove before executing j.sh${NORMAL}"
+        warn File found for $HOME/$t. Please backup and remove before executing j.sh
         exit
       fi
     fi
   done
 
-  printf '%s'   "$YELLOW"
+  printf '%s'   "$(tput setaf 6)"
   printf '%s\n' '          _____                _____       __     __        '
   printf '%s\n' '         |\    \_         _____\    \     /  \   /  \       '
   printf '%s\n' '         \ \     \       /    / \    |   /   /| |\   \      '
@@ -77,41 +86,58 @@ install() {
   printf '%s\n' 'jsh is shell agnostic. Update your shell profile (i.e. .bash_profile) to include sourcing .jshrc and reload your shell'
   printf '%s\n' 'Sample .bash_profile:'
   printf '%s\n' '[[ -f ~/.jshrc ]] && . ~/.jshrc'
-  printf '%s'   "$NORMAL"
+  printf '%s'   "$(tput sgr0)"
 }
 
-uninstall() {
+# Revert targets
+remove() {
   read -r -p "Are you sure you want to remove jsh? [y/N] " confirmation
-  if [[ "$confirmation" != y ]] && [[ "$confirmation" != Y ]]
-  then
-    echo "${ORANGE}Uninstall cancelled${NORMAL}"
-    exit
+  if [[ "$confirmation" != y ]] && [[ "$confirmation" != Y ]]; then
+    abort Removal process cancelled by user
   else
     for t in ${TARGETS[@]}; do
-      unlink $HOME/$t
-      if [[ $? == 0 ]]; then
-        echo "${GREEN}Symlink at $HOME/$t removed.${NORMAL}"
-      else
-        echo "${YELLOW}Symlink at $HOME/$t not found. Ignoring.${NORMAL}"
+
+      # check for and remove files
+      if [[ -L $HOME/$t ]]; then
+        unlink $HOME/$t && \
+          success Symlink at $HOME/$t removed. || \
+          warn Symlink at $HOME/$t not found. Ignoring
       fi
+
+      # Delete instead of restoring from backup
+      if [[ $NO_BACKUP == 1 ]]; then
+        warn Backup restoration skipped by user
+        if [[ -f $HOME/$t || -d $HOME/$t ]]; then
+          rm -rf $HOME/$t && success Deleted $HOME/$t
+        fi
+      else
+        # get backup file/dir with latest timestamp
+        LATEST_BACKUP=$(ls -d ${HOME}/${t}-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] 2>/dev/null | tail -n 1)
+        if [[ -f $LATEST_BACKUP || -d $LATEST_BACKUP ]]; then
+          if [[ -f $HOME/$t || -d $HOME/$t ]]; then
+            warn Non-symlink found at $HOME/$t. Cannot overwrite with backup from $LATEST_BACKUP. Moving on.
+          else
+            mv $LATEST_BACKUP $HOME/$t && success Backup at $HOME/$t restored from $LATEST_BACKUP
+          fi
+        fi
+      fi
+
     done
+
+    success "jsh removed"
   fi
-  printf '%s\n' 'Uninstalled. Revert your shell profile (i.e. .bash_profile) and reload your shell.'
 }
 
-if [[ $# == 1 ]]
-then
-  if [[ $1 == 'install' ]]
-  then
-    MODE=install
-    install
-  elif [[ $1 == 'uninstall' ]]
-  then
-    MODE=uninstall
-    uninstall
-  else
-    usage
-  fi
-else
-  usage
-fi
+# Parse argv
+while test $# -ne 0; do
+  arg=$1
+  shift
+  case $arg in
+    -h|--help) usage; exit ;;
+    -v|--version) version; exit ;;
+    -nb|--no-backup) NO_BACKUP=1; ;;
+    install) install; ;;
+    remove) remove; ;;
+    *) usage; exit ;;
+  esac
+done
