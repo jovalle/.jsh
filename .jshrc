@@ -20,10 +20,9 @@
 export BASH_SILENCE_DEPRECATION_WARNING=1
 export EDITOR=vim
 export GPG_TTY=$(tty)
-export GOPATH=$HOME/go
 export JSH=$HOME/.jsh
 export JSH_CUSTOM=$HOME/.jsh_local
-export PATH=$HOME/.bin:$PATH
+export PATH=$HOME/.bin:$HOME/.local/bin:$PATH
 export PYTHONDONTWRITEBYTECODE=1
 export SH=${SHELL##*/}
 export TERM=xterm-256color
@@ -133,6 +132,22 @@ if [[ -d /usr/local/opt/fzf/bin ]]; then
   fi
   [[ $- == *i* ]] && source "/usr/local/opt/fzf/shell/completion.$SH" 2>/dev/null
   source "/usr/local/opt/fzf/shell/key-bindings.$SH"
+elif [[ -f ~/.fzf.${SH} ]]; then
+  source ~/.fzf.${SH}
+fi
+
+# Enable go
+# ----------------------------------------------------------
+if [[ -z $GOROOT || ! -d $GOROOT ]]; then
+  export GOROOT=/usr/local/go
+  mkdir -p $GOROOT
+fi
+if [[ -z $GOPATH || ! -d $GOPATH ]]; then
+  export GOPATH=$HOME/.go
+  mkdir -p $GOPATH
+fi
+if [[ -n $GOPATH && -n $GOROOT ]]; then
+  export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
 fi
 
 # Enable color support of ls and also add handy aliases
