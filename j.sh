@@ -15,6 +15,7 @@ TARGETS=(
   ".bin"
   ".gitconfig"
   ".inputrc"
+  ".fzf"
   ".jshrc"
   ".oh-my-zsh"
   ".p10k.zsh"
