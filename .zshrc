@@ -78,9 +78,6 @@ ZSH_CUSTOM=$HOME/.jsh/custom
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(git)
 
-source $ZSH/oh-my-zsh.sh
-[[ -f $HOME/.jshrc ]] && source $HOME/.jshrc
-
 # User configuration
 
 # export MANPATH="/usr/local/man:$MANPATH"
@@ -107,5 +104,14 @@ source $ZSH/oh-my-zsh.sh
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
-# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+# shell agnostic enchancements
+[[ -f $HOME/.jshrc ]] && source $HOME/.jshrc
+
+SOURCE_FILES=(
+  $JSH/.oh-my-zsh/oh-my-zsh.sh # zsh revamp
+  $JSH/.p10k.zsh # powerline10k theme
+  $JSH/custom/zsh-autosuggestions/zsh-autosuggestions.zsh # fish-like suggestions
+  $JSH/custom/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh # fish-like syntax color coding
+)
+
+src $SOURCE_FILES # batch source zsh scripts
