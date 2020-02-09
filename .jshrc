@@ -479,6 +479,17 @@ ii() {
   echo
 }
 
+# inv: Move to ansible inventory if defined
+# ----------------------------------------------------------
+inv() {
+  if [[ -n $ANSIBLE_INVENTORY ]]; then
+    cd $ANSIBLE_INVENTORY
+    if [[ $# == 1 ]]; then
+      cd $(git rev-parse --show-toplevel)
+    fi
+  fi
+}
+
 # ips: Display all ip addresses for this host
 # ----------------------------------------------------------
 ips() {
@@ -564,11 +575,13 @@ viw() {
 # ----------------------------------------------------------
 vk() {
   [[ -z $SHM ]] && error "$SHM not set"
-  if [[ $# == 1 ]]; then
+  [[ -n $WORKSPACE ]] && VAULT=$WORKSPACE
+  [[ $# == 1 ]] && VAULT=$1
+  if [[ -n $VAULT ]]; then
     local e_data
-    local target="$SHM/.vault-$1"
+    local target="$SHM/.vault-$VAULT"
     if [[ ! -f "" ]]; then
-      echo -n "Input key for $1: "
+      echo -n "Input key for $VAULT: "
       read -s e_data
       echo ""
       echo $e_data > $target
@@ -589,12 +602,15 @@ ws() {
   else
     if [[ -z $WORKSPACE && -n $DEFAULT_WORKSPACE ]]; then
       export WORKSPACE=$DEFAULT_WORKSPACE
+    else
+      error "Usage: ws WORKSPACE"
     fi
   fi
 
   # Black box
   if [[ $(command -v setw 2>/dev/null) ]]; then
     export WORKSPACE=$(setw)
+    return 0
   fi
 
   # Set ansible vault password
@@ -611,7 +627,21 @@ ws() {
       if [[ -d $GIT_INV/$WORKSPACE ]]; then
         export ANSIBLE_INVENTORY="$GIT_INV/$WORKSPACE"
       else
-        error "Ansible inventory $GIT_INV/$WORKSPACE not found!"
+        printf "Ansible Inventory: "
+        read ANSIBLE_INV
+        if [[ -d $ANSIBLE_INV ]]; then
+          pushd $ANSIBLE_INV &>/dev/null
+          [[ -d $(git rev-parse --show-toplevel)/inv ]] && export GIT_INV=$(git rev-parse --show-toplevel)/inv
+          popd &>/dev/null
+          export ANSIBLE_INVENTORY=$GIT_INV/$WORKSPACE
+          success "Ansible inventory set to $ANSIBLE_INVENTORY"
+        else
+          if [[ ! -d $ANSIBLE_INV ]]; then
+            error "Ansible inventory $ANSIBLE_INV not valid!"
+          else
+            error "Ansible inventory $GIT_INV/$WORKSPACE not found!"
+          fi
+        fi
       fi
       if [[ -f $SHM/.vault-$WORKSPACE ]]; then
         export ANSIBLE_VAULT_PASSWORD_FILE="$SHM/.vault-$WORKSPACE"
