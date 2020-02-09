@@ -17,20 +17,20 @@
 # 1. Environment Variables
 # --------------------------------------------------------------------
 
-export BASH_SILENCE_DEPRECATION_WARNING=1
+export BASH_SILENCE_DEPRECATION_WARNING=1 # MacOS nuissance
 export EDITOR=vim
 export GPG_TTY=$(tty)
 export JSH=$HOME/.jsh
 export JSH_CUSTOM=$HOME/.jsh_local
-export PATH=$HOME/.bin:$HOME/.local/bin:$PATH
-export PYTHONDONTWRITEBYTECODE=1
+export PATH=$JSH/.bin:$HOME/.local/bin:$PATH
+export PYTHONDONTWRITEBYTECODE=1 # No .pyc files when importing
 export SH=${SHELL##*/}
 export TERM=xterm-256color
 export VISUAL=vim
 
 # Color palette
 # ----------------------------------------------------------
-if [[ $(uname) == 'Darwin' || $(command -v tput 2>/dev/null) ]]; then
+if [[ $(uname) == 'Darwin' || $(command -v tput &>/dev/null) ]]; then
   black="\001$(tput setaf 0)\002"
   red="\001$(tput setaf 1)\002"
   green="\001$(tput setaf 2)\002"
@@ -87,7 +87,7 @@ quiet() { [[ $# == 0 ]] && &> /dev/null || "$*" &> /dev/null ; }
 
 # Show only two levels of pwd in prompt (Bash >=4 only)
 # ----------------------------------------------------------
-PROMPT_DIRTRIM=2
+[[ $SH == 'bash' ]] && PROMPT_DIRTRIM=2
 
 # Enable vi mode
 # ----------------------------------------------------------
@@ -119,8 +119,7 @@ fi
 
 # Enable k8s completion
 # ----------------------------------------------------------
-if command -v kubectl &>/dev/null
-then
+if command -v kubectl &>/dev/null; then
   source <(kubectl completion $SH)
 fi
 
@@ -202,7 +201,7 @@ prompt_cmd() {
 # 4. Aliases
 # --------------------------------------------------------------------
 
-# Colourize tool for more elaborate coloring
+# More elaborate coloring
 # ----------------------------------------------------------
 if [[ $(which grc 2>/dev/null) ]]; then
   alias colorize="$(which grc) -es --colour=auto"
@@ -296,9 +295,8 @@ alias perm='stat --printf "%a %n \n "' # perm: Show permission of target in numb
 alias please='sudo ' # Politely ask for superuser
 alias proxy='http_proxy=$PROXY_ENDPOINT https_proxy=$PROXY_ENDPOINT no_proxy=$PROXY_EXCEPTION' # proxy: set as per env and on command
 alias qfind='find . -name ' # qfind: Quickly search for file
-alias rd='rmdir' # Remove directory (no force)
+alias rd='rmdir' # Remove directory (gracefully)
 alias show_options='shopt' # Show_options: display bash options settings
-alias src='source ~/.jshrc' # src: Reload .jshrc file
 alias sshx='eval $(ssh-agent) && ssh-add 2>/dev/null' # sshx: Import SSH keys
 alias sudo='sudo '
 alias tf='terraform' # Abbreviation
@@ -308,18 +306,18 @@ alias wget='wget -c' # Preferred 'wget' implementation (resume download)
 # Directory Listing aliases
 # ----------------------------------------------------------
 alias dir='ls -hFx'
-alias l='ls -la' # long, show hidden files
-alias lT='ls -lAthF' # long, sort by newest to oldest
-alias lt='ls -lAtrhF' # long, sort by oldest to newest
-alias la='ls -Al' # show hidden files
-alias lc='ls -lcr' # sort by change time
-alias lk='ls -lSr' # sort by size
-alias lh='ls -lSrh' # sort by size human readable
-alias lm='ls -al | more' # pipe through 'more'
-alias lo='ls -laSFh' # sort by size largest to smallest
-alias lr='ls -lR' # recursive ls
-alias lt='ls -ltr' # sort by date
-alias lu='ls -lur' # sort by access time
+alias l='ls -la' # Long, show hidden files
+alias lT='ls -lAthF' # Long, sort by newest to oldest
+alias lt='ls -lAtrhF' # Long, sort by oldest to newest
+alias la='ls -Al' # Show hidden files
+alias lc='ls -lcr' # Srt by change time
+alias lk='ls -lSr' # Sort by size
+alias lh='ls -lSrh' # Sort by size human readable
+alias lm='ls -al | more' # Pipe through 'more'
+alias lo='ls -laSFh' # Sort by size largest to smallest
+alias lr='ls -lR' # Recursive ls
+alias lt='ls -ltr' # Sort by date
+alias lu='ls -lur' # Sort by access time
 
 # memHogsTop, memHogsPs: Find memory hogs
 # ----------------------------------------------------------
@@ -454,7 +452,7 @@ git-reset-history() {
   git push -f origin master
 }
 
-# hstats: Show the n most used commands. defaults to 10
+# hstats: Show the n most used commands. Defaults to 10
 # ----------------------------------------------------------
 hstats() {
   if [[ $# -lt 1 ]]; then
@@ -469,17 +467,17 @@ hstats() {
 # ----------------------------------------------------------
 ii() {
   echo -e "\\nYou are logged on ${red}$HOST"
-  echo -e "\\nAdditionnal information:$NC " ; uname -a
-  echo -e "\\n${red}Users logged on:$NC " ; w -h
+  echo -e "\\nAdditional information:$NC " ; uname -a
+  echo -e "\\n${red}Users logged on:$NC " ; /usr/bin/w -h
   echo -e "\\n${red}Current date :$NC " ; date
   echo -e "\\n${red}Machine stats :$NC " ; uptime
   [[ "$OSTYPE" == darwin* ]] && echo -e "\\n${red}Current network location :$NC " && scselect
-  echo -e "\\n${red}Public facing IP Address :$NC " ;myip
+  echo -e "\\n${red}Public facing IP Address :$NC " ; myip
   [[ "$OSTYPE" == darwin* ]] && echo -e "\\n${red}DNS Configuration:$NC " && scutil --dns
   echo
 }
 
-# inv: Move to ansible inventory if defined
+# inv: Move to ansible inventory (or root) if defined
 # ----------------------------------------------------------
 inv() {
   if [[ -n $ANSIBLE_INVENTORY ]]; then
@@ -493,15 +491,20 @@ inv() {
 # ips: Display all ip addresses for this host
 # ----------------------------------------------------------
 ips() {
-  if command -v ifconfig &>/dev/null
-  then
+  if command -v ifconfig &>/dev/null; then
     ifconfig | awk '/inet /{ print $2 }'
-  elif command -v ip &>/dev/null
-  then
+  elif command -v ip 2>/dev/null; then
     ip addr | grep -oP 'inet \K[\d.]+'
   else
     echo "You don't have ifconfig or ip command installed!"
   fi
+}
+
+# kc: Fetch admin config from remote server
+# ----------------------------------------------------------
+kc() {
+  [[ ! -d $HOME/.kube ]] && mkdir -p $HOME/.kube
+  scp $1:/etc/kubernetes/admin.conf $HOME/.kube/config
 }
 
 # lsgrep: Search through directory contents with grep
@@ -517,6 +520,7 @@ mkd() { mkdir -p -- "$*" ; cd -- "$*" || exit ; }
 mkiso() {
   if type "mkisofs" > /dev/null
   then
+
     if [ -z ${1+x} ]
     then
       local isoname=${PWD##*/}
@@ -545,6 +549,7 @@ mkiso() {
     else
       echo "${destpath}${isoname}.iso already exists"
     fi
+
   else
     echo "mkisofs cmd does not exist, please install cdrtools"
   fi
@@ -557,10 +562,26 @@ myip() {
   echo -e "Your public IP is: ${green} $res ${reset}"
 }
 
-# myps: List processes owned by my user:
+# myps: List processes owned by current user
 # ----------------------------------------------------------
 myps() {
   ps "$@" -u "$USER" -o pid,%cpu,%mem,start,time,bsdtime,command
+}
+
+# src: Batch source files
+# ----------------------------------------------------------
+src() {
+  if [[ $# == 0 ]]; then
+    source $JSH/.jshrc
+  else
+    for f in $@; do
+      if [[ -f $f ]]; then
+        source $f
+      else
+        warn Could not find $f
+      fi
+    done
+  fi
 }
 
 # viw: Edit at source
@@ -571,7 +592,7 @@ viw() {
   fi
 }
 
-# vk (vault key): Store ephemeral data in secure and/or ephemeral storage (e.g system memory)
+# vk: Prompt and store vault key
 # ----------------------------------------------------------
 vk() {
   [[ -z $SHM ]] && error "$SHM not set"
@@ -595,6 +616,8 @@ vk() {
 # ws: Change workspace
 # ----------------------------------------------------------
 ws() {
+
+  # Define workspace
   if [[ $# == 1 ]]; then
     export WORKSPACE=$1
   elif [[ $# > 1 ]]; then
@@ -608,15 +631,21 @@ ws() {
   fi
 
   # Black box
-  if [[ $(command -v setw 2>/dev/null) ]]; then
+  if command -v setw &>/dev/null; then
     export WORKSPACE=$(setw)
     return 0
   fi
 
-  # Set ansible vault password
-  if [[ $(command -v ansible-playbook 2>/dev/null) ]]; then
+  # Set ansible vault password file
+  if command -v ansible-playbook &>/dev/null; then
+
+    # Ensure a workspace is defined
     if [[ -n $WORKSPACE ]]; then
+
+      # Prompt/set vault key if not already
       [[ $(cat $SHM/.vault-$WORKSPACE) != '' ]] || vk $WORKSPACE
+
+      # Check for base definition
       if [[ -z $GIT_INV ]]; then
         if [[ $(git status 2>/dev/null) ]]; then
           GIT_INV=$(pwd)/inv
@@ -624,6 +653,8 @@ ws() {
           GIT_INV=./inv
         fi
       fi
+
+      # Check/prompt for valid inventory
       if [[ -d $GIT_INV/$WORKSPACE ]]; then
         export ANSIBLE_INVENTORY="$GIT_INV/$WORKSPACE"
       else
@@ -648,13 +679,17 @@ ws() {
       else
         error "Ansible vault password file $SHM/.vault-$WORKSPACE not found!"
       fi
+
+    # Clean up if no workspace defined
     else
       unset ANSIBLE_INVENTORY
       unset ANSIBLE_VAULT_PASSWORD_FILE
     fi
+
   fi
+
 }
 
-# zipf: To create a ZIP archive of a folder
+# zipf: Create a ZIP archive of a folder
 # ----------------------------------------------------------
 zipf() { zip -r "$1".zip "$1" ; }
