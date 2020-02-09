@@ -7,18 +7,16 @@
 # https://github.com/jovalle/.jsh
 #
 
-[[ -z "$JSH" ]] && JSH=$HOME/.jsh
+[[ -z $JSH ]] && JSH=$HOME/.jsh
 
 VERSION="0.1.8"
 NO_BACKUP=0
 TARGETS=(
-  ".bin"
   ".gitconfig"
   ".inputrc"
   ".fzf"
   ".jshrc"
   ".oh-my-zsh"
-  ".p10k.zsh"
   ".sshrc"
   ".tmux.conf"
   ".vim"
@@ -46,6 +44,9 @@ error() { echo -e $(tput setaf 1)$@$(tput sgr0); return 1 ; }
 warn() { echo -e $(tput setaf 3)$@$(tput sgr0) ; }
 success() { echo -e $(tput setaf 2)$@$(tput sgr0) ; }
 info() { echo -e $(tput setaf 4)$@$(tput sgr0) ; }
+
+# Exit if jsh dir not found
+[[ -d $JSH ]] || abort JSH not found at $JSH. Cannot continue.
 
 # Output version
 version() { echo $VERSION ; }
