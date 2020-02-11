@@ -77,6 +77,14 @@ fi
 # 2. Shell Enhancements
 # --------------------------------------------------------------------
 
+# Standard logging messages
+# ----------------------------------------------------------
+abort() { echo; echo "${red}$@${reset}" 1>&2; exit 1; }
+error() { echo -e ${red}$@${reset}; return 1; }
+warn() { echo -e ${orange}$@${reset}; }
+success() { echo -e ${green}$@${reset}; }
+info() { echo -e ${blue}$@${reset}; }
+
 # quiet: Mute output of a command or redirection
 # ----------------------------------------------------------
 quiet() { [[ $# == 0 ]] && &> /dev/null || "$*" &> /dev/null ; }
@@ -137,17 +145,27 @@ fi
 
 # Enable go
 # ----------------------------------------------------------
-if [[ -z $GOROOT || ! -d $GOROOT ]]; then
-  export GOROOT=/usr/local/go
-  mkdir -p $GOROOT
+
+# Assume go env vars
+if [[ -z $GOROOT ]]; then
+  if [[ $(uname) == 'Darwin' ]]; then
+    export GOROOT=/usr/local/opt/go/libexec
+  elif [[ $(uname) == 'Linux' ]]; then
+    export GOROOT=/usr/local/go
+  else
+    warn "No suitable GOROOT found."
+  fi
 fi
-if [[ -z $GOPATH || ! -d $GOPATH ]]; then
+if [[ -z $GOPATH ]]; then
   export GOPATH=$HOME/.go
-  mkdir -p $GOPATH
 fi
-if [[ -n $GOPATH && -n $GOROOT ]]; then
-  export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
-fi
+
+# Create dirs if needed
+[[ -n $GOROOT && ! -d $GOROOT ]] && mkdir -p $GOROOT
+[[ -n $GOPATH && ! -d $GOPATH ]] && mkdir -p $GOPATH
+
+# Update PATH to include go binaries
+[[ -n $GOPATH && -n $GOROOT ]] && export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
 
 # Enable color support of ls and also add handy aliases
 # ----------------------------------------------------------
@@ -157,9 +175,7 @@ fi
 
 # Ancillary functionality
 # ----------------------------------------------------------
-if [[ -n $JSH_CUSTOM && -f $JSH_CUSTOM ]]; then
-  source $JSH_CUSTOM
-fi
+[[ -n $JSH_CUSTOM && -f $JSH_CUSTOM ]] && source $JSH_CUSTOM
 
 # Rid PATH of duplicates
 # ----------------------------------------------------------
@@ -310,7 +326,7 @@ alias l='ls -la' # Long, show hidden files
 alias lT='ls -lAthF' # Long, sort by newest to oldest
 alias lt='ls -lAtrhF' # Long, sort by oldest to newest
 alias la='ls -Al' # Show hidden files
-alias lc='ls -lcr' # Srt by change time
+alias lc='ls -lcr' # Sort by change time
 alias lk='ls -lSr' # Sort by size
 alias lh='ls -lSrh' # Sort by size human readable
 alias lm='ls -al | more' # Pipe through 'more'
@@ -350,14 +366,6 @@ alias weeknum='date +%V'
 # --------------------------------------------------------------------
 # 5. Functions
 # --------------------------------------------------------------------
-
-# Messages
-# ----------------------------------------------------------
-abort() { echo ; echo "${red}$@${reset}" 1>&2; exit 1 ; }
-error() { echo -e ${red}$@${reset}; return 1 ; }
-warn() { echo -e ${orange}$@${reset} ; }
-success() { echo -e ${green}$@${reset} ; }
-info() { echo -e ${blue}$@${reset} ; }
 
 # Searching
 # ----------------------------------------------------------
@@ -439,6 +447,23 @@ extract() {
 # ----------------------------------------------------------
 findPid() {
   lsof -t -c "$@"
+}
+
+# gfx(): Set graphics 
+# ----------------------------------------------------------
+gfx() {
+  if [[ $# == 1 ]] && [[ $1 == '-i' || $1 == '-d' ]]; then
+    if [[ $1 == '-i' ]]; then
+      sudo pmset -b gpuswitch 0
+    elif [[ $1 == '-d' ]]; then
+      sudo pmset -b gpuswitch 2
+    fi
+  else
+    warn "Usage:"
+    warn "  -i  integrated graphics"
+    warn "  -d  dynamic switching (enables dGPU when needed)"
+    warn ""
+  fi
 }
 
 # git-reset-history: Replace all commits with an initial commit
