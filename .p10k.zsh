@@ -40,6 +40,7 @@
     os_icon                 # os identifier
     dir                     # current directory
     vcs                     # git status
+    ansible                 # ansible inventory
     # =========================[ Line #2 ]=========================
     newline                 # \n
     prompt_char             # prompt symbol
@@ -924,6 +925,18 @@
   typeset -g POWERLEVEL9K_PLENV_PROMPT_ALWAYS_SHOW=false
   # Custom icon.
   # typeset -g POWERLEVEL9K_PLENV_VISUAL_IDENTIFIER_EXPANSION='⭐'
+
+  #############[ ansible: active inventory ]#############
+  # Show ansible inventory only when an ansible command is typed.
+  typeset -g POWERLEVEL9K_ANSIBLE_SHOW_ON_COMMAND='ansible|ansible-playbook'
+
+  function prompt_ansible() {
+    p10k segment -f 208 -i '💼' -t "${ANSIBLE_INVENTORY##*/}"
+  }
+
+  function instant_prompt_ansible() {
+    prompt_ansible
+  }
 
   #############[ kubecontext: current kubernetes context (https://kubernetes.io/) ]#############
   # Show kubecontext only when the the command you are typing invokes one of these tools.
