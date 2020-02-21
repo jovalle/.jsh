@@ -104,7 +104,7 @@ plugins=(git)
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
-# shell agnostic enchancements
+# Shell agnostic enchancements
 [[ -f $HOME/.jshrc ]] && source $HOME/.jshrc
 
 SOURCE_FILES=(
@@ -115,3 +115,6 @@ SOURCE_FILES=(
 )
 
 src $SOURCE_FILES # batch source zsh scripts
+
+# Fix oh-my-zsh override of vi-mode in shell
+set -o vi
