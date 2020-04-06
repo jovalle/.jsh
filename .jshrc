@@ -147,25 +147,24 @@ fi
 # ----------------------------------------------------------
 
 # Assume go env vars
-if [[ -z $GOROOT ]]; then
-  if [[ $(uname) == 'Darwin' ]]; then
-    export GOROOT=/usr/local/opt/go/libexec
-  elif [[ $(uname) == 'Linux' ]]; then
-    export GOROOT=/usr/local/go
-  else
-    warn "No suitable GOROOT found."
-  fi
-fi
-if [[ -z $GOPATH ]]; then
-  export GOPATH=$HOME/.go
-fi
-
-# Create dirs if needed
-[[ -n $GOROOT && ! -d $GOROOT ]] && mkdir -p $GOROOT
-[[ -n $GOPATH && ! -d $GOPATH ]] && mkdir -p $GOPATH
-
-# Update PATH to include go binaries
-[[ -n $GOPATH && -n $GOROOT ]] && export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
+#if [[ -z $GOROOT || ! -d $GOROOT ]]; then
+#  export GOROOT=/usr/local/go
+#  mkdir -p $GOROOT
+#fi
+#if [[ -z $GOPATH || ! -d $GOPATH ]]; then
+#  export GOPATH=$HOME/.go
+#  mkdir -p $GOPATH
+#fi
+#if [[ -n $GOPATH && -n $GOROOT ]]; then
+#  export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
+#fi
+#
+## Create dirs if needed
+#[[ -n $GOROOT && ! -d $GOROOT ]] && mkdir -p $GOROOT
+#[[ -n $GOPATH && ! -d $GOPATH ]] && mkdir -p $GOPATH
+#
+## Update PATH to include go binaries
+#[[ -n $GOPATH && -n $GOROOT ]] && export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
 
 # Enable color support of ls and also add handy aliases
 # ----------------------------------------------------------
@@ -449,7 +448,7 @@ findPid() {
   lsof -t -c "$@"
 }
 
-# gfx(): Set graphics 
+# gfx(): Set graphics on macOS
 # ----------------------------------------------------------
 gfx() {
   if [[ $# == 1 ]] && [[ $1 == '-i' || $1 == '-d' ]]; then
@@ -530,6 +529,17 @@ ips() {
 kc() {
   [[ ! -d $HOME/.kube ]] && mkdir -p $HOME/.kube
   scp $1:/etc/kubernetes/admin.conf $HOME/.kube/config
+}
+
+# kx: Execute command in new busybox instance
+# ----------------------------------------------------------
+kx() {
+  if [[ $# > 0 ]]; then
+    kubectl run -i --tty $1 --image=busybox --restart=Never --rm -- \
+      $@
+  else
+    error "Usage: <command> <arguments> (command is also name of pod)"
+  fi
 }
 
 # lsgrep: Search through directory contents with grep
@@ -657,8 +667,8 @@ ws() {
 
   # Black box
   if command -v setw &>/dev/null; then
-    export WORKSPACE=$(setw)
-    return 0
+    setw $WORKSPACE
+    return $?
   fi
 
   # Set ansible vault password file
