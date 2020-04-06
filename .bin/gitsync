@@ -6,7 +6,7 @@ if [[ $(ssh-add -l | grep "${SSH_KEY}" | wc -l) == 0 ]]; then
     ssh-add ~/.ssh/id_rsa
 fi
 
-REPOS=($(echo "$BITBUCKET_REPOS" | tr ',' '\n'))
+REPOS=($(echo "$GIT_REPOS" | tr ',' '\n'))
 for REPO in ${REPOS[@]}
 do
   echo "Checking for ${REPO} repository."
@@ -25,7 +25,8 @@ do
     pushd ${REPO_DIR} && git checkout -f ${BRANCH} && git fetch --all && git reset --hard origin/${BRANCH} && popd
   else
     echo "${R}@${BRANCH} not found locally. Pulling from remote."
-    git clone ssh://git@$BITBUCKET_URL:7999/${REPO}.git
+    echo git clone ssh://git@$GIT_URL:7999/${REPO}.git
+    git clone ssh://git@$GIT_URL:7999/${REPO}.git
     pushd ${REPO_DIR} && git checkout -f ${BRANCH} && git pull && popd
   fi
 done
