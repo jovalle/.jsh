@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env ${SHELL##*/}
 # ------------------------------------------------------------------------------
 #
 # This file holds many useful BASH commands to improve life in the shell
@@ -143,29 +143,6 @@ elif [[ -f ~/.fzf.${SH} ]]; then
   source ~/.fzf.${SH}
 fi
 
-# Enable go
-# ----------------------------------------------------------
-
-# Assume go env vars
-#if [[ -z $GOROOT || ! -d $GOROOT ]]; then
-#  export GOROOT=/usr/local/go
-#  mkdir -p $GOROOT
-#fi
-#if [[ -z $GOPATH || ! -d $GOPATH ]]; then
-#  export GOPATH=$HOME/.go
-#  mkdir -p $GOPATH
-#fi
-#if [[ -n $GOPATH && -n $GOROOT ]]; then
-#  export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
-#fi
-#
-## Create dirs if needed
-#[[ -n $GOROOT && ! -d $GOROOT ]] && mkdir -p $GOROOT
-#[[ -n $GOPATH && ! -d $GOPATH ]] && mkdir -p $GOPATH
-#
-## Update PATH to include go binaries
-#[[ -n $GOPATH && -n $GOROOT ]] && export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
-
 # Enable color support of ls and also add handy aliases
 # ----------------------------------------------------------
 if [[ -x /usr/bin/dircolors ]]; then
@@ -268,12 +245,12 @@ alias ap='ansible-playbook' # Abbreviation
 alias av='ansible-vault' # Abbreviation
 alias c='clear' # c: Clear terminal display
 alias cd..='cd ../' # Go back 1 directory level (for fast typers)
-alias cic='set completion-ignore-case On' # cic: Make tab-completion case-insensitive
 alias cp='cp -iv' # Preferred 'cp' implementation
 alias curl='curl -w "\n"'
 alias d='dirs -v | head -10' # Display dir
 alias dud='du -d 1 -h' # Short and human-readable file listing
 alias duf='du -sh *' # Short and human-readable directory listing
+alias epochtime='date +%s' # Current epoch time
 alias fix_stty='stty sane' # fix_stty: Restore terminal settings when screwed up
 alias g='git' # Abbreviation
 alias gdiff='git diff --name-only master' # List files changed in this branch compared to master
@@ -283,6 +260,8 @@ alias glances='glances -1 -t 0.5' # Faster output from glances
 alias grep='grep --color=auto -i' # Preferred 'grep' implementation
 alias k='kubectl' # Abbreviate kube control
 alias kaf='kubectl apply -f' # Apply k8s manifest
+alias kar='kubectl api-resources --verbs=list --namespaced -o name | grep -v "events.events.k8s.io" | grep -v "events" | sort | uniq' # Get all possible kinds
+alias kav='kubectl api-versions' # List all APIs
 alias kctx='kubectx' # Change kube context
 alias kdel='kubectl delete' # Delete resource
 alias kdelp='kubectl delete pods' # Delete all pods matching passed arguments
@@ -291,75 +270,26 @@ alias keti='kubectl exec -it' # Open terminal into pod
 alias kgd='kubectl get deployments' # Get the deployment
 alias kgp='kubectl get pods' # List all pods in ps output format
 alias kns='kubens' # Change kube namespace
-alias kres='kubectl api-resources --verbs=list --namespaced -o name | grep -v "events.events.k8s.io" | grep -v "events" | sort | uniq' # Get all possible kinds
-alias kver='kubectl api-versions' # List all APIs
+alias l='ls -la' # Long, show hidden files
 alias less='less -FSRXc' # Preferred 'less' implementation
-alias make10mb='truncate -s 10m ./10MB.dat' # make10mb: Creates a file of 10mb size (all zeros)
-alias make1mb='truncate -s 1m ./1MB.dat' # make1mb: Creates a file of 1mb size (all zeros)
-alias make5mb='truncate -s 5m ./5MB.dat' # make5mb: Creates a file of 5mb size (all zeros)
 alias md='mkdir -p' # Create directory
 alias mkdir='mkdir -pv' # Preferred 'mkdir' implementation
 alias mountReadWrite='/sbin/mount -uw /' # mountReadWrite: For use when booted into single-user
 alias mv='mv -iv' # Preferred 'mv' implementation
 alias mx='chmod a+x' # ---x--x--x (user: --x, group: --x, other: --x)
 alias nano='nano -W' # Preferred 'nano' implementation
-alias numFiles='echo $(ls -1 | wc -l)' # numFiles: Count of non-hidden files in current dir
 alias pass='openssl passwd -1' # pass: Generate salted hash for passwords
 alias path='echo -e ${PATH//:/\\n}' # path: Echo all executable Paths
 alias perm='stat --printf "%a %n \n "' # perm: Show permission of target in number
 alias please='sudo ' # Politely ask for superuser
 alias proxy='http_proxy=$PROXY_ENDPOINT https_proxy=$PROXY_ENDPOINT no_proxy=$PROXY_EXCEPTION' # proxy: set as per env and on command
-alias qfind='find . -name ' # qfind: Quickly search for file
-alias rd='rmdir' # Remove directory (gracefully)
 alias show_options='shopt' # Show_options: display bash options settings
 alias sshx='eval $(ssh-agent) && ssh-add 2>/dev/null' # sshx: Import SSH keys
 alias sudo='sudo '
+alias timestamp='date "+%Y%m%dT%H%M%S"' # Filename ready complete time format
 alias tf='terraform' # Abbreviation
 alias w='watch -n1 -d -t ' # Faster watch, highlight changes and no title
 alias wget='wget -c' # Preferred 'wget' implementation (resume download)
-
-# Directory Listing aliases
-# ----------------------------------------------------------
-alias dir='ls -hFx'
-alias l='ls -la' # Long, show hidden files
-alias lT='ls -lAthF' # Long, sort by newest to oldest
-alias lt='ls -lAtrhF' # Long, sort by oldest to newest
-alias la='ls -Al' # Show hidden files
-alias lc='ls -lcr' # Sort by change time
-alias lk='ls -lSr' # Sort by size
-alias lh='ls -lSrh' # Sort by size human readable
-alias lm='ls -al | more' # Pipe through 'more'
-alias lo='ls -laSFh' # Sort by size largest to smallest
-alias lr='ls -lR' # Recursive ls
-alias lt='ls -ltr' # Sort by date
-alias lu='ls -lur' # Sort by access time
-
-# memHogsTop, memHogsPs: Find memory hogs
-# ----------------------------------------------------------
-alias memHogsTop='top -l 1 -o rsize | head -20'
-alias memHogsPs='ps wwaxm -o pid,stat,vsize,rss,time,command | head -10'
-
-# cpuHogs: Find CPU hogs
-# ----------------------------------------------------------
-alias cpu_hogs='ps wwaxr -o pid,stat,%cpu,time,command | head -10'
-
-# topForever: Continual 'top' listing (every 10 seconds)
-# ----------------------------------------------------------
-alias topf='top -l 9999999 -s 10 -o cpu'
-
-# Date & Time Management
-# ----------------------------------------------------------
-alias bdate="date '+%a, %b %d %Y %T %Z'"
-alias cal3='cal -3'
-alias da='date "+%Y-%m-%d %A %T %Z"'
-alias daysleft='echo "There are $(($(date +%j -d"Dec 31, $(date +%Y)")-$(date +%j))) left in year $(date +%Y)."'
-alias epochtime='date +%s'
-alias mytime='date +%H:%M:%S'
-alias secconvert='date -d@1234567890'
-alias stamp='date "+%Y%m%d%a%H%M"'
-alias timestamp='date "+%Y%m%dT%H%M%S"'
-alias today='date +"%A, %B %-d, %Y"'
-alias weeknum='date +%V'
 
 
 # --------------------------------------------------------------------
@@ -371,22 +301,6 @@ alias weeknum='date +%V'
 ff() { /usr/bin/find . -name "$@" ; }     # ff: Find file under the current directory
 ffs() { /usr/bin/find . -name "$@"'*' ; } # ffs: Find file whose name starts with a given string
 ffe() { /usr/bin/find . -name '*'"$@" ; } # ffe: Find file whose name ends with a given string
-bigfind() {
-  if [[ $# -lt 1 ]]; then
-    warn "Usage: bigfind DIRECTORY"
-    return
-  fi
-  du -a "$1" | sort -n -r | head -n 10
-}
-
-# buf: Back up file with timestamp
-# ----------------------------------------------------------
-buf() {
-  local filename filetime
-  filename=$1
-  filetime=$(date +%Y%m%d_%H%M%S)
-  cp -a "${filename}" "${filename}_${filetime}"
-}
 
 # curldebug: Download a web page and show info on what took time
 # ----------------------------------------------------------
@@ -409,7 +323,7 @@ duh() {
     else
       du -hd 1 | sort -h
     fi
-  elif [[ $(uname) == Linux ]]; then
+  elif [[ $(uname) == "Linux" ]]; then
     if [[ -n $1 ]]; then
       du -h --max-depth=1 "$1" | sort -h
     else
@@ -476,17 +390,6 @@ git-reset-history() {
   git push -f origin master
 }
 
-# hstats: Show the n most used commands. Defaults to 10
-# ----------------------------------------------------------
-hstats() {
-  if [[ $# -lt 1 ]]; then
-    NUM=10
-  else
-    NUM=${1}
-  fi
-  history | awk '{print $2}' | sort | uniq -c | sort -rn | head -"$NUM"
-}
-
 # ii: Display useful host related informaton
 # ----------------------------------------------------------
 ii() {
@@ -527,8 +430,12 @@ ips() {
 # kc: Fetch admin config from remote server
 # ----------------------------------------------------------
 kc() {
-  [[ ! -d $HOME/.kube ]] && mkdir -p $HOME/.kube
-  scp $1:/etc/kubernetes/admin.conf $HOME/.kube/config
+  if [[ $# == 1 ]]; then
+    [[ ! -d $HOME/.kube ]] && mkdir -p $HOME/.kube
+    scp $1:/etc/kubernetes/admin.conf $HOME/.kube/config
+  else
+    error "Usage: kc <admin host>"
+  fi
 }
 
 # kx: Execute command in new busybox instance
@@ -549,46 +456,6 @@ lsgrep() { ls | grep "$*" ; }
 # mkd: Makes new dir and jumps inside
 # ----------------------------------------------------------
 mkd() { mkdir -p -- "$*" ; cd -- "$*" || exit ; }
-
-# mkiso: Creates iso from current dir in the parent dir (unless defined)
-# ----------------------------------------------------------
-mkiso() {
-  if type "mkisofs" > /dev/null
-  then
-
-    if [ -z ${1+x} ]
-    then
-      local isoname=${PWD##*/}
-    else
-      local isoname=$1
-    fi
-
-    if [ -z ${2+x} ]
-    then
-      local destpath=../
-    else
-      local destpath=$2
-    fi
-
-    if [ -z ${3+x} ]
-    then
-      local srcpath=${PWD}
-    else
-      local srcpath=$3
-    fi
-
-    if [ ! -f "${destpath}${isoname}.iso" ]
-    then
-      echo "writing ${isoname}.iso to ${destpath} from ${srcpath}"
-      mkisofs -V "${isoname}" -iso-level 3 -r -o "${destpath}${isoname}.iso" "${srcpath}"
-    else
-      echo "${destpath}${isoname}.iso already exists"
-    fi
-
-  else
-    echo "mkisofs cmd does not exist, please install cdrtools"
-  fi
-}
 
 # myip: Display public IP
 # ----------------------------------------------------------
@@ -678,7 +545,9 @@ ws() {
     if [[ -n $WORKSPACE ]]; then
 
       # Prompt/set vault key if not already
-      [[ $(cat $SHM/.vault-$WORKSPACE) != '' ]] || vk $WORKSPACE
+      if [[ ! -f $SHM/.vault-$WORKSPACE || $(cat $SHM/.vault-$WORKSPACE) == '' ]]; then
+        vk $WORKSPACE
+      fi
 
       # Check for base definition
       if [[ -z $GIT_INV ]]; then
@@ -693,7 +562,7 @@ ws() {
       if [[ -d $GIT_INV/$WORKSPACE ]]; then
         export ANSIBLE_INVENTORY="$GIT_INV/$WORKSPACE"
       else
-        printf "Ansible Inventory: "
+        printf "Ansible Inventory Root: "
         read ANSIBLE_INV
         if [[ -d $ANSIBLE_INV ]]; then
           pushd $ANSIBLE_INV &>/dev/null
@@ -724,7 +593,3 @@ ws() {
   fi
 
 }
-
-# zipf: Create a ZIP archive of a folder
-# ----------------------------------------------------------
-zipf() { zip -r "$1".zip "$1" ; }
