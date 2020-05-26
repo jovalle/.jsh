@@ -134,7 +134,6 @@ Plug 'w0rp/ale'                            " For live syntax review (requires vi
 Plug 'junegunn/fzf'                        " Fuzzy finder (search algo)
 Plug 'scrooloose/nerdtree'                 " For NerdTree file explorer
 Plug 'vim-airline/vim-airline'             " For modern status line
-Plug 'vim-airline/vim-airline-themes'      " Suite of themes
 
 " Initialize plugin system
 call plug#end()
@@ -155,9 +154,6 @@ let g:ale_completion_enabled = 1
 
 " Set this. Airline will handle the rest.
 let g:airline#extensions#ale#enabled = 1
-
-" Preferred theme
-let g:airline_theme='night_owl'
 
 " python
 autocmd FileType python setlocal shiftwidth=4 softtabstop=4 expandtab
