@@ -1,4 +1,4 @@
-#!/usr/bin/env ${SHELL##*/}
+#!/bin/sh
 # ------------------------------------------------------------------------------
 #
 # This file holds many useful BASH commands to improve life in the shell
@@ -22,9 +22,10 @@ export EDITOR=vim
 export GPG_TTY=$(tty)
 export JSH=$HOME/.jsh
 export JSH_CUSTOM=$HOME/.jsh_local
-export PATH=$JSH/.bin:$HOME/.local/bin:$PATH
+export PATH=$HOME/.local/bin:$HOME/.bin:$PATH
 export PYTHONDONTWRITEBYTECODE=1 # No .pyc files when importing
 export SH=${SHELL##*/}
+export SSHRC_EXTRAS='.tmux.conf .vimrc'
 export TERM=xterm-256color
 export VISUAL=vim
 
@@ -147,6 +148,21 @@ fi
 # ----------------------------------------------------------
 if [[ -x /usr/bin/dircolors ]]; then
   test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+fi
+
+# Augment sshrc experience
+# ----------------------------------------------------------
+if [[ -n $SSHHOME ]]; then
+
+  # Add .sshrc.d to PATH
+  if [[ ! "$PATH" == *$SSHHOME/.sshrc.d* && -d $SSHHOME/.sshrc.d ]]; then
+    export PATH="${PATH:+${PATH}:}$SSHHOME/.sshrc.d"
+  fi
+
+  # Enable custom tmux, vim configs while on remote hosts via sshrc
+  [[ -f $SSHHOME/.tmux.conf ]] && alias tmux='tmux -f $SSHHOME/.tmux.conf'
+  [[ -f $SSHHOME/.vimrc ]] && alias vim='vim -u $SSHHOME/.vimrc'
+
 fi
 
 # Ancillary functionality
@@ -302,6 +318,43 @@ ff() { /usr/bin/find . -name "$@" ; }     # ff: Find file under the current dire
 ffs() { /usr/bin/find . -name "$@"'*' ; } # ffs: Find file whose name starts with a given string
 ffe() { /usr/bin/find . -name '*'"$@" ; } # ffe: Find file whose name ends with a given string
 
+# curldiag: Exhaustive output for given web request
+# ----------------------------------------------------------
+curddiag() {
+  CURL_FORMAT="
+      content_type: %{content_type}
+filename_effective: %{filename_effective}
+    ftp_entry_path: %{ftp_entry_path}
+         http_code: %{http_code}
+      http_connect: %{http_connect}
+      num_connects: %{num_connects}
+     num_redirects: %{num_redirects}
+      redirect_url: %{redirect_url}
+     size_download: %{size_download}
+       size_header: %{size_header}
+      size_request: %{size_request}
+       size_upload: %{size_upload}
+    speed_download: %{speed_download}
+      speed_upload: %{speed_upload}
+ ssl_verify_result: %{ssl_verify_result}
+     url_effective: %{url_effective}
+
+
+   time_namelookup: %{time_namelookup}
+      time_connect: %{time_connect}
+   time_appconnect: %{time_appconnect}
+  time_pretransfer: %{time_pretransfer}
+     time_redirect: %{time_redirect}
+time_starttransfer: %{time_starttransfer}
+                   -------
+        time_total: %{time_total}
+"
+
+  for arg in $@; do
+    curl -v -w "$CURL_FORMAT" -o /dev/null -s $arg
+  done
+}
+
 # curldebug: Download a web page and show info on what took time
 # ----------------------------------------------------------
 curldebug() {
@@ -388,6 +441,77 @@ git-reset-history() {
   git branch -D master && \
   git branch -m master && \
   git push -f origin master
+}
+
+# gitsync: Git pull from all defined repos
+# ----------------------------------------------------------
+gitsync() {
+  SSH_KEY=${HOME}/.ssh/id_rsa
+  if [[ $(ssh-add -l | grep "${SSH_KEY}" | wc -l) == 0 ]]; then
+      eval $(ssh-agent)
+      ssh-add ~/.ssh/id_rsa
+  fi
+
+  REPOS=($(echo "$GIT_REPOS" | tr ',' '\n'))
+  for REPO in ${REPOS[@]}
+  do
+    echo "Checking for ${REPO} repository."
+    TARGET_DIR=$(pwd)
+    if [[ $# == 0 ]]; then
+      TARGET_DIR="${HOME}"
+    fi
+    cd ${TARGET_DIR}
+    REPO_DIR="${TARGET_DIR}/$(echo ${REPO} | sed 's/^\w*\///g')"
+    echo $REPO_DIR
+    BRANCH=master
+    R=$(echo ${REPO} | sed 's/^\w*\///g')
+    if [ -d "${REPO_DIR}" ]
+    then
+      echo "${R}@${BRANCH} found locally. Overwriting master branch with latest remote."
+      pushd ${REPO_DIR} && git checkout -f ${BRANCH} && git fetch --all && git reset --hard origin/${BRANCH} && popd
+    else
+      echo "${R}@${BRANCH} not found locally. Pulling from remote."
+      echo git clone ssh://git@$GIT_URL:7999/${REPO}.git
+      git clone ssh://git@$GIT_URL:7999/${REPO}.git
+      pushd ${REPO_DIR} && git checkout -f ${BRANCH} && git pull && popd
+    fi
+  done
+}
+
+# http2ssh: Convert gitconfig URL from HTTP(S) to SSH
+#   Credit: github.com/m14t/fix_github_https_repo.sh
+# ----------------------------------------------------------
+http2ssh() {
+  REPO_URL=`git remote -v | grep -m1 '^origin' | sed -Ene's#.*(https://[^[:space:]]*).*#\1#p'`
+  if [ -z "$REPO_URL" ]; then
+    echo "-- ERROR:  Could not identify Repo url."
+    echo "   It is possible this repo is already using SSH instead of HTTPS."
+    exit
+  fi
+
+  USER=`echo $REPO_URL | sed -Ene's#https://github.com/([^/]*)/(.*)#\1#p'`
+  if [ -z "$USER" ]; then
+    echo "-- ERROR:  Could not identify User."
+    exit
+  fi
+
+  REPO=`echo $REPO_URL | sed -Ene's#https://github.com/([^/]*)/(.*)#\2#p'`
+  if [ -z "$REPO" ]; then
+    echo "-- ERROR:  Could not identify Repo."
+    exit
+  fi
+
+  NEW_URL="git@github.com:$USER/$REPO"
+  echo "Changing repo url from "
+  echo "  '$REPO_URL'"
+  echo "      to "
+  echo "  '$NEW_URL'"
+  echo ""
+
+  CHANGE_CMD="git remote set-url origin $NEW_URL"
+  `$CHANGE_CMD`
+
+  echo "Success"
 }
 
 # ii: Display useful host related informaton
