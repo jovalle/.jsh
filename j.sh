@@ -12,6 +12,7 @@
 VERSION="0.1.8"
 NO_BACKUP=0
 TARGETS=(
+  ".bin"
   ".gitconfig"
   ".inputrc"
   ".fzf"

@@ -120,23 +120,25 @@ endif
 " Remove all trailing whitespace on save
 autocmd BufWritePre * %s/\s\+$//e
 
-" Install Vim Plug if not installed
-if empty(glob('~/.vim/autoload/plug.vim'))
-  silent !curl -fLo ~/.vim/autoload/plug.vim --create-dirs
-    \ https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
-  autocmd VimEnter * PlugInstall
+" Avoid Vim plugins on remote hosts
+if !exists("$SSHHOME")
+  " Install Vim Plug if not installed
+  if empty(glob('~/.vim/autoload/plug.vim'))
+    silent !curl -fLo ~/.vim/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+    autocmd VimEnter * PlugInstall
+  endif
+
+  call plug#begin('~/.vim/plugged')
+  Plug 'tpope/vim-surround'                  " Show start/end of any surroundings
+  Plug 'hashivim/vim-terraform'              " For terraform syntax
+  Plug 'w0rp/ale'                            " For live syntax review (requires vim >=8)
+  Plug 'junegunn/fzf'                        " Fuzzy finder (search algo)
+  Plug 'scrooloose/nerdtree'                 " For NerdTree file explorer
+  Plug 'vim-airline/vim-airline'             " For modern status line
+
+  " Initialize plugin system
+  call plug#end()
 endif
-
-call plug#begin('~/.vim/plugged')
-Plug 'tpope/vim-surround'                  " Show start/end of any surroundings
-Plug 'hashivim/vim-terraform'              " For terraform syntax
-Plug 'w0rp/ale'                            " For live syntax review (requires vim >=8)
-Plug 'junegunn/fzf'                        " Fuzzy finder (search algo)
-Plug 'scrooloose/nerdtree'                 " For NerdTree file explorer
-Plug 'vim-airline/vim-airline'             " For modern status line
-
-" Initialize plugin system
-call plug#end()
 
 " For NerdTree
 autocmd StdinReadPre * let s:std_in=1
