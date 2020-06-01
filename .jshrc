@@ -80,8 +80,8 @@ fi
 
 # Standard logging messages
 # ----------------------------------------------------------
-abort() { echo; echo "${red}$@${reset}" 1>&2; exit 1 }
-error() { echo -e ${red}$@${reset}; return 1 }
+abort() { echo; echo "${red}$@${reset}" 1>&2; exit 1; }
+error() { echo -e ${red}$@${reset}; return 1; }
 warn() { echo -e ${orange}$@${reset}; }
 success() { echo -e ${green}$@${reset}; }
 info() { echo -e ${blue}$@${reset}; }
