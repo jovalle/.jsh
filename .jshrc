@@ -442,6 +442,28 @@ git-reset-history() {
   git push -f origin master
 }
 
+# git-submodule-rebase: Update all submodules to latest
+# ----------------------------------------------------------
+git-submodule-rebase() {
+  # move to root of git project
+  if [[ $(pwd) != $JSH ]]; then
+    pushd $JSH
+    POP_REFERRAL=1
+  fi
+
+  # force update to latest on each submodule
+  for submodule in $(git submodule status | awk '{print $2}'); do
+    pushd $submodule
+    git checkout --force master
+    popd
+  done
+
+  # if a delta, submodule(s) should appear as new commit(s)
+  git status
+
+  [[ $POP_REFERRAL ]] && popd
+}
+
 # gitsync: Git pull from all defined repos
 # ----------------------------------------------------------
 gitsync() {
