@@ -11,31 +11,40 @@
 
 VERSION="0.1.8"
 NO_BACKUP=0
-TARGETS=(
+BASE=(
   ".bin"
   ".gitconfig"
   ".inputrc"
-  ".fzf"
   ".jshrc"
-  ".oh-my-zsh"
   ".sshrc"
-  ".tmux.conf"
   ".vim"
   ".vimrc"
+)
+EXTRA=(
+  ".fzf"
+  ".tmux.conf"
+)
+SPECIAL=(
+  ".oh-my-zsh"
+  ".p10k.zsh"
   ".zshrc"
 )
 
 # Output usage information
 usage() {
-  cat <<-EOF
-  Usage: j.sh command [options]
-  Commands:
-    install              replace shell, vim, tmux configs with jsh symlinks
-    remove               remove jsh symlinks and restore from backups
-  Options:
-    -V, --version        output program version
-    -h, --help           output help information
-    -np, --no-backup     skip backup creation/restoration
+cat <<-EOF
+Usage: j.sh command [options]
+Commands:
+  install              replace shell, vim, tmux configs with jsh symlinks
+  remove               remove jsh symlinks and restore from backups
+Options:
+  -V, --version        output program version
+  -h, --help           output help information
+  -N, --no-backup      skip backup creation/restoration
+  -E, --extra          install with extra features
+  -A, --all            install with all features
+Notes:
+  Flags must precede commands for effective parsing.
 EOF
 }
 
@@ -47,10 +56,10 @@ success() { echo -e $(tput setaf 2)$@$(tput sgr0) ; }
 info() { echo -e $(tput setaf 4)$@$(tput sgr0) ; }
 
 # Exit if jsh dir not found
-[[ -d $JSH ]] || abort JSH not found at $JSH. Cannot continue.
+[[ -d $JSH ]] || abort "jsh not found at $JSH. Cannot continue."
 
 # Output version
-version() { echo $VERSION ; }
+version() { echo $VERSION; }
 
 # Install targets
 install() {
@@ -65,10 +74,10 @@ install() {
         ln -s $JSH/$t $HOME/$t
       elif [[ -f $HOME/$t || -d $HOME/$t ]]; then
         mv $HOME/$t $HOME/${t}-${TS}
-        success Backing up $HOME/$t to $HOME/${t}-${TS}
+        success "Backing up $HOME/$t to $HOME/${t}-${TS}"
         ln -s $JSH/$t $HOME/$t
       else
-        warn File found for $HOME/$t. Please backup and remove before executing j.sh
+        warn "File found for $HOME/$t. Please backup and remove before executing j.sh"
         exit
       fi
     fi
@@ -96,31 +105,32 @@ install() {
 remove() {
   read -r -p "Are you sure you want to remove jsh? [y/N] " confirmation
   if [[ "$confirmation" != y ]] && [[ "$confirmation" != Y ]]; then
-    abort Removal process cancelled by user
+    abort "Removal process cancelled by user"
   else
+    TARGETS=("${BASE[@]}" "${EXTRA[@]}" "${SPECIAL[@]}");
     for t in ${TARGETS[@]}; do
 
       # check for and remove files
       if [[ -L $HOME/$t ]]; then
         unlink $HOME/$t && \
-          success Symlink at $HOME/$t removed. || \
-          warn Symlink at $HOME/$t not found. Ignoring
+          success "Symlink at $HOME/$t removed." || \
+          warn "Symlink at $HOME/$t not found. Ignoring"
       fi
 
       # Delete instead of restoring from backup
       if [[ $NO_BACKUP == 1 ]]; then
-        warn Backup restoration skipped by user
+        warn "Backup restoration skipped by user"
         if [[ -f $HOME/$t || -d $HOME/$t ]]; then
-          rm -rf $HOME/$t && success Deleted $HOME/$t
+          rm -rf $HOME/$t && success "Deleted $HOME/$t"
         fi
       else
         # get backup file/dir with latest timestamp
         LATEST_BACKUP=$(ls -d ${HOME}/${t}-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] 2>/dev/null | tail -n 1)
         if [[ -f $LATEST_BACKUP || -d $LATEST_BACKUP ]]; then
           if [[ -f $HOME/$t || -d $HOME/$t ]]; then
-            warn Non-symlink found at $HOME/$t. Cannot overwrite with backup from $LATEST_BACKUP. Moving on.
+            warn "Non-symlink found at $HOME/$t. Cannot overwrite with backup from $LATEST_BACKUP. Moving on."
           else
-            mv $LATEST_BACKUP $HOME/$t && success Backup at $HOME/$t restored from $LATEST_BACKUP
+            mv $LATEST_BACKUP $HOME/$t && success "Backup at $HOME/$t restored from $LATEST_BACKUP"
           fi
         fi
       fi
@@ -132,13 +142,16 @@ remove() {
 }
 
 # Parse argv
+TARGETS=("${BASE[@]}")
 while test $# -ne 0; do
   arg=$1
   shift
   case $arg in
     -h|--help) usage; exit ;;
     -v|--version) version; exit ;;
-    -nb|--no-backup) NO_BACKUP=1; ;;
+    -N|--no-backup) NO_BACKUP=1; ;;
+    -E|--extra) TARGETS+=("${EXTRA[@]}"); ;;
+    -A|--all) TARGETS+=("${EXTRA[@]}" "${SPECIAL[@]}"); ;;
     install) install; ;;
     remove) remove; ;;
     *) usage; exit ;;
