@@ -1,7 +1,8 @@
 #!/bin/sh
 # ------------------------------------------------------------------------------
 #
-# This file holds many useful BASH commands to improve life in the shell
+# This file holds many useful (mostly agnostic) commands to improve life in the 
+#  shell
 #
 # Sections:
 # 1. Environment Variables
@@ -52,25 +53,25 @@ if [[ $(uname) == 'Darwin' || $(command -v tput &>/dev/null) ]]; then
   underline="\001$(tput smul)\002"
   reset="\001$(tput sgr0)\002"
 else
-  black="\[\033[30m\]"
-  red="\[\033[31m\]"
-  green="\[\033[32m\]"
-  orange="\[\033[33m\]"
-  blue="\[\033[34m\]"
-  purple="\[\033[35m\]"
-  cyan="\[\033[36m\]"
-  lightgray="\[\033[37m\]"
-  darkgray="\[\033[90m\]"
-  pink="\[\033[91m\]"
-  lime="\[\033[92m\]"
-  yellow="\[\033[93m\]"
-  aqua="\[\033[94m\]"
-  lavender="\[\033[95m\]"
-  ice="\[\033[96m\]"
-  white="\[\033[97m\]"
-  bold="\[\033[1m\]"
-  underline="\[\033[4m\]"
-  reset="\[\033[0m\]"
+  black="\033[30m"
+  red="\033[31m"
+  green="\033[32m"
+  orange="\033[33m"
+  blue="\033[34m"
+  purple="\033[35m"
+  cyan="\033[36m"
+  lightgray="\033[37m"
+  darkgray="\033[90m"
+  pink="\033[91m"
+  lime="\033[92m"
+  yellow="\033[93m"
+  aqua="\033[94m"
+  lavender="\033[95m"
+  ice="\033[96m"
+  white="\033[97m"
+  bold="\033[1m"
+  underline="\033[4m"
+  reset="\033[0m"
 fi
 
 
@@ -179,14 +180,14 @@ export PATH=$(echo "$PATH" | tr ':' '\n' | sort -u | tr '\n' ':' | sed 's/:$//g'
 # --------------------------------------------------------------------
 
 prompt_cmd() {
-  [[ $? == 0 ]] && ret="${green}" || ret="${red}"
+  [[ $? == 0 ]] && ret="\[${green}\]" || ret="\[${red}\]"
   [[ -n $PROMPT_SYMBOL ]] && local prompt_symbol="$PROMPT_SYMBOL" || local prompt_symbol='>'
-  local dir="${cyan}\w${reset}"
-  local git="${purple}\$(git branch 2>/dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/')${reset}"
-  local host="${yellow}\h${reset}"
-  local user="${orange}\u${reset}"
+  local dir="\[${cyan}\]\w\[${reset}\]"
+  local git="\[${purple}\]\$(git branch 2>/dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/')\[${reset}\]"
+  local host="\[${yellow}\]\h\[${reset}\]"
+  local user="\[${orange}\]\u\[${reset}\]"
   if [[ -n "$WORKSPACE" ]]; then
-    local workspace="${red}[$WORKSPACE]${reset}"
+    local workspace="\[${red}\][$WORKSPACE]\[${reset}\]"
   fi
   if [[ -n $PROMPT_CUSTOM ]]; then
     PS1=${PROMPT_CUSTOM}
@@ -244,7 +245,7 @@ fi
 # Assorted
 # ----------------------------------------------------------
 alias ..='cd ../' # Go back 1 directory level
-alias ...='cd ../../' # Go back 2 directory levels
+alias .2='cd ../../' # Go back 2 directory levels
 alias .3='cd ../../../' # Go back 3 directory levels
 alias .4='cd ../../../../' # Go back 4 directory levels
 alias .5='cd ../../../../../' # Go back 5 directory levels
@@ -267,12 +268,13 @@ alias dud='du -d 1 -h' # Short and human-readable file listing
 alias duf='du -sh *' # Short and human-readable directory listing
 alias epochtime='date +%s' # Current epoch time
 alias fix_stty='stty sane' # fix_stty: Restore terminal settings when screwed up
-alias g='git' # Abbreviation
+alias g='grep --color=auto -i' # grep > git
 alias gdiff='git diff --name-only master' # List files changed in this branch compared to master
 alias gdiffcp='gdiff | xargs -I{} rsync --relative {}' # Copy modified files to another dir
 alias gitv='git log --graph --format="%C(auto)%h%d %s %C(black)%C(bold)%cr"' # Beautify logs
 alias glances='glances -1 -t 0.5' # Faster output from glances
 alias grep='grep --color=auto -i' # Preferred 'grep' implementation
+alias gvimdiff='git difftool --tool=vimdiff --no-prompt' # Open all git changes in vimdiff
 alias k='kubectl' # Abbreviate kube control
 alias kaf='kubectl apply -f' # Apply k8s manifest
 alias kar='kubectl api-resources --verbs=list --namespaced -o name | grep -v "events.events.k8s.io" | grep -v "events" | sort | uniq' # Get all possible kinds
@@ -317,9 +319,15 @@ ff() { /usr/bin/find . -name "$@" ; }     # ff: Find file under the current dire
 ffs() { /usr/bin/find . -name "$@"'*' ; } # ffs: Find file whose name starts with a given string
 ffe() { /usr/bin/find . -name '*'"$@" ; } # ffe: Find file whose name ends with a given string
 
+# curldebug: Download a web page and show info on what took time
+# ----------------------------------------------------------
+curldebug() {
+  /usr/bin/curl "$@" -o /dev/null -w "dns: %{time_namelookup} connect: %{time_connect} pretransfer: %{time_pretransfer} starttransfer: %{time_starttransfer} total: %{time_total}\\n"
+}
+
 # curldiag: Exhaustive output for given web request
 # ----------------------------------------------------------
-curddiag() {
+curldiag() {
   CURL_FORMAT="
       content_type: %{content_type}
 filename_effective: %{filename_effective}
@@ -354,16 +362,10 @@ time_starttransfer: %{time_starttransfer}
   done
 }
 
-# curldebug: Download a web page and show info on what took time
-# ----------------------------------------------------------
-curldebug() {
-  /usr/bin/curl "$@" -o /dev/null -w "dns: %{time_namelookup} connect: %{time_connect} pretransfer: %{time_pretransfer} starttransfer: %{time_starttransfer} total: %{time_total}\\n"
-}
-
 # curlheader: Grabs headers from web page
 # ----------------------------------------------------------
 curlheader() {
-  /usr/bin/curl -I -L "$@"
+  curl -I -L "$@"
 }
 
 # duh: Disk usage per directory, sorted by ascending size
@@ -455,6 +457,7 @@ git-submodule-rebase() {
   for submodule in $(git submodule status | awk '{print $2}'); do
     pushd $submodule
     git checkout --force master
+    git pull --force
     popd
   done
 
@@ -533,20 +536,6 @@ http2ssh() {
   `$CHANGE_CMD`
 
   success "Success"
-}
-
-# ii: Display useful host related informaton
-# ----------------------------------------------------------
-ii() {
-  echo -e "\\nYou are logged on ${red}$HOST"
-  echo -e "\\nAdditional information:$NC " ; uname -a
-  echo -e "\\n${red}Users logged on:$NC " ; /usr/bin/w -h
-  echo -e "\\n${red}Current date :$NC " ; date
-  echo -e "\\n${red}Machine stats :$NC " ; uptime
-  [[ "$OSTYPE" == darwin* ]] && echo -e "\\n${red}Current network location :$NC " && scselect
-  echo -e "\\n${red}Public facing IP Address :$NC " ; myip
-  [[ "$OSTYPE" == darwin* ]] && echo -e "\\n${red}DNS Configuration:$NC " && scutil --dns
-  echo
 }
 
 # inv: Move to ansible inventory (or root) if defined
@@ -642,7 +631,7 @@ viw() {
 # vk: Prompt and store vault key
 # ----------------------------------------------------------
 vk() {
-  [[ -z $SHM ]] && error "$SHM not set" || return 1
+  [[ -z $SHM ]] && error "$SHM not set"
   [[ -n $WORKSPACE ]] && VAULT=$WORKSPACE
   [[ $# == 1 ]] && VAULT=$1
   if [[ -n $VAULT ]]; then
@@ -663,7 +652,6 @@ vk() {
 # ws: Change workspace
 # ----------------------------------------------------------
 ws() {
-
   # Define workspace
   if [[ $# == 1 ]]; then
     export WORKSPACE=$1
@@ -741,5 +729,4 @@ ws() {
     fi
 
   fi
-
 }
