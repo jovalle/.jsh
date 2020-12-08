@@ -23,6 +23,8 @@
   tool = vimdiff
 [difftool]
   prompt = false
+[merge]
+  tool = vimdiff
 [push]
   default = simple
 [pull]
@@ -34,3 +36,7 @@
   clean = git-lfs clean -- %f
   smudge = git-lfs smudge -- %f
   process = git-lfs filter-process
+[user]
+  user = jovalle
+  name = Jay Ovalle
+  email = jay.ovalle@gmail.com
