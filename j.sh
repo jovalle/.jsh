@@ -38,13 +38,11 @@ Commands:
   install              replace shell, vim, tmux configs with jsh symlinks
   remove               remove jsh symlinks and restore from backups
 Options:
-  -V, --version        output program version
+  -v, --version        output program version
   -h, --help           output help information
-  -N, --no-backup      skip backup creation/restoration
-  -E, --extra          install with extra features
+  -n, --no-backup      skip backup creation/restoration
+  -e, --extra          install with extra features
   -A, --all            install with all features
-Notes:
-  Flags must precede commands for effective parsing.
 EOF
 }
 
@@ -147,13 +145,21 @@ while test $# -ne 0; do
   arg=$1
   shift
   case $arg in
-    -h|--help) usage; exit ;;
-    -v|--version) version; exit ;;
-    -N|--no-backup) NO_BACKUP=1; ;;
-    -E|--extra) TARGETS+=("${EXTRA[@]}"); ;;
+    -h|--help) usage; exit 0 ;;
+    -v|--version) version; exit 0 ;;
+    -n|--no-backup) NO_BACKUP=1; ;;
+    -e|--extra) TARGETS+=("${EXTRA[@]}"); ;;
     -A|--all) TARGETS+=("${EXTRA[@]}" "${SPECIAL[@]}"); ;;
-    install) install; ;;
-    remove) remove; ;;
-    *) usage; exit ;;
+    install) INSTALL=1; ;;
+    remove) REMOVE=1; ;;
+    *) usage; exit 1 ;;
   esac
 done
+
+if [[ "$INSTALL" -eq 1 ]]; then
+  install
+  exit $?
+elif [[ "$REMOVE" -eq 1 ]]; then
+  remove 
+  exit $?
+fi
