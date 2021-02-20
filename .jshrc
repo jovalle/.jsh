@@ -1,7 +1,7 @@
 #!/bin/sh
 # ------------------------------------------------------------------------------
 #
-# This file holds many useful (mostly agnostic) commands to improve life in the 
+# This file holds many useful (mostly agnostic) commands to improve life in the
 #  shell
 #
 # Sections:
@@ -93,7 +93,10 @@ quiet() { [[ $# == 0 ]] && &> /dev/null || "$*" &> /dev/null ; }
 
 # Fix "command not found: compdef"
 # ----------------------------------------------------------
-[[ $SH == 'zsh' ]] && autoload -Uz compinit && compinit
+if [[ $SH == 'zsh' ]]; then
+  autoload -Uz compinit
+  compinit || compaudit | xargs chmod g-w
+fi
 
 # Show only two levels of pwd in prompt (Bash >=4 only)
 # ----------------------------------------------------------
