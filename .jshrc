@@ -23,7 +23,7 @@ export EDITOR=vim
 export GPG_TTY=$(tty)
 export JSH=$HOME/.jsh
 export JSH_CUSTOM=$HOME/.jsh_local
-export PATH=$HOME/.local/bin:$HOME/.bin:$PATH
+export PATH=$HOME/.local/bin:$JSH/.bin:$PATH
 export PYTHONDONTWRITEBYTECODE=1 # No .pyc files when importing
 export SH=${SHELL##*/}
 export SSHRC_EXTRAS='.tmux.conf .vimrc'
@@ -657,12 +657,14 @@ vk() {
 ws() {
   # Define workspace
   if [[ $# == 1 ]]; then
+    info "Setting WORKSPACE to $1"
     export WORKSPACE=$1
   elif [[ $# > 1 ]]; then
     error "Usage: ws WORKSPACE"
     return 1
   else
     if [[ -z $WORKSPACE && -n $DEFAULT_WORKSPACE ]]; then
+      info "Setting WORKSPACE to default $DEFAULT_WORKSPACE"
       export WORKSPACE=$DEFAULT_WORKSPACE
     else
       error "Usage: ws WORKSPACE"
@@ -684,20 +686,24 @@ ws() {
 
       # Prompt/set vault key if not already
       if [[ ! -f $SHM/.vault-$WORKSPACE || $(cat $SHM/.vault-$WORKSPACE) == '' ]]; then
+        info "Opening vault for $WORKSPACE"
         vk $WORKSPACE
       fi
 
       # Check for base definition
       if [[ -z $GIT_INV ]]; then
         if [[ $(git status 2>/dev/null) ]]; then
+          info "Setting GIT_INV to $(pwd)/inv"
           GIT_INV=$(pwd)/inv
         else
+          info "Setting GIT_INV to ./inv"
           GIT_INV=./inv
         fi
       fi
 
       # Check/prompt for valid inventory
       if [[ -d $GIT_INV/$WORKSPACE ]]; then
+        info "Setting ANSIBLE_INVENTORY to $GIT_INV/$WORKSPACE"
         export ANSIBLE_INVENTORY="$GIT_INV/$WORKSPACE"
       else
         printf "Ansible Inventory Root: "
@@ -730,6 +736,10 @@ ws() {
       unset ANSIBLE_INVENTORY
       unset ANSIBLE_VAULT_PASSWORD_FILE
     fi
+
+  else
+
+    warn "Ansible not installed!"
 
   fi
 }
