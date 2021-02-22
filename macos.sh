@@ -8,52 +8,37 @@ taps=(
   homebrew/cask-fonts
 )
 
-casks=(
-  appcleaner
-  caffeine
-  calibre
-  cleanmymac
-  discord
-  docker
-  edex-ui
-  firefox
-  gimp
-  handbrake
-  iterm2
-  kitty
-  mos
-  plex
-  slack
-  spotify
-  sublime-text
-  vagrant
-  virtualbox
-  visual-studio-code
-  vlc
-  zoom
-)
-
 packages=(
   adns
+  ansible
+  appcleaner
   archey
   autojump
   bash
   bash-completion
   bdw-gc
+  caffeine
+  calibre
+  cleanmymac
   coreutils
   ctags
   ctop
   dep
+  discord
   dive
   dnsmasq
   docbook
   docbook-xsl
-  freetype
+  docker
+  edex-ui
+  firefox
   font-meslo-lg-nerd-font
+  freetype
   fzf
   gdbm
   gettext
   ghostscript
+  gimp
   git
   glances
   glib
@@ -63,8 +48,10 @@ packages=(
   gnupg
   gnutls
   go
+  google-chrome
   grc
   guile
+  handbrake
   helm
   htop
   hugo
@@ -72,12 +59,15 @@ packages=(
   icu4c
   ilmbase
   imagemagick
+  iterm2
   jpeg
   jq
   kind
+  kitty
   krew
   kubernetes-cli
   lazydocker
+  lens
   libassuan
   libde265
   libev
@@ -101,6 +91,7 @@ packages=(
   lua
   mas
   minikube
+  mos
   namebench
   ncurses
   nettle
@@ -117,6 +108,7 @@ packages=(
   perl
   pinentry
   pkg-config
+  plex
   python@3.9
   readline
   reattach-to-user-namespace
@@ -124,13 +116,20 @@ packages=(
   ruby
   screenresolution
   shared-mime-info
+  slack
   speedtest-cli
+  spotify
   sqlite
   stern
+  sublime-text
   tmux
   tree
   unbound
   utf8proc
+  vagrant
+  virtualbox
+  visual-studio-code
+  vlc
   watch
   webp
   wget
@@ -139,17 +138,13 @@ packages=(
   xmlto
   xz
   youtube-dl
+  zoom
   zsh-completions
 )
 
 for tap in ${taps[@]}
 do
   brew tap $tap
-done
-
-for cask in ${casks[@]}
-do
-  brew install --cask $cask
 done
 
 for pkg in ${packages[@]}
