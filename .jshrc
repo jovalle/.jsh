@@ -118,8 +118,8 @@ else
   export SHM=/dev/shm/$USER
 fi
 if [[ ! -d "$SHM" ]]; then
-  mkdir $SHM
-  chmod 700 $SHM
+  mkdir $SHM | quiet
+  chmod 700 $SHM | quiet
 fi
 
 # Enable shell completion
@@ -509,22 +509,24 @@ gitsync() {
 #   Credit: github.com/m14t/fix_github_https_repo.sh
 # ----------------------------------------------------------
 http2ssh() {
-  REPO_URL=`git remote -v | grep -m1 '^origin' | sed -Ene's#.*(https://[^[:space:]]*).*#\1#p'`
+  REPO_URL=$(git remote -v | grep -m1 '^origin' | sed -Ene's#.*(https://[^[:space:]]*).*#\1#p')
   if [ -z "$REPO_URL" ]; then
-    error "-- ERROR:  Could not identify Repo url."
-    error "   It is possible this repo is already using SSH instead of HTTPS."
+    error "Could not identify repo url."
+    if [ -n "$(grep 'git@github.com' .git/config)" ]; then
+      warn "SSH-like url found in gitconfig"
+    fi
     return 1
   fi
 
-  USER=`echo $REPO_URL | sed -Ene's#https://github.com/([^/]*)/(.*)#\1#p'`
+  USER=$(echo $REPO_URL | sed -Ene's#https://github.com/([^/]*)/(.*)#\1#p')
   if [ -z "$USER" ]; then
-    error "-- ERROR:  Could not identify User."
+    error "Could not identify user"
     return 2
   fi
 
-  REPO=`echo $REPO_URL | sed -Ene's#https://github.com/([^/]*)/(.*)#\2#p'`
+  REPO=$(echo $REPO_URL | sed -Ene's#https://github.com/([^/]*)/(.*)#\2#p')
   if [ -z "$REPO" ]; then
-    error "-- ERROR:  Could not identify Repo."
+    error "Could not identify repo"
     return 3
   fi
 
@@ -535,10 +537,8 @@ http2ssh() {
   warn "  '$NEW_URL'"
   warn ""
 
-  CHANGE_CMD="git remote set-url origin $NEW_URL"
-  `$CHANGE_CMD`
-
-  success "Success"
+  git remote set-url origin $NEW_URL
+  [[ $# ]] && success "Success" || error "Failed to set new URL origin"
 }
 
 # inv: Move to ansible inventory (or root) if defined
@@ -573,6 +573,18 @@ kc() {
   else
     error "Usage: kc <admin host>"
   fi
+}
+
+# kt: Create a cluster-admin SA and fetch bearer token
+# ----------------------------------------------------------
+kt() {
+  kubectl get ns admin || kubectl create ns admin
+  kubectl -n admin get sa jay || kubectl -n admin create sa jay
+  kubectl get clusterrolebinding cluster-admin-jay || kubectl create clusterrolebinding cluster-admin-jay --clusterrole=cluster-admin --serviceaccount=admin:jay
+  kubectl -n admin get secret $(kubectl -n admin get serviceaccounts jay -o json | python -c 'import sys,json; print json.load(sys.stdin)["secrets"][0]["name"]') -o json | python -c 'import sys,json; print json.load(sys.stdin)["data"]["token"]' | base64 -d
+  printf "\nPress any key to cleanup..." && read key
+  kubectl -n admin delete sa jay
+  kubectl delete clusterrolebinding cluster-admin-jay
 }
 
 # kx: Execute command in new busybox instance
