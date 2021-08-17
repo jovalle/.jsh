@@ -118,5 +118,13 @@ src $SOURCE_FILES # batch source zsh scripts
 # Fix oh-my-zsh override of vi-mode in shell
 set -o vi
 
+# Fix zsh completions
+if type brew &>/dev/null; then
+  FPATH=$(brew --prefix)/share/zsh-completions:$FPATH
+
+  autoload -Uz compinit
+  compinit
+fi
+
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
