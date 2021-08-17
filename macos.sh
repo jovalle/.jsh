@@ -6,10 +6,12 @@ test $(uname -s) = "Darwin"
 
 taps=(
   homebrew/cask-fonts
+  johanhaleby/kubetail
 )
 
 packages=(
   adns
+  alfred
   ansible
   appcleaner
   archey
@@ -19,6 +21,8 @@ packages=(
   bdw-gc
   caffeine
   calibre
+  cdrtools
+  cheatsheet
   cleanmymac
   coreutils
   ctags
@@ -31,10 +35,12 @@ packages=(
   docbook-xsl
   docker
   edex-ui
+  ffmpeg
   firefox
   font-meslo-lg-nerd-font
   freetype
   fzf
+  gcc
   gdbm
   gettext
   ghostscript
@@ -57,6 +63,7 @@ packages=(
   hugo
   hyperkit
   icu4c
+  iina
   ilmbase
   imagemagick
   iterm2
@@ -66,6 +73,7 @@ packages=(
   kitty
   krew
   kubernetes-cli
+  kubetail
   lazydocker
   lens
   libassuan
@@ -86,6 +94,7 @@ packages=(
   libtool
   libunistring
   libusb
+  libvirt
   libyaml
   little-cms2
   lua
@@ -94,6 +103,8 @@ packages=(
   mos
   namebench
   ncurses
+  neofetch
+  netcat
   nettle
   nmap
   node
@@ -109,20 +120,28 @@ packages=(
   pinentry
   pkg-config
   plex
+  podman
   python@3.9
+  qemu
   readline
   reattach-to-user-namespace
+  rectangle
   ripgrep
   ruby
   screenresolution
   shared-mime-info
+  signal
   slack
   speedtest-cli
   spotify
+  spotify-tui
   sqlite
   stern
   sublime-text
+  terraform
+  tinkertool
   tmux
+  tor-browser
   tree
   unbound
   utf8proc
