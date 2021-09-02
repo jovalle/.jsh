@@ -12,6 +12,7 @@ taps=(
 packages=(
   adns
   alfred
+  alt-tab
   ansible
   appcleaner
   archey
