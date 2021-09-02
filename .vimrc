@@ -22,7 +22,7 @@ filetype indent on
 " Auto read external file changes
 set autoread
 
-" Fast saving
+" Quicksave
 nmap <leader>w :w!<cr>
 
 " :W sudo saves the file
@@ -90,6 +90,24 @@ set wrap "Wrap lines
 " Always paste mode
 set paste
 
+" Always show status line
+set laststatus=2
+
+" Combat distro specific nuances
+set nocompatible
+
+" Combat syntax highlighting issues in large files
+set redrawtime=10000
+
+" Improve visibility of cursor
+set cursorline
+
+" Use spaces instead of tabs
+set expandtab
+
+" Be smart when using tabs ;)
+set smarttab
+
 " Attach to clipboard (<Leader> == \)
 noremap <Leader>y "*y
 noremap <Leader>p "*p
@@ -124,21 +142,51 @@ autocmd BufWritePre * %s/\s\+$//e
 if !exists("$SSHHOME")
   " Install Vim Plug if not installed
   if empty(glob('~/.vim/autoload/plug.vim'))
-    silent !curl -fLo ~/.vim/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+    silent !proxy curl -fLo ~/.vim/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
     autocmd VimEnter * PlugInstall
   endif
 
+  " Start plugin injection
   call plug#begin('~/.vim/plugged')
-  Plug 'tpope/vim-surround'                  " Show start/end of any surroundings
-  Plug 'hashivim/vim-terraform'              " For terraform syntax
-  Plug 'w0rp/ale'                            " For live syntax review (requires vim >=8)
-  Plug 'junegunn/fzf'                        " Fuzzy finder (search algo)
-  Plug 'scrooloose/nerdtree'                 " For NerdTree file explorer
-  Plug 'vim-airline/vim-airline'             " For modern status line
+
+  " Show start/end of any surroundings
+  Plug 'tpope/vim-surround'
+
+  " For terraform syntax
+  Plug 'hashivim/vim-terraform'
+
+  " Live syntax review (requires vim >=8)
+  Plug 'w0rp/ale'
+
+  " Dynamic commenting
+  Plug 'preservim/nerdcommenter'
+
+  " Snippeting
+  Plug 'neoclide/coc.nvim', {'branch': 'release'}
+
+  " Fancy status line
+  Plug 'itchyny/lightline.vim'
+
+  " For NerdTree file explorer
+  Plug 'scrooloose/nerdtree'
+
+  " Syntax highlighting for languages
+  Plug 'sheerun/vim-polyglot'
+
+  " Go support
+  Plug 'fatih/vim-go', { 'do': ':GoUpdateBinaries' }
+
+  " General-purpose command-line fuzzy finder
+  Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
+  Plug 'junegunn/fzf.vim'
 
   " Initialize plugin system
   call plug#end()
 endif
+
+" Comment and uncomment lines
+nnoremap <leader><leader>c :call NERDComment(0,"toggle")<CR>
+vnoremap <leader><leader>c :call NERDComment(0,"toggle")<CR>
 
 " For NerdTree
 autocmd StdinReadPre * let s:std_in=1
@@ -159,6 +207,8 @@ let g:airline#extensions#ale#enabled = 1
 
 " python
 autocmd FileType python setlocal shiftwidth=4 softtabstop=4 expandtab
+autocmd FileType python map <buffer> <F9> :w<CR>:exec '!python3' shellescape(@%, 1)<CR>
+autocmd FileType python imap <buffer> <F9> <esc>:w<CR>:exec '!python3' shellescape(@%, 1)<CR>
 
 let python_highlight_all = 1
 au FileType python syn keyword pythonDecorator True None False self
@@ -186,10 +236,3 @@ au FileType yaml set ts=2 sts=2 sw=2 indentexpr= nosmartindent et
 au FileType yml set ts=2 sts=2 sw=2 indentexpr= nosmartindent et
 
 silent! helptags ALL
-
-" Use spaces instead of tabs
-set expandtab
-
-" Be smart when using tabs ;)
-set smarttab
-
