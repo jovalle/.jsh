@@ -2,11 +2,25 @@
 
 test $(uname -s) = "Darwin"
 
+# new version of brew requires sourcing
+if [[ $(grep /opt/homebrew/bin/brew ${HOME}/.zprofile) != 0 ]]
+then
+  echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/jay/.zprofile
+fi
+eval "$(/opt/homebrew/bin/brew shellenv)"
+
+# rosetta needed for "legacy" apps
+sudo softwareupdate --install-rosetta
+
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 taps=(
   homebrew/cask-fonts
   johanhaleby/kubetail
+)
+
+casks=(
+  docker
 )
 
 packages=(
@@ -67,6 +81,7 @@ packages=(
   iina
   ilmbase
   imagemagick
+  istat-menus
   iterm2
   jpeg
   jq
@@ -140,6 +155,7 @@ packages=(
   stern
   sublime-text
   terraform
+  tg-pro
   tinkertool
   tmux
   tor-browser
@@ -167,7 +183,12 @@ do
   brew tap $tap
 done
 
-for pkg in ${packages[@]}
+for cask in ${casks[@]}
 do
-  brew install $pkg
+  brew install --cask $cask
+done
+
+for package in ${packages[@]}
+do
+  brew install $package
 done
