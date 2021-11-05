@@ -95,7 +95,7 @@ quiet() { [[ $# == 0 ]] && &> /dev/null || "$*" &> /dev/null ; }
 # ----------------------------------------------------------
 if [[ $SH == 'zsh' ]]; then
   autoload -Uz compinit
-  compinit || compaudit | xargs chmod g-w
+  compinit || compaudit 2>/dev/null | xargs chmod g-w
 fi
 
 # Show only two levels of pwd in prompt (Bash >=4 only)
@@ -237,14 +237,6 @@ if [[ $(which grc 2>/dev/null) ]]; then
   alias traceroute='colorize /usr/sbin/traceroute'
 fi
 
-# Color fallback
-# ----------------------------------------------------------
-if ls --help 2>&1 | grep -q -- --color; then
-  alias ls='ls --color=auto -F -N'
-else
-  alias ls='ls -FG'
-fi
-
 # Assorted
 # ----------------------------------------------------------
 alias ..='cd ../' # Go back 1 directory level
@@ -321,6 +313,7 @@ alias wget='wget -c' # Preferred 'wget' implementation (resume download)
 ff() { /usr/bin/find . -name "$@" ; }     # ff: Find file under the current directory
 ffs() { /usr/bin/find . -name "$@"'*' ; } # ffs: Find file whose name starts with a given string
 ffe() { /usr/bin/find . -name '*'"$@" ; } # ffe: Find file whose name ends with a given string
+ffpid() { lsof -t -c "$@" } # ffpid: Find pid of matching process
 
 # curldebug: Download a web page and show info on what took time
 # ----------------------------------------------------------
@@ -411,63 +404,6 @@ extract() {
   else
     echo "'$1' is not a valid file"
   fi
-}
-
-# findPid: Find out the pid of a specified process
-# ----------------------------------------------------------
-findPid() {
-  lsof -t -c "$@"
-}
-
-# gfx(): Set graphics on macOS
-# ----------------------------------------------------------
-gfx() {
-  if [[ $# == 1 ]] && [[ $1 == '-i' || $1 == '-d' ]]; then
-    if [[ $1 == '-i' ]]; then
-      sudo pmset -b gpuswitch 0
-    elif [[ $1 == '-d' ]]; then
-      sudo pmset -b gpuswitch 2
-    fi
-  else
-    warn "Usage:"
-    warn "  -i  integrated graphics"
-    warn "  -d  dynamic switching (enables dGPU when needed)"
-    warn ""
-  fi
-}
-
-# git-reset-history: Replace all commits with an initial commit
-# ----------------------------------------------------------
-git-reset-history() {
-  git checkout --orphan TEMP_BRANCH && \
-  git add -A && \
-  git commit -m "Initial commit" && \
-  git branch -D master && \
-  git branch -m master && \
-  git push -f origin master
-}
-
-# git-submodule-rebase: Update all submodules to latest
-# ----------------------------------------------------------
-git-submodule-rebase() {
-  # move to root of git project
-  if [[ $(pwd) != $JSH ]]; then
-    pushd $JSH
-    POP_REFERRAL=1
-  fi
-
-  # force update to latest on each submodule
-  for submodule in $(git submodule status | awk '{print $2}'); do
-    pushd $submodule
-    git checkout --force master
-    git pull --force
-    popd
-  done
-
-  # if a delta, submodule(s) should appear as new commit(s)
-  git status
-
-  [[ $POP_REFERRAL ]] && popd
 }
 
 # gitsync: Git pull from all defined repos
