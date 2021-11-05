@@ -61,6 +61,9 @@ version() { echo $VERSION; }
 
 # Install targets
 install() {
+  set -e
+  git submodule init
+  git submodule update
   for t in ${TARGETS[@]}; do
     TS=$(date '+%F')
     if [[ ! -f $HOME/$t && ! -d $HOME/$t ]]; then
@@ -80,6 +83,7 @@ install() {
       fi
     fi
   done
+  set +e
 
   printf '%s'   "$(tput setaf 6)"
   printf '%s\n' '          _____                _____       __     __        '
