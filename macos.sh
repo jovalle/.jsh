@@ -3,14 +3,20 @@
 test $(uname -s) = "Darwin"
 
 # new version of brew requires sourcing
-if [[ $(grep /opt/homebrew/bin/brew ${HOME}/.zprofile) != 0 ]]
+if [[ -f ${HOME}/.zprofile ]]
 then
-  echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/jay/.zprofile
+  if [[ $(grep /opt/homebrew/bin/brew ${HOME}/.zprofile) != 0 ]]
+  then
+    echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/jay/.zprofile
+  fi
+  eval "$(/opt/homebrew/bin/brew shellenv)"
 fi
-eval "$(/opt/homebrew/bin/brew shellenv)"
 
 # rosetta needed for "legacy" apps
-sudo softwareupdate --install-rosetta
+if [[ $(uname -m) == 'arm64' ]]
+then
+  sudo softwareupdate --install-rosetta
+fi
 
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
