@@ -91,13 +91,6 @@ info() { echo -e ${blue}$@${reset}; }
 # ----------------------------------------------------------
 quiet() { [[ $# == 0 ]] && &> /dev/null || "$*" &> /dev/null ; }
 
-# Fix "command not found: compdef"
-# ----------------------------------------------------------
-if [[ $SH == 'zsh' ]]; then
-  autoload -Uz compinit
-  compinit || compaudit 2>/dev/null | xargs chmod g-w
-fi
-
 # Show only two levels of pwd in prompt (Bash >=4 only)
 # ----------------------------------------------------------
 [[ $SH == 'bash' ]] && PROMPT_DIRTRIM=2

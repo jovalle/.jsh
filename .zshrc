@@ -104,6 +104,14 @@ plugins=(git autojump)
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
+# Fix zsh completions
+if type brew &>/dev/null; then
+  FPATH=$(brew --prefix)/share/zsh-completions:$FPATH
+
+  autoload -Uz compinit
+  compinit || compaudit 2>/dev/null | xargs chmod g-w
+fi
+
 # Shell agnostic enchancements
 [[ -f $HOME/.jshrc ]] && source $HOME/.jshrc
 
@@ -117,14 +125,6 @@ src $SOURCE_FILES # batch source zsh scripts
 
 # Fix oh-my-zsh override of vi-mode in shell
 set -o vi
-
-# Fix zsh completions
-if type brew &>/dev/null; then
-  FPATH=$(brew --prefix)/share/zsh-completions:$FPATH
-
-  autoload -Uz compinit
-  compinit
-fi
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
