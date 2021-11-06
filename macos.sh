@@ -30,8 +30,6 @@ casks=(
 )
 
 packages=(
-  adns
-  alfred
   alt-tab
   ansible
   appcleaner
@@ -43,8 +41,6 @@ packages=(
   caffeine
   calibre
   cdrtools
-  cheatsheet
-  cleanmymac
   coreutils
   ctags
   ctop
@@ -52,21 +48,14 @@ packages=(
   discord
   dive
   dnsmasq
-  docbook
-  docbook-xsl
   docker
-  edex-ui
   ffmpeg
   firefox
-  font-meslo-lg-nerd-font
   freetype
   fzf
   gcc
   gdbm
   gettext
-  ghostscript
-  gimp
-  git
   glances
   glib
   gmp
@@ -78,13 +67,11 @@ packages=(
   google-chrome
   grc
   guile
-  handbrake
   helm
   htop
   hugo
   hyperkit
   icu4c
-  iina
   ilmbase
   imagemagick
   istat-menus
@@ -92,7 +79,6 @@ packages=(
   jpeg
   jq
   kind
-  kitty
   krew
   kubernetes-cli
   kubetail
