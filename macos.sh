@@ -74,6 +74,7 @@ packages=(
   icu4c
   ilmbase
   imagemagick
+  intel-power-gadget
   istat-menus
   iterm2
   jpeg
@@ -131,6 +132,7 @@ packages=(
   podman
   python@3.9
   qemu
+  raspberry-pi-imager
   readline
   reattach-to-user-namespace
   rectangle
