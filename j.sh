@@ -11,23 +11,25 @@
 
 VERSION="0.1.8"
 NO_BACKUP=0
-BASE=(
+TARGETS=(
   ".bin"
+  ".fzf"
   ".gitconfig"
   ".inputrc"
   ".jshrc"
-  ".sshrc"
-  ".vim"
-  ".vimrc"
-)
-EXTRA=(
-  ".fzf"
-  ".tmux.conf"
-)
-SPECIAL=(
   ".oh-my-zsh"
   ".p10k.zsh"
+  ".sshrc"
+  ".tmux.conf"
+  ".vim"
+  ".vimrc"
   ".zshrc"
+)
+INSTALLERS=(
+  "custom/autojump/install.py"
+)
+UNINSTALLERS=(
+  "custom/autojump/uninstall.py"
 )
 
 # Output usage information
@@ -41,8 +43,6 @@ Options:
   -v, --version        output program version
   -h, --help           output help information
   -n, --no-backup      skip backup creation/restoration
-  -e, --extra          install with extra features
-  -A, --all            install with all features
 EOF
 }
 
@@ -64,6 +64,8 @@ install() {
   set -e
   git submodule init
   git submodule update
+
+  # Symlink sourceable scripts
   for t in ${TARGETS[@]}; do
     TS=$(date '+%F')
     if [[ ! -f $HOME/$t && ! -d $HOME/$t ]]; then
@@ -81,6 +83,16 @@ install() {
         warn "File found for $HOME/$t. Please backup and remove before executing j.sh"
         exit
       fi
+    fi
+  done
+
+  # Run install scripts
+  for s in ${INSTALLERS[@]}; do
+    dir=$(dirname ${s})
+    if [[ -d $dir ]]; then
+      pushd $dir
+      ./${s##*/}
+      popd
     fi
   done
   set +e
@@ -109,7 +121,6 @@ remove() {
   if [[ "$confirmation" != y ]] && [[ "$confirmation" != Y ]]; then
     abort "Removal process cancelled by user"
   else
-    TARGETS=("${BASE[@]}" "${EXTRA[@]}" "${SPECIAL[@]}");
     for t in ${TARGETS[@]}; do
 
       # check for and remove files
@@ -139,12 +150,21 @@ remove() {
 
     done
 
+    # Run uninstall scripts
+    for s in ${UNINSTALLERS[@]}; do
+      dir=$(dirname ${s})
+      if [[ -d $dir ]]; then
+        pushd $dir
+        ./${s##*/}
+        popd
+      fi
+    done
+
     success "jsh removed"
   fi
 }
 
 # Parse argv
-TARGETS=("${BASE[@]}")
 while test $# -ne 0; do
   arg=$1
   shift
@@ -152,8 +172,6 @@ while test $# -ne 0; do
     -h|--help) usage; exit 0 ;;
     -v|--version) version; exit 0 ;;
     -n|--no-backup) NO_BACKUP=1; ;;
-    -e|--extra) TARGETS+=("${EXTRA[@]}"); ;;
-    -A|--all) TARGETS+=("${EXTRA[@]}" "${SPECIAL[@]}"); ;;
     install) INSTALL=1; ;;
     remove) REMOVE=1; ;;
     *) usage; exit 1 ;;
@@ -164,6 +182,8 @@ if [[ "$INSTALL" -eq 1 ]]; then
   install
   exit $?
 elif [[ "$REMOVE" -eq 1 ]]; then
-  remove 
+  remove
   exit $?
 fi
+
+usage
