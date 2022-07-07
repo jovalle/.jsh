@@ -109,7 +109,7 @@ if type brew &>/dev/null; then
   FPATH=$(brew --prefix)/share/zsh-completions:$FPATH
 
   autoload -Uz compinit
-  compinit || compaudit 2>/dev/null | xargs chmod g-w
+  compinit -u || compaudit 2>/dev/null | xargs chmod g-w
 fi
 
 # Shell agnostic enchancements
@@ -119,6 +119,7 @@ SOURCE_FILES=(
   $JSH/.oh-my-zsh/oh-my-zsh.sh # zsh revamp
   $JSH/custom/zsh-autosuggestions/zsh-autosuggestions.zsh # fish-like suggestions
   $JSH/custom/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh # fish-like syntax color coding
+  $HOME/.autojump/etc/profile.d/autojump.sh # shortcuts to recent dirs
 )
 
 src $SOURCE_FILES # batch source zsh scripts
