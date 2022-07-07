@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 test $(uname -s) = "Darwin"
 
@@ -130,7 +130,7 @@ packages=(
   pkg-config
   plex
   podman
-  python@3.9
+  python@3.10
   qemu
   raspberry-pi-imager
   readline
@@ -172,17 +172,36 @@ packages=(
   zsh-completions
 )
 
-for tap in ${taps[@]}
-do
+for tap in ${taps[@]}; do
   brew tap $tap
 done
 
-for cask in ${casks[@]}
-do
+for cask in ${casks[@]}; do
   brew install --cask $cask
 done
 
-for package in ${packages[@]}
-do
+for package in ${packages[@]}; do
   brew install $package
 done
+
+# Prioritize local binaries
+export PATH="/usr/local/bin:$PATH"
+
+# Override macOS python with brew's python3.10
+targets=(
+  /usr/local/bin/python
+  /usr/local/bin/python3
+  /usr/local/bin/python3.10
+)
+if [[ -f $(brew --prefix)/opt/python@3.10/bin/python3 ]]; then
+  for target in ${targets[@]}; do
+    [[ -L $target ]] && unlink $target
+    ln -s $(brew --prefix)/opt/python@3.10/bin/python3 $target
+  done
+fi
+
+# Install pip
+curl -sS https://bootstrap.pypa.io/get-pip.py | python
+
+# Install jsh
+./j.sh install
