@@ -168,7 +168,9 @@ fi
 
 # Rid PATH of duplicates
 # ----------------------------------------------------------
-export PATH=$(echo "$PATH" | tr ':' '\n' | sort -u | tr '\n' ':' | sed 's/:$//g')
+_path=$(echo -n "$PATH" | sed 's/:\/usr\/local\/bin//g' | sed 's/:\/usr\/bin//g')
+export PATH=$(echo "$_path" | tr ':' '\n' | tr -d '^$' | sort -u | tr '\n' ':' | sed 's/:$//g'):/usr/local/bin:/usr/bin # prioritize local binaries
+
 
 
 # --------------------------------------------------------------------
