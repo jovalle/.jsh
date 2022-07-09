@@ -23,7 +23,7 @@ export EDITOR=vim
 export GPG_TTY=$(tty)
 export JSH=$HOME/.jsh
 export JSH_CUSTOM=$HOME/.jsh_local
-export PATH=$HOME/.local/bin:$JSH/.bin:$PATH
+export PATH=$HOME/.local/bin:$JSH/.bin:$HOME/go/bin:$PATH
 export PYTHONDONTWRITEBYTECODE=1 # No .pyc files when importing
 export SH=${SHELL##*/}
 export SSHRC_EXTRAS='.tmux.conf .vimrc'
@@ -106,7 +106,7 @@ set -o vi
 # Use SHM for storing sensitive information
 # ----------------------------------------------------------
 if [[ "$(uname)" =~ "Darwin" ]]; then
-  export SHM=$HOME/.vault
+  export SHM=$HOME
 else
   export SHM=/dev/shm/$USER
 fi
@@ -125,8 +125,14 @@ fi
 
 # Enable k8s completion
 # ----------------------------------------------------------
-if command -v kubectl &>/dev/null; then
+if [[ $(command -v kubectl) == 0 ]]; then
   source <(kubectl completion $SH)
+fi
+
+# Get kubeconfigs by cluster
+# ----------------------------------------------------------
+if [[ -d $HOME/.kube/clusters ]]; then
+  export KUBECONFIG=$(find $HOME/.kube/clusters -type f | sed ':a;N;s/\n/:/;ba')
 fi
 
 # Enable fzf
@@ -172,7 +178,6 @@ _path=$(echo -n "$PATH" | sed 's/:\/usr\/local\/bin//g' | sed 's/:\/usr\/bin//g'
 export PATH=$(echo "$_path" | tr ':' '\n' | tr -d '^$' | sort -u | tr '\n' ':' | sed 's/:$//g'):/usr/local/bin:/usr/bin # prioritize local binaries
 
 
-
 # --------------------------------------------------------------------
 # 3. Prompt
 # --------------------------------------------------------------------
@@ -210,7 +215,7 @@ prompt_cmd() {
 
 # More elaborate coloring
 # ----------------------------------------------------------
-if [[ $(which grc 2>/dev/null) ]]; then
+if [[ $(which grc 2>/dev/null) == 0 ]]; then
   alias colorize="$(which grc) -es --colour=auto"
   alias as='colorize as'
   alias configure='colorize ./configure'
@@ -285,7 +290,7 @@ alias mountReadWrite='/sbin/mount -uw /' # mountReadWrite: For use when booted i
 alias mv='mv -iv' # Preferred 'mv' implementation
 alias mx='chmod a+x' # ---x--x--x (user: --x, group: --x, other: --x)
 alias nano='nano -W' # Preferred 'nano' implementation
-alias pass='openssl passwd -1' # pass: Generate salted hash for passwords
+alias passgen='openssl passwd -1' # pass: Generate salted hash for passwords
 alias path='echo -e ${PATH//:/\\n}' # path: Echo all executable Paths
 alias perm='stat --printf "%a %n \n "' # perm: Show permission of target in number
 alias please='sudo ' # Politely ask for superuser
@@ -295,6 +300,7 @@ alias sshx='eval $(ssh-agent) && ssh-add 2>/dev/null' # sshx: Import SSH keys
 alias sudo='sudo '
 alias timestamp='date "+%Y%m%dT%H%M%S"' # Filename ready complete time format
 alias tf='terraform' # Abbreviation
+alias vscode='open -a "Visual Studio Code"' # VSCode shortcut
 alias w='watch -n1 -d -t ' # Faster watch, highlight changes and no title
 alias wget='wget -c' # Preferred 'wget' implementation (resume download)
 
@@ -483,6 +489,21 @@ inv() {
   fi
 }
 
+# ipmi: Common ipmitool shortcuts with no plaintext password
+# ----------------------------------------------------------
+ipmi() {
+  if [[ $1 == "fan" ]]; then
+    if [[ $# == 2 ]]; then
+      ipmitool -I lanplus -H ${IPMI_HOST} -U ${IPMI_USER} -f ${IPMI_CRED_FILE} raw 0x30 0x30 0x02 0xff 0x$(printf '%x\n' $2)
+      return $?
+    else
+      error "example: ipmi fan 20"
+    fi
+  fi
+
+  ipmitool -I lanplus -H ${IPMI_HOST} -U ${IPMI_USER} -f ${IPMI_CRED_FILE} $@
+}
+
 # ips: Display all ip addresses for this host
 # ----------------------------------------------------------
 ips() {
@@ -566,6 +587,44 @@ src() {
   fi
 }
 
+# Source: https://stackoverflow.com/questions/54814543/bash-how-to-use-an-alias-command-in-combination-with-watch
+# ----------------------------------------------------------
+swatch_usage() {
+    cat <<EOF >&2
+NAME
+       swatch - execute a program periodically with "watch". Supports aliases.
+
+SYNOPSIS
+       swatch [options] command
+
+OPTIONS
+       -n, --interval seconds (default: 1)
+              Specify update interval.  The command will not allow quicker than 0.1 second interval.
+EOF
+}
+
+swatch() {
+    if [ $# -eq 0 ]; then
+        swatch_usage
+        return 1
+    fi
+    seconds=1
+    case "$1" in
+    -n)
+        seconds="$2"
+        args=${*:3}
+        ;;
+    -h)
+        swatch_usage
+        ;;
+    *)
+        seconds=1
+        args=${*:1}
+        ;;
+    esac
+    watch --color -n "$seconds" -d -t --exec ${SH} -ic "$args || true"
+}
+
 # viw: Edit at source
 # ----------------------------------------------------------
 viw() {
@@ -582,13 +641,18 @@ vk() {
   [[ $# == 1 ]] && VAULT=$1
   if [[ -n $VAULT ]]; then
     local e_data
-    local target="$SHM/.vault-$VAULT"
-    if [[ ! -f "" ]]; then
-      echo -n "Input key for $VAULT: "
+    local dir=$SHM/.vault
+    if [[ ! -d $dir ]]; then
+      mkdir $dir
+    fi
+    local target="${dir}/$VAULT"
+    if [[ ! -f $target ]]; then
+      echo -n "Enter vault key for $VAULT: "
       read -s e_data
       echo ""
       echo $e_data > $target
       chmod 600 $target
+      success "Wrote key to ${target}"
     fi
   else
     error "Usage: vk VAULT_NAME"
@@ -637,10 +701,10 @@ ws() {
       if [[ -z $GIT_INV ]]; then
         if [[ $(git status 2>/dev/null) ]]; then
           info "Setting GIT_INV to $(pwd)/inv"
-          GIT_INV=$(pwd)/inv
+          GIT_INV=$(pwd)/inventory
         else
           info "Setting GIT_INV to ./inv"
-          GIT_INV=./inv
+          GIT_INV=./inventory
         fi
       fi
 
@@ -648,14 +712,18 @@ ws() {
       if [[ -d $GIT_INV/$WORKSPACE ]]; then
         info "Setting ANSIBLE_INVENTORY to $GIT_INV/$WORKSPACE"
         export ANSIBLE_INVENTORY="$GIT_INV/$WORKSPACE"
+        alias ap="ansible-playbook -i $ANSIBLE_INVENTORY"
+        alias a="ansible -i $ANSIBLE_INVENTORY"
       else
         printf "Ansible Inventory Root: "
         read ANSIBLE_INV
         if [[ -d $ANSIBLE_INV ]]; then
           pushd $ANSIBLE_INV &>/dev/null
-          [[ -d $(git rev-parse --show-toplevel)/inv ]] && export GIT_INV=$(git rev-parse --show-toplevel)/inv
+          [[ -d $(git rev-parse --show-toplevel)/inv ]] && export GIT_INV=$(git rev-parse --show-toplevel)/inventory
           popd &>/dev/null
           export ANSIBLE_INVENTORY=$GIT_INV/$WORKSPACE
+          alias ap="ansible-playbook -i $ANSIBLE_INVENTORY"
+          alias a="ansible -i $ANSIBLE_INVENTORY"
           success "Ansible inventory set to $ANSIBLE_INVENTORY"
         else
           if [[ ! -d $ANSIBLE_INV ]]; then
@@ -667,10 +735,10 @@ ws() {
           fi
         fi
       fi
-      if [[ -f $SHM/.vault-$WORKSPACE ]]; then
-        export ANSIBLE_VAULT_PASSWORD_FILE="$SHM/.vault-$WORKSPACE"
+      if [[ -f $SHM/.vault/$WORKSPACE ]]; then
+        export ANSIBLE_VAULT_PASSWORD_FILE="$SHM/.vault/$WORKSPACE"
       else
-        error "Ansible vault password file $SHM/.vault-$WORKSPACE not found!"
+        error "Ansible vault password file $SHM/.vault/$WORKSPACE not found!"
         return 5
       fi
 
@@ -678,6 +746,8 @@ ws() {
     else
       unset ANSIBLE_INVENTORY
       unset ANSIBLE_VAULT_PASSWORD_FILE
+      alias ap="ansible-playbook"
+      alias a="ansible"
     fi
 
   else
