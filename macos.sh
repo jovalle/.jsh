@@ -31,7 +31,6 @@ casks=(
 
 packages=(
   ansible
-  autojump
   caffeine
   docker
   firefox
@@ -92,6 +91,7 @@ packages=(
   pkg-config
   plex
   podman
+  poetry
   python@3.10
   qemu
   raspberry-pi-imager
