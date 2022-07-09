@@ -13,7 +13,6 @@ VERSION="0.1.8"
 NO_BACKUP=0
 TARGETS=(
   ".bin"
-  ".fzf"
   ".gitconfig"
   ".inputrc"
   ".jshrc"
@@ -24,12 +23,6 @@ TARGETS=(
   ".vim"
   ".vimrc"
   ".zshrc"
-)
-INSTALLERS=(
-  "custom/autojump/install.py"
-)
-UNINSTALLERS=(
-  "custom/autojump/uninstall.py"
 )
 
 # Output usage information
@@ -86,15 +79,12 @@ install() {
     fi
   done
 
-  # Run install scripts
-  for s in ${INSTALLERS[@]}; do
-    dir=$(dirname ${s})
-    if [[ -d $dir ]]; then
-      pushd $dir
-      ./${s##*/}
-      popd
-    fi
-  done
+  # Install autojump (shortcuts to recent dirs)
+  pushd custom/autojump && ./install.py && popd || popd
+
+  # Install fzf (fuzzy search)
+  .fzf/install --key-bindings --completion --no-update-rc
+
   set +e
 
   printf '%s'   "$(tput setaf 6)"
@@ -150,15 +140,11 @@ remove() {
 
     done
 
-    # Run uninstall scripts
-    for s in ${UNINSTALLERS[@]}; do
-      dir=$(dirname ${s})
-      if [[ -d $dir ]]; then
-        pushd $dir
-        ./${s##*/}
-        popd
-      fi
-    done
+    # Uninstall autojump
+    pushd custom/autojump && ./uninstall.py && popd || popd
+
+    # Uninstall fzf
+    yes | .fzf/uninstall
 
     success "jsh removed"
   fi

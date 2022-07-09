@@ -135,18 +135,6 @@ if [[ -d $HOME/.kube/clusters ]]; then
   export KUBECONFIG=$(find $HOME/.kube/clusters -type f | sed ':a;N;s/\n/:/;ba')
 fi
 
-# Enable fzf
-# ----------------------------------------------------------
-if [[ -d $HOME/.fzf/bin ]]; then
-  if [[ ! "$PATH" == *$HOME/.fzf/bin* ]]; then
-    export PATH="${PATH:+${PATH}:}$HOME/.fzf/bin"
-  fi
-  [[ $- == *i* ]] && source "$HOME/.fzf/shell/completion.$SH" 2>/dev/null
-  source "$HOME/.fzf/shell/key-bindings.$SH"
-elif [[ -f ~/.fzf.${SH} ]]; then
-  source ~/.fzf.${SH}
-fi
-
 # Enable color support of ls and also add handy aliases
 # ----------------------------------------------------------
 if [[ -x /usr/bin/dircolors ]]; then

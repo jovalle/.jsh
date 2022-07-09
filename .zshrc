@@ -115,20 +115,21 @@ fi
 # Shell agnostic enchancements
 [[ -f $HOME/.jshrc ]] && source $HOME/.jshrc
 
-SOURCE_FILES=(
-  $JSH/.oh-my-zsh/oh-my-zsh.sh # zsh revamp
-  $JSH/custom/zsh-autosuggestions/zsh-autosuggestions.zsh # fish-like suggestions
-  $JSH/custom/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh # fish-like syntax color coding
-  $HOME/.autojump/etc/profile.d/autojump.sh # shortcuts to recent dirs
-)
-
-src $SOURCE_FILES # batch source zsh scripts
+# Source bundle
+while read f
+do
+  src $f
+done <<< "
+  $HOME/.autojump/etc/profile.d/autojump.sh
+  $HOME/.fzf.zsh
+  $HOME/.p10k.zsh
+  $JSH/.oh-my-zsh/oh-my-zsh.sh
+  $JSH/custom/zsh-autosuggestions/zsh-autosuggestions.zsh
+  $JSH/custom/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+"
 
 # Fix oh-my-zsh override of vi-mode in shell
 set -o vi
-
-# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
 # Override mac system ruby
 export PATH="/usr/local/opt/ruby/bin:$PATH"
@@ -138,4 +139,3 @@ export PKG_CONFIG_PATH="/usr/local/opt/ruby/lib/pkgconfig"
 
 # Add krew to path
 export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
-
