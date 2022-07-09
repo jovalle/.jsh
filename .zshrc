@@ -118,7 +118,9 @@ fi
 # Source bundle
 while read f
 do
-  src $f
+  if [ -f $f ]; then
+    src $f
+  fi
 done <<< "
   $HOME/.autojump/etc/profile.d/autojump.sh
   $HOME/.fzf.zsh
