@@ -168,7 +168,7 @@ if !exists("$SSHHOME")
   Plug 'itchyny/lightline.vim'
 
   " For NerdTree file explorer
-  Plug 'scrooloose/nerdtree'
+  Plug 'preservim/nerdtree'
 
   " Syntax highlighting for languages
   Plug 'sheerun/vim-polyglot'

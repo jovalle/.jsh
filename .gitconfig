@@ -41,3 +41,5 @@
   user = jovalle
   name = Jay Ovalle
   email = jay.ovalle@gmail.com
+[init]
+  defaultBranch = main
