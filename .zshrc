@@ -136,6 +136,9 @@ done <<< "
 # Fix oh-my-zsh override of vi-mode in shell
 set -o vi
 
+# Fix key bindings
+bindkey '^H' backward-kill-word # key binding must be set in iTerm settings
+
 # Override mac system ruby
 export PATH="/usr/local/opt/ruby/bin:$PATH"
 export LDFLAGS="-L/usr/local/opt/ruby/lib"
