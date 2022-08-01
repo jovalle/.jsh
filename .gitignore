@@ -5,6 +5,7 @@
 .history
 *.netrwhist
 .vim/plugged/*
+.vim/bundle/*
 .idea
 
 ############################################################
