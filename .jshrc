@@ -481,6 +481,7 @@ inv() {
 # ----------------------------------------------------------
 ipmi() {
   if [[ $1 == "fan" ]]; then
+    ipmitool -I lanplus -H ${IPMI_HOST} -U ${IPMI_USER} -f ${IPMI_CRED_FILE} raw 0x30 0x30 0x01 0x00
     if [[ $# == 2 ]]; then
       ipmitool -I lanplus -H ${IPMI_HOST} -U ${IPMI_USER} -f ${IPMI_CRED_FILE} raw 0x30 0x30 0x02 0xff 0x$(printf '%x\n' $2)
       return $?
