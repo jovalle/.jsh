@@ -225,6 +225,10 @@ if [[ $(which grc 2>/dev/null) == 0 ]]; then
   alias traceroute='colorize /usr/sbin/traceroute'
 fi
 
+# Conditional
+# ----------------------------------------------------------
+command -v kubecolor >/dev/null 2>&1 && alias kubectl="kubecolor"
+
 # Assorted
 # ----------------------------------------------------------
 alias ..='cd ../' # Go back 1 directory level
@@ -278,6 +282,7 @@ alias mountReadWrite='/sbin/mount -uw /' # mountReadWrite: For use when booted i
 alias mv='mv -iv' # Preferred 'mv' implementation
 alias mx='chmod a+x' # ---x--x--x (user: --x, group: --x, other: --x)
 alias nano='nano -W' # Preferred 'nano' implementation
+alias netshoot='kubectl run tmp-shell --rm -i --tty --image nicolaka/netshoot' # quick pod for troubleshooting
 alias passgen='openssl passwd -1' # pass: Generate salted hash for passwords
 alias path='echo -e ${PATH//:/\\n}' # path: Echo all executable Paths
 alias perm='stat --printf "%a %n \n "' # perm: Show permission of target in number
@@ -689,8 +694,13 @@ ws() {
       # Check for base definition
       if [[ -z $GIT_INV ]]; then
         if [[ $(git status 2>/dev/null) ]]; then
-          info "Setting GIT_INV to $(pwd)/inv"
-          GIT_INV=$(pwd)/inventory
+          if [[ -d $(pwd)/ansible ]]; then
+            info "Setting GIT_INV to $(pwd)/ansible/inv"
+            GIT_INV=$(pwd)/ansible/inventory
+          else
+            info "Setting GIT_INV to $(pwd)/inv"
+            GIT_INV=$(pwd)/inventory
+          fi
         else
           info "Setting GIT_INV to ./inv"
           GIT_INV=./inventory
