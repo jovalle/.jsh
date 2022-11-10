@@ -27,6 +27,7 @@ taps=(
 
 casks=(
   docker
+  warp
 )
 
 packages=(
