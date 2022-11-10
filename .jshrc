@@ -227,10 +227,12 @@ fi
 
 # Conditional
 # ----------------------------------------------------------
-command -v kubecolor >/dev/null 2>&1 && alias kubectl="kubecolor"
+command -v exa >/dev/null 2>&1 && alias ls='exa -lag --header'
+command -v kubecolor >/dev/null 2>&1 && alias kubectl='kubecolor'
 
 # Assorted
 # ----------------------------------------------------------
+alias ..='cd ..'
 alias ..='cd ../' # Go back 1 directory level
 alias .2='cd ../../' # Go back 2 directory levels
 alias .3='cd ../../../' # Go back 3 directory levels
@@ -247,12 +249,14 @@ alias a='ansible' # Abbreviation
 alias ap='ansible-playbook' # Abbreviation
 alias av='ansible-vault' # Abbreviation
 alias c='clear' # c: Clear terminal display
+alias ccd='clear && cd' # Reset shell
 alias cd..='cd ../' # Go back 1 directory level (for fast typers)
 alias cp='cp -iv' # Preferred 'cp' implementation
 alias curl='curl -w "\n"'
 alias d='dirs -v | head -10' # Display dir
 alias dud='du -d 1 -h' # Short and human-readable file listing
 alias duf='du -sh *' # Short and human-readable directory listing
+alias edit='vim'
 alias epochtime='date +%s' # Current epoch time
 alias fix_stty='stty sane' # fix_stty: Restore terminal settings when screwed up
 alias g='grep --color=auto -i' # grep > git
@@ -262,6 +266,7 @@ alias gitv='git log --graph --format="%C(auto)%h%d %s %C(black)%C(bold)%cr"' # B
 alias glances='glances -1 -t 0.5' # Faster output from glances
 alias grep='grep --color=auto -i' # Preferred 'grep' implementation
 alias gvimdiff='git difftool --tool=vimdiff --no-prompt' # Open all git changes in vimdiff
+alias h='history'
 alias k='kubectl' # Abbreviate kube control
 alias kaf='kubectl apply -f' # Apply k8s manifest
 alias kar='kubectl api-resources --verbs=list --namespaced -o name | grep -v "events.events.k8s.io" | grep -v "events" | sort | uniq' # Get all possible kinds
@@ -288,14 +293,17 @@ alias path='echo -e ${PATH//:/\\n}' # path: Echo all executable Paths
 alias perm='stat --printf "%a %n \n "' # perm: Show permission of target in number
 alias please='sudo ' # Politely ask for superuser
 alias proxy='http_proxy=$PROXY_ENDPOINT https_proxy=$PROXY_ENDPOINT no_proxy=$PROXY_EXCEPTION' # proxy: set as per env and on command
+alias rm='rm -i' # Always prompt before deleting
 alias show_options='shopt' # Show_options: display bash options settings
 alias sshx='eval $(ssh-agent) && ssh-add 2>/dev/null' # sshx: Import SSH keys
 alias sudo='sudo '
-alias timestamp='date "+%Y%m%dT%H%M%S"' # Filename ready complete time format
 alias tf='terraform' # Abbreviation
+alias timestamp='date "+%Y%m%dT%H%M%S"' # Filename ready complete time format
+alias tmux="tmux -2" # Force 256 color support
 alias vscode='open -a "Visual Studio Code"' # VSCode shortcut
 alias w='watch -n1 -d -t ' # Faster watch, highlight changes and no title
 alias wget='wget -c' # Preferred 'wget' implementation (resume download)
+alias which='type -a'
 
 
 # --------------------------------------------------------------------
