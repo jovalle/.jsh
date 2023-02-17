@@ -4,6 +4,15 @@
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y software-properties-common build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev wget libbz2-dev zsh
 
+# Install Meslo NF
+sudo apt install fontconfig
+curl -Lo /tmp/Meslo.zip $(curl -s https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest | grep "browser_download_url.*Meslo.zip" | cut -d : -f 2,3 | tr -d \")
+mkdir -p $HOME/.local/share/fonts
+unzip /tmp/Meslo.zip -d $HOME/.local/share/fonts
+rm $HOME/.local/share/fonts/*Windows*
+rm /tmp/Meslo.zip
+fc-cache -fv
+
 # Install python3.10
 if [[ ! -f /usr/local/bin/python3.10 && $(python3 --version) != "*3.10*" ]]; then
  pushd /tmp
