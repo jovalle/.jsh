@@ -80,7 +80,7 @@ install() {
   done
 
   # Install autojump (shortcuts to recent dirs)
-  pushd custom/autojump && ./install.py && popd || popd
+  pushd custom/plugins/autojump && ./install.py && popd || popd
 
   # Install fzf (fuzzy search)
   .fzf/install --key-bindings --completion --no-update-rc
@@ -141,7 +141,7 @@ remove() {
     done
 
     # Uninstall autojump
-    pushd custom/autojump && ./uninstall.py && popd || popd
+    pushd custom/plugins/autojump && ./uninstall.py && popd || popd
 
     # Uninstall fzf
     yes | .fzf/uninstall
