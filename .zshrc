@@ -78,7 +78,11 @@ ZSH_CUSTOM=$HOME/.jsh/custom
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(
   autojump
+  fzf
   git
+  web-search
+  zsh-autosuggestions
+  zsh-syntax-highlighting
 )
 
 # User configuration
@@ -118,20 +122,8 @@ fi
 # Shell agnostic enchancements
 [[ -f $HOME/.jshrc ]] && source $HOME/.jshrc
 
-# Source bundle
-while read f
-do
-  if [ -f $f ]; then
-    src $f
-  fi
-done <<< "
-  $HOME/.autojump/etc/profile.d/autojump.sh
-  $HOME/.fzf.zsh
-  $HOME/.p10k.zsh
-  $JSH/.oh-my-zsh/oh-my-zsh.sh
-  $JSH/custom/zsh-autosuggestions/zsh-autosuggestions.zsh
-  $JSH/custom/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-"
+# Enable Oh My Zsh
+[[ -f $JSH/.oh-my-zsh/oh-my-zsh.sh ]] && source $JSH/.oh-my-zsh/oh-my-zsh.sh
 
 # Fix oh-my-zsh override of vi-mode in shell
 set -o vi
@@ -147,3 +139,6 @@ export PKG_CONFIG_PATH="/usr/local/opt/ruby/lib/pkgconfig"
 
 # Add krew to path
 export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
+
+# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh

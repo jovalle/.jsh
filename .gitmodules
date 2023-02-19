@@ -7,12 +7,12 @@
 [submodule ".fzf"]
 	path = .fzf
 	url = https://github.com/junegunn/fzf
-[submodule "custom/zsh-autosuggestions"]
-	path = custom/zsh-autosuggestions
+[submodule "custom/plugins/zsh-autosuggestions"]
+	path = custom/plugins/zsh-autosuggestions
 	url = https://github.com/zsh-users/zsh-autosuggestions
-[submodule "custom/zsh-syntax-highlighting"]
-	path = custom/zsh-syntax-highlighting
-	url = https://github.com/zsh-users/zsh-syntax-highlighting.git
-[submodule "custom/autojump"]
-	path = custom/autojump
-	url = https://github.com/wting/autojump.git
+[submodule "custom/plugins/zsh-syntax-highlighting"]
+	path = custom/plugins/zsh-syntax-highlighting
+	url = https://github.com/zsh-users/zsh-syntax-highlighting
+[submodule "custom/plugins/autojump"]
+	path = custom/plugins/autojump
+	url = https://github.com/wting/autojump
