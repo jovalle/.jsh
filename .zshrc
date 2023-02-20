@@ -112,11 +112,10 @@ plugins=(
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
 # Fix zsh completions
-if type brew &>/dev/null; then
+if ! [ -x "$(command -v brew)" ]; then
   FPATH=$(brew --prefix)/share/zsh-completions:$FPATH
-
   autoload -Uz compinit
-  compinit -u || compaudit 2>/dev/null | xargs chmod g-w
+  compaudit | xargs chmod g-w,o-w
 fi
 
 # Shell agnostic enchancements
