@@ -43,5 +43,3 @@
   email = jay.ovalle@gmail.com
 [init]
   defaultBranch = main
-[url "ssh://git@github.com"]
-  insteadof = https://github.com

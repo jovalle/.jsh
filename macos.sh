@@ -1,24 +1,38 @@
 #!/usr/bin/env bash
 
-#test $(uname -s) = "Darwin"
-#
-## new version of brew requires sourcing
-#if [[ -f ${HOME}/.zprofile ]]
-#then
-#  if [[ $(grep /opt/homebrew/bin/brew ${HOME}/.zprofile) != 0 ]]
-#  then
-#    echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/jay/.zprofile
-#  fi
-#  eval "$(/opt/homebrew/bin/brew shellenv)"
-#fi
-#
-## rosetta needed for "legacy" apps
-#if [[ $(uname -m) == 'arm64' ]]
-#then
-#  sudo softwareupdate --install-rosetta
-#fi
-#
-#/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+test $(uname -s) = "Darwin"
+
+# install brew if missing
+if ! [ -x "$(command -v brew)" ]
+then
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+fi
+
+# new version of brew requires sourcing
+if [[ $(grep /opt/homebrew/bin/brew ${HOME}/.zprofile) != 0 ]]
+then
+  echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/jay/.zprofile
+fi
+eval "$(/opt/homebrew/bin/brew shellenv)"
+
+# rosetta needed for "legacy" apps
+if [[ $(uname -m) == 'arm64' && ! -d /usr/libexec/rosetta ]]
+then
+ sudo softwareupdate --install-rosetta
+fi
+
+# install meslo NF font
+if [[ ! -f "$HOME/Library/Fonts/Meslo LG S Regular Nerd Font Complete.ttf" ]]
+then
+  echo "Installing Meslo font..."
+  curl -Lo /tmp/Meslo.zip $(curl -s https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest | grep "browser_download_url.*Meslo.zip" | cut -d : -f 2,3 | tr -d \")
+  unzip /tmp/Meslo.zip -d $HOME/Library/Fonts
+  rm -f $HOME/Library/Fonts/*Windows*
+  rm -f $HOME/Library/Fonts/LICENSE.txt
+  rm -f $HOME/Library/Fonts/readme.md
+  rm -f /tmp/Meslo.zip
+fi
 
 taps=(
   homebrew/cask-fonts
@@ -27,7 +41,6 @@ taps=(
 
 casks=(
   docker
-  warp
 )
 
 packages=(
@@ -73,7 +86,6 @@ packages=(
   mas
   minikube
   mos
-  namebench
   ncurses
   neofetch
   netcat
@@ -125,17 +137,16 @@ done
 # Prioritize local binaries
 export PATH="/usr/local/bin:$PATH"
 
-# Override macOS python with brew's python3.10
+# Override macOS python with brew's python
 targets=(
-  /usr/local/bin/python
-  /usr/local/bin/python3
-  /usr/local/bin/python3.10
+ /usr/local/bin/python
+ /usr/local/bin/python3
 )
-if [[ -f $(brew --prefix)/opt/python@3.10/bin/python3 ]]; then
-  for target in ${targets[@]}; do
-    [[ -L $target ]] && unlink $target
-    ln -s $(brew --prefix)/opt/python@3.10/bin/python3 $target
-  done
+if [[ -x $(brew --prefix)/opt/python3/bin/python3 ]]; then
+ for target in ${targets[@]}; do
+   [[ -L $target ]] && sudo unlink $target
+   sudo ln -s $(brew --prefix)/opt/python3/bin/python3 $target
+ done
 fi
 
 # Install pip
