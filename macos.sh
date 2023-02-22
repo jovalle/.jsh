@@ -109,6 +109,7 @@ packages=(
   python@3.10
   qemu
   raspberry-pi-imager
+  signal
   spotify
   sublime-text
   tg-pro
