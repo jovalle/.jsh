@@ -185,13 +185,30 @@ then
   done
 fi
 
-# Get vscode settings
-vscode_settings_json="$HOME/Library/Application Support/Code/User/settings.json"
-if [[ ! -L $vscode_settings_json ]]
-then
-  [[ -f $vscode_settings_json ]] && rm -f $vscode_settings_json
-  ln -s $HOME/.jsh/custom/configs/vscode/settings.json "$vscode_settings_json"
-fi
+import_config() {
+  if [[ $# != 2 ]]
+  then
+    echo "Usage: import_config <source> <destination>"
+    return 1
+  fi
+
+  config_src=$HOME/.jsh/custom/configs/$1
+  config_dest=$2
+
+  if [[ -f "$config_src" ]]
+  then
+    [[ -f $config_dest ]] && rm -f "$config_dest" && echo "Deleted '$config_dest'"
+    [[ -L $config_dest ]] && unlink "$config_dest" && echo "Unlinked '$config_dest'"
+    ln -s "$config_src" "$config_dest" && echo "Linked '$config_dest' -> '$config_src'"
+  else
+    echo "Failed to find config at '$config_src'"
+    return 2
+  fi
+}
+
+# Import app configs
+import_config "iterm2.plist" "$HOME/Library/Preferences/com.googlecode.iterm2.plist"
+import_config "vscode.settings.json" "$HOME/Library/Application Support/Code/User/settings.json"
 
 # Install pip
 if ! [ -x "$(command -v pip)" ]
