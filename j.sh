@@ -80,10 +80,14 @@ install() {
   done
 
   # Install autojump (shortcuts to recent dirs)
-  pushd custom/plugins/autojump && ./install.py && popd || popd
+  if ! [ -x "$(command -v autojump)" ]; then
+    pushd custom/plugins/autojump && ./install.py && popd || popd
+  fi
 
   # Install fzf (fuzzy search)
-  .fzf/install --key-bindings --completion --no-update-rc
+  if ! [ -x "$(command -v fzf)" ]; then
+    .fzf/install --key-bindings --completion --no-update-rc
+  fi
 
   set +e
 
@@ -98,7 +102,7 @@ install() {
   printf '%s\n' ' |      |/______/ ||\____\ /____/|  /____/ |       | \____\ '
   printf '%s\n' ' |\_____\      | / | |   ||    | |  |    | |       | |    | '
   printf '%s\n' ' | |     |_____|/   \|___||____|/   |____|/         \|____| '
-  printf '%s\n' '  \|_____|                                                   ....is now installed!'
+  printf '%s\n' '  \|_____|                                                   ....is installed!'
   printf '%s\n' 'jsh is shell agnostic. Update your shell profile (i.e. .bash_profile) to include sourcing .jshrc and reload your shell'
   printf '%s\n' 'Sample .bash_profile:'
   printf '%s\n' '[[ -f ~/.jshrc ]] && . ~/.jshrc'
