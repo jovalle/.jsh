@@ -185,6 +185,14 @@ then
   done
 fi
 
+# Get vscode settings
+vscode_settings_json="$HOME/Library/Application Support/Code/User/settings.json"
+if [[ ! -L $vscode_settings_json ]]
+then
+  [[ -f $vscode_settings_json ]] && rm -f $vscode_settings_json
+  ln -s $HOME/.jsh/custom/configs/vscode/settings.json "$vscode_settings_json"
+fi
+
 # Install pip
 if ! [ -x "$(command -v pip)" ]
 then
