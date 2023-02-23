@@ -24,6 +24,12 @@ then
  sudo softwareupdate --install-rosetta
 fi
 
+if [[ ! -f $HOME/.ssh/id_rsa ]]
+then
+  ssh-keygen -q -t rsa -N '' -f ~/.ssh/id_rsa
+  cat ~/.ssh/id_rsa
+fi
+
 # install meslo NF font
 if [[ ! -f "$HOME/Library/Fonts/Meslo LG S Regular Nerd Font Complete.ttf" ]]
 then
