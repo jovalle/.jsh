@@ -2,6 +2,8 @@
 
 test $(uname -s) = "Darwin"
 
+[[ ! -f $HOME/.zprofile ]] && touch $HOME/.zprofile
+
 # install brew if missing
 if ! [ -x "$(command -v brew)" ]
 then
@@ -10,11 +12,11 @@ then
 fi
 
 # new version of brew requires sourcing
-if [[ $(grep /opt/homebrew/bin/brew ${HOME}/.zprofile) != 0 ]]
+if ! grep -q /opt/homebrew/bin/brew $HOME/.zprofile
 then
   echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/jay/.zprofile
+  eval "$(/opt/homebrew/bin/brew shellenv)"
 fi
-eval "$(/opt/homebrew/bin/brew shellenv)"
 
 # rosetta needed for "legacy" apps
 if [[ $(uname -m) == 'arm64' && ! -d /usr/libexec/rosetta ]]
@@ -52,7 +54,6 @@ packages=(
   go
   google-chrome
   helm
-  hyperkit
   istat-menus
   iterm2
   jq
@@ -106,7 +107,7 @@ packages=(
   plex
   podman
   poetry
-  python@3.10
+  python3
   qemu
   raspberry-pi-imager
   signal
@@ -115,7 +116,6 @@ packages=(
   tg-pro
   tmux
   vagrant
-  virtualbox
   visual-studio-code
   vlc
   watch
@@ -123,17 +123,44 @@ packages=(
   zsh-completions
 )
 
-for tap in ${taps[@]}; do
+s_packages=(
+  hyperkit
+  virtualbox
+)
+
+installed=$(brew list -1)
+
+for tap in ${taps[@]}
+do
   brew tap $tap
 done
 
-for cask in ${casks[@]}; do
-  brew install --cask $cask
+for cask in ${casks[@]}
+do
+  if [[ ${installed[@]} != *$cask* ]]
+  then
+    brew install --cask $cask
+  fi
 done
 
-for package in ${packages[@]}; do
-  brew install $package
+for package in ${packages[@]}
+do
+  if [[ ${installed[@]} != *$package* ]]
+  then
+    brew install $package
+  fi
 done
+
+if [[ $(uname -m) == 'x86_64' ]]
+then
+  for s_package in ${s_packages[@]}
+  do
+    if [[ ${installed[@]} != *$s_package* ]]
+    then
+      brew install $s_package
+    fi
+  done
+fi
 
 # Prioritize local binaries
 export PATH="/usr/local/bin:$PATH"
@@ -143,18 +170,20 @@ targets=(
  /usr/local/bin/python
  /usr/local/bin/python3
 )
-if [[ -x $(brew --prefix)/opt/python3/bin/python3 ]]; then
- for target in ${targets[@]}; do
-   [[ -L $target ]] && sudo unlink $target
-   sudo ln -s $(brew --prefix)/opt/python3/bin/python3 $target
- done
+if [[ -x $(brew --prefix)/opt/python3/bin/python3 && ! -L /usr/local/bin/python ]]
+then
+  for target in ${targets[@]}
+  do
+    [[ -L $target ]] && sudo unlink $target
+    sudo ln -s $(brew --prefix)/opt/python3/bin/python3 $target
+  done
 fi
 
 # Install pip
-curl -sS https://bootstrap.pypa.io/get-pip.py | python
-
-# install spf13-vim
-curl http://j.mp/spf13-vim3 -L -o - | sh
+if ! [ -x "$(command -v pip)" ]
+then
+  curl -sS https://bootstrap.pypa.io/get-pip.py | python
+fi
 
 # Install jsh
 ./j.sh install
