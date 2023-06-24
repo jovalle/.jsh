@@ -57,6 +57,7 @@ packages=(
   docker
   firefox
   fzf
+  glances
   go
   google-chrome
   helm
@@ -64,9 +65,12 @@ packages=(
   iterm2
   jq
   kind
+  k3sup
+  krew
   kubecolor/tap/kubecolor
   kubectx
   kubernetes-cli
+  kubetail
   lens
   libassuan
   libde265
@@ -119,6 +123,7 @@ packages=(
   signal
   spotify
   sublime-text
+  terraform
   tg-pro
   tmux
   vagrant

@@ -80,6 +80,7 @@ plugins=(
   autojump
   fzf
   git
+  kube-ps1
   web-search
   zsh-autosuggestions
   zsh-syntax-highlighting
