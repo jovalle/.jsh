@@ -529,6 +529,26 @@ kc() {
   fi
 }
 
+# kdrain: Drain any node
+# ----------------------------------------------------------
+kdrain() {
+  node=$1
+  option=$2
+  #kubectl drain $node --ignore-daemonsets --delete-emptydir-data
+
+  # delete all pods on node to avoid daemonset-backed service outages (e.g. traefik DS when one node is unreachable)
+  if [[ $option =~ '--force' ]]; then
+    #for resource in "$(kubectl get pods -A -o custom-columns=:.metadata.namespace,:.metadata.name --no-headers | grep $node)"; do
+    IFS=$'\n'
+    for resource in $(kubectl get pods -A -o wide --no-headers | grep $node); do
+      namespace=$(echo $resource | awk '{print $1}')
+      pod=$(echo $resource | awk '{print $2}')
+      echo "Deleting pod/$pod in $namespace namespace"
+      kubectl -n $namespace delete pod $pod --force --grace-period=0
+    done
+  fi
+}
+
 # kt: Create a cluster-admin SA and fetch bearer token
 # ----------------------------------------------------------
 kt() {
