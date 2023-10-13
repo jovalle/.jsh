@@ -54,6 +54,8 @@ casks=(
 packages=(
   ansible
   caffeine
+  corepack
+  discord
   docker
   firefox
   fzf
@@ -103,6 +105,7 @@ packages=(
   nettle
   nmap
   node
+  npm
   npth
   oniguruma
   openexr
@@ -116,11 +119,13 @@ packages=(
   pkg-config
   plex
   podman
+  pnpm
   poetry
   python3
   qemu
   raspberry-pi-imager
   signal
+  slack
   spotify
   sublime-text
   terraform
