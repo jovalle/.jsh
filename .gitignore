@@ -74,3 +74,8 @@ oscrypto-ca-bundle.crt
 # Sublime-github package stores a github token in this file
 # https://packagecontrol.io/packages/sublime-github
 GitHub.sublime-settings
+
+# JS
+node_modules
+package-lock.json
+package.json
