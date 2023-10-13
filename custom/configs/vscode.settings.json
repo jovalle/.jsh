@@ -115,11 +115,11 @@
 		"vs-kubernetes.kubectl-path.mac": "/Users/jay/.vs-kubernetes/tools/kubectl/kubectl",
 		"vs-kubernetes.minikube-path.mac": "/Users/jay/.vs-kubernetes/tools/minikube/darwin-amd64/minikube",
 		"vscode-kubernetes.helm-path.linux": "/home/jay/.vs-kubernetes/tools/helm/linux-amd64/helm",
-		"vscode-kubernetes.helm-path.mac": "/Users/jay/.vs-kubernetes/tools/helm/darwin-amd64/helm",
+		"vscode-kubernetes.helm-path.mac": "/Users/jay/.vs-kubernetes/tools/helm/darwin-arm64/helm",
 		"vscode-kubernetes.kubectl-path.linux": "/home/jay/.vs-kubernetes/tools/kubectl/kubectl",
 		"vscode-kubernetes.kubectl-path.mac": "/Users/jay/.vs-kubernetes/tools/kubectl/kubectl",
 		"vscode-kubernetes.minikube-path.linux": "/home/jay/.vs-kubernetes/tools/minikube/linux-amd64/minikube",
-		"vscode-kubernetes.minikube-path.mac": "/Users/jay/.vs-kubernetes/tools/minikube/darwin-amd64/minikube"
+		"vscode-kubernetes.minikube-path.mac": "/Users/jay/.vs-kubernetes/tools/minikube/darwin-arm64/minikube"
 	},
 	"workbench.colorTheme": "Night Owl",
 	"workbench.iconTheme": "material-icon-theme",
