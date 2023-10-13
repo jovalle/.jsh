@@ -33,3 +33,6 @@ set convert-meta off
 
 # Set vi style shortcuts (shell agnostic)
 set editing-mode vi
+
+# Eliminate unwanted prefixed (e.g. '200~') when pasting text
+set enable-bracketed-paste off
