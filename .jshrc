@@ -26,8 +26,7 @@ export JSH_CUSTOM=$HOME/.jsh_local
 export PATH=$HOME/.local/bin:$JSH/.bin:$HOME/go/bin:$PATH
 export PYTHONDONTWRITEBYTECODE=1 # No .pyc files when importing
 export SH=${SHELL##*/}
-export SSHRC_EXTRAS='.tmux.conf .vimrc'
-export TERM=xterm-256color
+export SSHRC_EXTRAS='.inputrc .tmux.conf .vimrc'
 export VISUAL=vim
 
 # Color palette
@@ -144,6 +143,9 @@ fi
 # Augment sshrc experience
 # ----------------------------------------------------------
 if [[ -n $SSHHOME ]]; then
+
+  # Source included .inputrc
+  export INPUTRC=$SSHHOME/.inputrc
 
   # Add .sshrc.d to PATH
   if [[ ! "$PATH" == *$SSHHOME/.sshrc.d* && -d $SSHHOME/.sshrc.d ]]; then
@@ -292,6 +294,7 @@ alias passgen='openssl passwd -1' # pass: Generate salted hash for passwords
 alias path='echo -e ${PATH//:/\\n}' # path: Echo all executable Paths
 alias perm='stat --printf "%a %n \n "' # perm: Show permission of target in number
 alias please='sudo ' # Politely ask for superuser
+alias pn='pnpm'
 alias proxy='http_proxy=$PROXY_ENDPOINT https_proxy=$PROXY_ENDPOINT no_proxy=$PROXY_EXCEPTION' # proxy: set as per env and on command
 alias rm='rm -i' # Always prompt before deleting
 alias show_options='shopt' # Show_options: display bash options settings
