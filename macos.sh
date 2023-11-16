@@ -195,6 +195,8 @@ then
   done
 fi
 
+config_base=$HOME/.jsh/custom/configs
+
 import_config() {
   if [[ $# != 2 ]]
   then
@@ -202,7 +204,7 @@ import_config() {
     return 1
   fi
 
-  config_src=$HOME/.jsh/custom/configs/$1
+  config_src=${config_base}/$1
   config_dest=$2
 
   if [[ -f "$config_src" ]]
@@ -216,8 +218,11 @@ import_config() {
   fi
 }
 
-# Import app configs
-import_config "iterm2.plist" "$HOME/Library/Preferences/com.googlecode.iterm2.plist"
+# Configure iTerm2
+defaults write com.googlecode.iterm2.plist PrefsCustomFolder -string "${config_base}"
+defaults write com.googlecode.iterm2.plist LoadPrefsFromCustomFolder -bool true
+
+# Import VSCode settings
 import_config "vscode.settings.json" "$HOME/Library/Application Support/Code/User/settings.json"
 
 # Install pip
