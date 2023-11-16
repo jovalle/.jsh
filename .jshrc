@@ -140,6 +140,13 @@ if [[ -x /usr/bin/dircolors ]]; then
   test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
 fi
 
+# Enable shortcut to iCloud Drive
+# ----------------------------------------------------------
+if [[ $(uname) == "Darwin" ]]; then
+  export ICLOUD_DRIVE_PATH='~/Library/Mobile\ Documents/com~apple~CloudDocs'
+  alias ic='cd '$ICLOUD_DRIVE_PATH
+fi
+
 # Augment sshrc experience
 # ----------------------------------------------------------
 if [[ -n $SSHHOME ]]; then

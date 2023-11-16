@@ -24,6 +24,21 @@ then
  sudo softwareupdate --install-rosetta
 fi
 
+# synchronize key data from iCloud across mac devices
+icloud_targets=(
+ .jsh_local
+ .kube
+ .ssh
+ .vault
+ Projects
+)
+for icloud_target in ${icloud_targets[@]}
+do
+  [[ -L $HOME/$icloud_target ]] && unlink $HOME/$icloud_target
+  [[ -d $HOME/$icloud_target ]] && rm -rf $HOME/$icloud_target
+  ln -s $HOME/Library/Mobile\ Documents/com~apple~CloudDocs/$icloud_target $HOME/$icloud_target
+done
+
 if [[ ! -f $HOME/.ssh/id_rsa ]]
 then
   ssh-keygen -q -t rsa -N '' -f ~/.ssh/id_rsa
