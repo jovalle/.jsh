@@ -594,8 +594,8 @@ mkd() { mkdir -p -- "$*" ; cd -- "$*" || exit ; }
 # myip: Display public IP
 # ----------------------------------------------------------
 myip() {
-  res=$(curl -s checkip.dyndns.org | grep -Eo '[0-9\.]+')
-  echo -e "Your public IP is: ${green} $res ${reset}"
+  ip=$(curl -s wtfismyip.com/text)
+  echo -e "Your public IP is:${green} ${ip} ${reset}"
 }
 
 # myps: List processes owned by current user
