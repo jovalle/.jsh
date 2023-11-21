@@ -69,6 +69,7 @@ casks=(
 packages=(
   ansible
   caffeine
+  cloudflared
   corepack
   discord
   docker
