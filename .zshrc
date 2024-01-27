@@ -112,8 +112,8 @@ plugins=(
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
-# Fix zsh completions
-if ! [ -x "$(command -v brew)" ]; then
+# Fix zsh completion
+if command -v brew &> /dev/null; then
   FPATH=$(brew --prefix)/share/zsh-completions:$FPATH
   autoload -Uz compinit
   compaudit | xargs chmod g-w,o-w
@@ -121,6 +121,10 @@ fi
 
 # Shell agnostic enchancements
 [[ -f $HOME/.jshrc ]] && source $HOME/.jshrc
+
+# Import fzf
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+[ -d $JSH/.fzf ] && export FZF_BASE=$JSH/.fzf
 
 # Enable Oh My Zsh
 [[ -f $JSH/.oh-my-zsh/oh-my-zsh.sh ]] && source $JSH/.oh-my-zsh/oh-my-zsh.sh
