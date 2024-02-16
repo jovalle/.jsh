@@ -81,7 +81,7 @@ install() {
 
   # Install autojump (shortcuts to recent dirs)
   if ! [ -x "$(command -v autojump)" ]; then
-    pushd custom/plugins/autojump && ./install.py && popd || popd
+    pushd ${JSH}/custom/plugins/autojump && ./install.py && popd || popd
   fi
 
   # Install fzf (fuzzy search)
@@ -145,7 +145,7 @@ remove() {
     done
 
     # Uninstall autojump
-    pushd custom/plugins/autojump && ./uninstall.py && popd || popd
+    pushd ${JSH}/custom/plugins/autojump && ./uninstall.py && popd || popd
 
     # Uninstall fzf
     yes | .fzf/uninstall
