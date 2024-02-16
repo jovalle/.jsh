@@ -81,12 +81,19 @@ install() {
 
   # Install autojump (shortcuts to recent dirs)
   if ! [ -x "$(command -v autojump)" ]; then
+    echo "Install autojump..."
     pushd ${JSH}/custom/plugins/autojump && ./install.py && popd || popd
   fi
 
   # Install fzf (fuzzy search)
   if ! [ -x "$(command -v fzf)" ]; then
+    echo "Installing fzf..."
     .fzf/install --key-bindings --completion --no-update-rc
+  fi
+
+  if [[ -z $JSH_SHELL ]]; then
+    echo "Changing shell to zsh..."
+    sudo chsh -s /bin/zsh
   fi
 
   set +e
@@ -103,9 +110,12 @@ install() {
   printf '%s\n' ' |\_____\      | / | |   ||    | |  |    | |       | |    | '
   printf '%s\n' ' | |     |_____|/   \|___||____|/   |____|/         \|____| '
   printf '%s\n' '  \|_____|                                                   ....is installed!'
-  printf '%s\n' 'jsh is shell agnostic. Update your shell profile (i.e. .bash_profile) to include sourcing .jshrc and reload your shell'
+  printf '%s\n' 'jsh is shell agnostic but by default configures and uses zsh as that is my preference.'
+  printf '%s\n' 'This can be avoided by setting JSH_SHELL.'
+  printf '%s\n' 'If you choose to use this override, you must update your shell profile accordingly.'
   printf '%s\n' 'Sample .bash_profile:'
   printf '%s\n' '[[ -f ~/.jshrc ]] && . ~/.jshrc'
+  printf '%s\n' 'Otherwise, reload your terminal now.'
   printf '%s'   "$(tput sgr0)"
 }
 
@@ -145,9 +155,11 @@ remove() {
     done
 
     # Uninstall autojump
+    echo "Uninstalling autojump..."
     pushd ${JSH}/custom/plugins/autojump && ./uninstall.py && popd || popd
 
     # Uninstall fzf
+    echo "Uninstalling fzf..."
     yes | .fzf/uninstall
 
     success "jsh removed"
