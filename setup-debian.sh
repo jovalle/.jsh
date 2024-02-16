@@ -18,6 +18,10 @@ fc-cache -fv
 # Install pip
 python3 --version
 curl -sS https://bootstrap.pypa.io/get-pip.py | python3
+if [[ ! -f $(which python) ]]; then
+  echo "Creating symlink at /usr/bin/python..."
+  sudo ln -s $(which python3) /usr/bin/python
+fi
 
 # Install jsh
 ./j.sh install
