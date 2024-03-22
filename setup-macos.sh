@@ -69,10 +69,12 @@ casks=(
 packages=(
   ansible
   caffeine
+  cilium-cli
   cloudflared
   corepack
   discord
   docker
+  fantastical
   firefox
   fzf
   glances
@@ -80,6 +82,7 @@ packages=(
   google-chrome
   helm
   istat-menus
+  ipmitool
   iterm2
   jq
   kind
@@ -111,6 +114,7 @@ packages=(
   libvirt
   libyaml
   little-cms2
+  llvm
   lua
   mas
   minikube
@@ -144,6 +148,7 @@ packages=(
   slack
   spotify
   sublime-text
+  telegram
   terraform
   tg-pro
   tmux
