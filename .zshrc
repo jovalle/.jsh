@@ -112,10 +112,10 @@ plugins=(
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
-# Fix zsh completion
+# Fix zsh initialization and completion
 if command -v brew &> /dev/null; then
   FPATH=$(brew --prefix)/share/zsh-completions:$FPATH
-  autoload -Uz compinit
+  autoload -Uz compinit compaudit
   compaudit | xargs chmod g-w,o-w
 fi
 
