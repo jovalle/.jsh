@@ -1,130 +1,132 @@
 {
-	"[jsonc]": {
-		"editor.quickSuggestions": {
-			"strings": true
-		},
-		"editor.suggest.insertMode": "replace",
-		"gitlens.codeLens.scopes": [
-			"document"
-		]
-	},
-	"[python]": {
-		"editor.formatOnType": true
-	},
-	"bracket-pair-colorizer-2.activeScopeCSS": [
-		"borderColor : {color}",
-		"borderStyle : solid",
-		"borderWidth : 1px",
-		"opacity: 0.5"
-	],
-	"bracket-pair-colorizer-2.scopeLineCSS": [
-		"borderColor : {color}",
-		"borderStyle : solid",
-		"borderWidth : 1px",
-		"opacity: 0.5"
-	],
-	"dev.containers.executeInWSL": true,
-	"diffEditor.ignoreTrimWhitespace": false,
-	"diffEditor.wordWrap": "on",
-	"editor.acceptSuggestionOnEnter": "off",
-	"editor.fontFamily": "MesloLGS Nerd Font, MesloLGS NF, Menlo",
-	"editor.fontSize": 12,
-	"editor.minimap.enabled": false,
-	"editor.tabSize": 2,
-	"editor.wordWrap": "on",
-	"explorer.confirmDelete": false,
-	"explorer.confirmDragAndDrop": false,
-	"files.trimTrailingWhitespace": true,
-	"git.allowForcePush": true,
-	"git.autofetch": true,
-	"git.confirmForcePush": false,
-	"git.confirmSync": false,
-	"git.openRepositoryInParentFolders": "always",
-	"git.terminalAuthentication": false,
-	"gitlens.advanced.messages": {
-		"suppressGitMissingWarning": true,
-		"suppressLineUncommittedWarning": true
-	},
-	"go.toolsManagement.autoUpdate": true,
-	"go.useLanguageServer": true,
-	"redhat.telemetry.enabled": false,
-	"remote.SSH.configFile": "~/.ssh/config",
-	"remote.SSH.remotePlatform": {
-		"cerberus.technis.net": "linux",
-		"illmatic.technis.net": "linux",
-		"nexus.technis.net": "linux"
-	},
-	"security.workspace.trust.untrustedFiles": "open",
-	"sync.autoDownload": true,
-	"sync.autoUpload": true,
-	"sync.quietSync": true,
-	"terminal.external.osxExec": "iTerm.app",
-	"terminal.external.windowsExec": "C:\\WINDOWS\\System32\\wsl.exe",
-	"terminal.integrated.copyOnSelection": true,
-	"terminal.integrated.defaultProfile.linux": "zsh",
-	"terminal.integrated.defaultProfile.windows": "Ubuntu-22.04 (WSL)",
-	"terminal.integrated.fontFamily": "MesloLGS Nerd Font, MesloLGS NF, Menlo",
-	"terminal.integrated.profiles.linux": {
-		"bash": {
-			"icon": "terminal-bash",
-			"path": "bash"
-		},
-		"fish": {
-			"path": "fish"
-		},
-		"pwsh": {
-			"icon": "terminal-powershell",
-			"path": "pwsh"
-		},
-		"tmux": {
-			"icon": "terminal-tmux",
-			"path": "tmux"
-		},
-		"zsh": {
-			"path": "zsh"
-		}
-	},
-	"terminal.integrated.profiles.windows": {
-		"Command Prompt": {
-			"args": [],
-			"icon": "terminal-cmd",
-			"path": [
-				"${env:windir}\\Sysnative\\cmd.exe",
-				"${env:windir}\\System32\\cmd.exe"
-			]
-		},
-		"Git Bash": {
-			"source": "Git Bash"
-		},
-		"PowerShell": {
-			"icon": "terminal-powershell",
-			"source": "PowerShell"
-		},
-		"Ubuntu-22.04 (WSL)": {
-			"args": [
-				"-d",
-				"Ubuntu-22.04"
-			],
-			"path": "C:\\WINDOWS\\System32\\wsl.exe"
-		}
-	},
-	"vim.useSystemClipboard": true,
-	"vs-kubernetes": {
-		"vs-kubernetes.draft-path.mac": "/Users/jay/.vs-kubernetes/tools/draft/darwin-amd64/draft",
-		"vs-kubernetes.helm-path.mac": "/Users/jay/.vs-kubernetes/tools/helm/darwin-amd64/helm",
-		"vs-kubernetes.kubectl-path.mac": "/Users/jay/.vs-kubernetes/tools/kubectl/kubectl",
-		"vs-kubernetes.minikube-path.mac": "/Users/jay/.vs-kubernetes/tools/minikube/darwin-amd64/minikube",
-		"vscode-kubernetes.helm-path.linux": "/home/jay/.vs-kubernetes/tools/helm/linux-amd64/helm",
-		"vscode-kubernetes.helm-path.mac": "/Users/jay/.vs-kubernetes/tools/helm/darwin-arm64/helm",
-		"vscode-kubernetes.kubectl-path.linux": "/home/jay/.vs-kubernetes/tools/kubectl/kubectl",
-		"vscode-kubernetes.kubectl-path.mac": "/Users/jay/.vs-kubernetes/tools/kubectl/kubectl",
-		"vscode-kubernetes.minikube-path.linux": "/home/jay/.vs-kubernetes/tools/minikube/linux-amd64/minikube",
-		"vscode-kubernetes.minikube-path.mac": "/Users/jay/.vs-kubernetes/tools/minikube/darwin-arm64/minikube"
-	},
-	"workbench.colorTheme": "Night Owl",
-	"workbench.iconTheme": "material-icon-theme",
-	"workbench.startupEditor": "none",
-	"workbench.editorAssociations": {
-		"*.plist": "default"
-	}
+  "[jsonc]": {
+    "editor.quickSuggestions": {
+      "strings": true
+    },
+    "editor.suggest.insertMode": "replace",
+    "gitlens.codeLens.scopes": [
+      "document"
+    ]
+  },
+  "[python]": {
+    "editor.formatOnType": true
+  },
+  "bracket-pair-colorizer-2.activeScopeCSS": [
+    "borderColor : {color}",
+    "borderStyle : solid",
+    "borderWidth : 1px",
+    "opacity: 0.5"
+  ],
+  "bracket-pair-colorizer-2.scopeLineCSS": [
+    "borderColor : {color}",
+    "borderStyle : solid",
+    "borderWidth : 1px",
+    "opacity: 0.5"
+  ],
+  "dev.containers.executeInWSL": true,
+  "diffEditor.ignoreTrimWhitespace": false,
+  "diffEditor.useInlineViewWhenSpaceIsLimited": false,
+  "diffEditor.wordWrap": "on",
+  "editor.acceptSuggestionOnEnter": "off",
+  "editor.fontFamily": "MesloLGS Nerd Font, MesloLGS NF, Menlo",
+  "editor.fontSize": 12,
+  "editor.minimap.enabled": false,
+  "editor.tabSize": 2,
+  "editor.wordWrap": "on",
+  "explorer.confirmDelete": false,
+  "explorer.confirmDragAndDrop": false,
+  "files.trimTrailingWhitespace": true,
+  "git.allowForcePush": true,
+  "git.autofetch": true,
+  "git.confirmForcePush": false,
+  "git.confirmSync": false,
+  "git.openRepositoryInParentFolders": "always",
+  "git.terminalAuthentication": false,
+  "gitlens.advanced.messages": {
+    "suppressGitMissingWarning": true,
+    "suppressLineUncommittedWarning": true
+  },
+  "go.formatTool": "goimports",
+  "go.toolsManagement.autoUpdate": true,
+  "go.useLanguageServer": true,
+  "redhat.telemetry.enabled": false,
+  "remote.SSH.configFile": "~/.ssh/config",
+  "remote.SSH.remotePlatform": {
+    "192.168.0.2": "linux",
+    "192.168.0.3": "linux",
+    "192.168.0.4": "linux"
+  },
+  "remote.SSH.useExecServer": true,
+  "remote.SSH.useLocalServer": true,
+  "scm.showOutgoingChanges": "never",
+  "security.workspace.trust.untrustedFiles": "open",
+  "settingsSync.ignoredSettings": [],
+  "sync.autoDownload": true,
+  "sync.autoUpload": true,
+  "sync.quietSync": true,
+  "terminal.external.osxExec": "iTerm.app",
+  "terminal.external.windowsExec": "C:\\WINDOWS\\System32\\wsl.exe",
+  "terminal.integrated.copyOnSelection": true,
+  "terminal.integrated.defaultProfile.linux": "zsh",
+  "terminal.integrated.defaultProfile.windows": "Debian (WSL)",
+  "terminal.integrated.fontFamily": "MesloLGS Nerd Font, MesloLGS NF, Menlo",
+  "terminal.integrated.profiles.linux": {
+    "bash": {
+      "icon": "terminal-bash",
+      "path": "bash"
+    },
+    "fish": {
+      "icon": "terminal-bash",
+      "path": "fish"
+    },
+    "pwsh": {
+      "icon": "terminal-powershell",
+      "path": "pwsh"
+    },
+    "tmux": {
+      "icon": "terminal-tmux",
+      "path": "tmux"
+    },
+    "zsh": {
+      "icon": "terminal-bash",
+      "path": "zsh"
+    }
+  },
+  "terminal.integrated.profiles.windows": {
+    "Command Prompt": {
+      "args": [],
+      "icon": "terminal-cmd",
+      "path": [
+        "${env:windir}\\Sysnative\\cmd.exe",
+        "${env:windir}\\System32\\cmd.exe"
+      ]
+    },
+    "Git Bash": {
+      "source": "Git Bash"
+    },
+    "PowerShell": {
+      "icon": "terminal-powershell",
+      "source": "PowerShell"
+    }
+  },
+  "vim.useSystemClipboard": true,
+  "vs-kubernetes": {
+    "vs-kubernetes.crd-code-completion": "disabled",
+    "vs-kubernetes.draft-path.mac": "/Users/jay/.vs-kubernetes/tools/draft/darwin-amd64/draft",
+    "vs-kubernetes.helm-path.mac": "/Users/jay/.vs-kubernetes/tools/helm/darwin-amd64/helm",
+    "vs-kubernetes.kubectl-path.mac": "/Users/jay/.vs-kubernetes/tools/kubectl/kubectl",
+    "vs-kubernetes.minikube-path.mac": "/Users/jay/.vs-kubernetes/tools/minikube/darwin-amd64/minikube",
+    "vscode-kubernetes.helm-path.linux": "/home/jay/.vs-kubernetes/tools/helm/linux-amd64/helm",
+    "vscode-kubernetes.helm-path.mac": "/Users/jay/.vs-kubernetes/tools/helm/darwin-arm64/helm",
+    "vscode-kubernetes.kubectl-path.linux": "/home/jay/.vs-kubernetes/tools/kubectl/kubectl",
+    "vscode-kubernetes.kubectl-path.mac": "/Users/jay/.vs-kubernetes/tools/kubectl/kubectl",
+    "vscode-kubernetes.minikube-path.linux": "/home/jay/.vs-kubernetes/tools/minikube/linux-amd64/minikube",
+    "vscode-kubernetes.minikube-path.mac": "/Users/jay/.vs-kubernetes/tools/minikube/darwin-arm64/minikube"
+  },
+  "workbench.colorTheme": "Night Owl",
+  "workbench.editorAssociations": {
+    "*.plist": "default"
+  },
+  "workbench.iconTheme": "material-icon-theme",
+  "workbench.startupEditor": "none"
 }
