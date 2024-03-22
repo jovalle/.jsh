@@ -123,5 +123,8 @@
 	},
 	"workbench.colorTheme": "Night Owl",
 	"workbench.iconTheme": "material-icon-theme",
-	"workbench.startupEditor": "none"
+	"workbench.startupEditor": "none",
+	"workbench.editorAssociations": {
+		"*.plist": "default"
+	}
 }
