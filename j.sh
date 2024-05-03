@@ -9,16 +9,20 @@
 
 [[ -z $JSH ]] && JSH=$HOME/.jsh
 
-VERSION="0.1.8"
+VERSION="$(cat $JSH/VERSION)"
 NO_BACKUP=0
 TARGETS=(
   ".bin"
   ".gitconfig"
   ".inputrc"
   ".jshrc"
+  ".kube"
   ".oh-my-zsh"
   ".p10k.zsh"
+  ".sops"
+  ".ssh"
   ".sshrc"
+  ".talos"
   ".tmux.conf"
   ".vim"
   ".vimrc"
@@ -31,7 +35,7 @@ cat <<-EOF
 Usage: j.sh command [options]
 Commands:
   install              replace shell, vim, tmux configs with jsh symlinks
-  remove               remove jsh symlinks and restore from backups
+  uninstall            uninstall jsh symlinks and restore from backups
 Options:
   -v, --version        output program version
   -h, --help           output help information
@@ -61,21 +65,25 @@ install() {
   # Symlink sourceable scripts
   for t in ${TARGETS[@]}; do
     TS=$(date '+%F')
-    if [[ ! -f $HOME/$t && ! -d $HOME/$t ]]; then
-      info "$HOME/$t -> $JSH/$t"
-      ln -s $JSH/$t $HOME/$t
-    else
-      if [[ -L $HOME/$t ]]; then
-        unlink $HOME/$t
-        ln -s $JSH/$t $HOME/$t
-      elif [[ -f $HOME/$t || -d $HOME/$t ]]; then
-        mv $HOME/$t $HOME/${t}-${TS}
-        success "Backing up $HOME/$t to $HOME/${t}-${TS}"
+    if [[ -f $JSH/$t || -d $JSH/$t ]]; then
+      if [[ ! -f $HOME/$t && ! -d $HOME/$t ]]; then
+        info "$HOME/$t -> $JSH/$t"
         ln -s $JSH/$t $HOME/$t
       else
-        warn "File found for $HOME/$t. Please backup and remove before executing j.sh"
-        exit
+        if [[ -L $HOME/$t ]]; then
+          unlink $HOME/$t
+          ln -s $JSH/$t $HOME/$t
+        elif [[ -f $HOME/$t || -d $HOME/$t ]]; then
+          mv $HOME/$t $HOME/${t}-${TS}
+          success "Backing up $HOME/$t to $HOME/${t}-${TS}"
+          ln -s $JSH/$t $HOME/$t
+        else
+          warn "File found for $HOME/$t. Please backup and remove before executing j.sh"
+          exit
+        fi
       fi
+    else
+      warn "$JSH/$t not found. Skipping symlink"
     fi
   done
 
@@ -91,7 +99,7 @@ install() {
     .fzf/install --key-bindings --completion --no-update-rc
   fi
 
-  if [[ -z $JSH_SHELL ]]; then
+  if [[ $SHELL != "/bin/zsh" ]]; then
     echo "Changing shell to zsh..."
     sudo chsh -s /bin/zsh
   fi
@@ -110,18 +118,13 @@ install() {
   printf '%s\n' ' |\_____\      | / | |   ||    | |  |    | |       | |    | '
   printf '%s\n' ' | |     |_____|/   \|___||____|/   |____|/         \|____| '
   printf '%s\n' '  \|_____|                                                   ....is installed!'
-  printf '%s\n' 'jsh is shell agnostic but by default configures and uses zsh as that is my preference.'
-  printf '%s\n' 'This can be avoided by setting JSH_SHELL.'
-  printf '%s\n' 'If you choose to use this override, you must update your shell profile accordingly.'
-  printf '%s\n' 'Sample .bash_profile:'
-  printf '%s\n' '[[ -f ~/.jshrc ]] && . ~/.jshrc'
-  printf '%s\n' 'Otherwise, reload your terminal now.'
+  printf '%s\n' 'You may reload your terminal now.'
   printf '%s'   "$(tput sgr0)"
 }
 
 # Revert targets
-remove() {
-  read -r -p "Are you sure you want to remove jsh? [y/N] " confirmation
+uninstall() {
+  read -r -p "Are you sure you want to uninstall jsh? [y/N] " confirmation
   if [[ "$confirmation" != y ]] && [[ "$confirmation" != Y ]]; then
     abort "Removal process cancelled by user"
   else
@@ -162,7 +165,7 @@ remove() {
     echo "Uninstalling fzf..."
     yes | .fzf/uninstall
 
-    success "jsh removed"
+    success "jsh uninstalled"
   fi
 }
 
@@ -175,7 +178,7 @@ while test $# -ne 0; do
     -v|--version) version; exit 0 ;;
     -n|--no-backup) NO_BACKUP=1; ;;
     install) INSTALL=1; ;;
-    remove) REMOVE=1; ;;
+    uninstall) UNINSTALL=1; ;;
     *) usage; exit 1 ;;
   esac
 done
@@ -183,8 +186,8 @@ done
 if [[ "$INSTALL" -eq 1 ]]; then
   install
   exit $?
-elif [[ "$REMOVE" -eq 1 ]]; then
-  remove
+elif [[ "$UNINSTALL" -eq 1 ]]; then
+  uninstall
   exit $?
 fi
 

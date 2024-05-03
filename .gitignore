@@ -1,65 +1,11 @@
-############################################################
-# General
-############################################################
-*.last-run
-.history
-*.netrwhist
-.vim/plugged/*
-.vim/bundle/*
-.idea
-
-############################################################
-# macOS
-############################################################
-# General
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Icon must end with two \r
-Icon
-
-# Thumbnails
-._*
-
-# Files that might appear in the root of a volume
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-
-# Directories potentially created on remote AFP share
-.AppleDB
-.AppleDesktop
-Network\ Trash\ Folder
-Temporary\ Items
-.apdisk
-
-
-############################################################
-# Sublime Text
-############################################################
-
-# Cache files for Sublime Text
-*.tmlanguage.cache
-*.tmPreferences.cache
-*.stTheme.cache
 *.cache*
-
-# Workspace files are user-specific
-*.sublime-workspace
-
-# Project files should be checked into the repository, unless a significant
-# proportion of contributors will probably not be using Sublime Text
+*.last-run
+*.netrwhist
+*.stTheme.cache
 *.sublime-project
-
-# SFTP configuration file
-sftp-config.json
-
-# Package control specific files
+*.sublime-workspace
+*.tmPreferences.cache
+*.tmlanguage.cache
 *Package\ Control.ca-bundle
 *Package\ Control.ca-certs/
 *Package\ Control.ca-list
@@ -68,14 +14,35 @@ sftp-config.json
 *Package\ Control.merged-ca-bundle
 *Package\ Control.system-ca-bundle
 *Package\ Control.user-ca-bundle
-bh_unicode_properties.cache
-oscrypto-ca-bundle.crt
-
-# Sublime-github package stores a github token in this file
-# https://packagecontrol.io/packages/sublime-github
+.AppleDB
+.AppleDesktop
+.AppleDouble
+.DS_Store
+.DocumentRevisions-V100
+.LSOverride
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+._*
+.apdisk
+.com.apple.timemachine.donotpresent
+.fseventsd
+.history
+.idea
+.kube
+.sops
+.ssh
+.stfolder
+.vault
+.vim/bundle/*
+.vim/plugged/*
 GitHub.sublime-settings
-
-# JS
+Network\ Trash\ Folder
+Temporary\ Items
+bh_unicode_properties.cache
 node_modules
+oscrypto-ca-bundle.crt
 package-lock.json
 package.json
+sftp-config.json

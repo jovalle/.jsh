@@ -23,7 +23,8 @@ export EDITOR=vim
 export GPG_TTY=$(tty)
 export JSH=$HOME/.jsh
 export JSH_CUSTOM=$HOME/.jsh_local
-export PATH=$HOME/.local/bin:$JSH/.bin:$HOME/go/bin:$PATH
+export JSH_VERSION=$(cat $JSH/VERSION)
+export PATH=$HOME/bin:$HOME/go/bin:$JSH/.bin:$PATH
 export PYTHONDONTWRITEBYTECODE=1 # No .pyc files when importing
 export SH=${SHELL##*/}
 export SSHRC_EXTRAS='.inputrc .tmux.conf .vimrc'
@@ -620,6 +621,13 @@ src() {
   fi
 }
 
+# vimsrc: Edit local config and reload in shell
+# ----------------------------------------------------------
+vimsrc() {
+  vim ${HOME}/.jsh_local
+  src
+}
+
 # Source: https://stackoverflow.com/questions/54814543/bash-how-to-use-an-alias-command-in-combination-with-watch
 # ----------------------------------------------------------
 swatch_usage() {
@@ -734,14 +742,14 @@ ws() {
       if [[ -z $GIT_INV ]]; then
         if [[ $(git status 2>/dev/null) ]]; then
           if [[ -d $(pwd)/ansible ]]; then
-            info "Setting GIT_INV to $(pwd)/ansible/inv"
+            info "Setting GIT_INV to $(pwd)/ansible/inventory"
             GIT_INV=$(pwd)/ansible/inventory
           else
-            info "Setting GIT_INV to $(pwd)/inv"
+            info "Setting GIT_INV to $(pwd)/inventory"
             GIT_INV=$(pwd)/inventory
           fi
         else
-          info "Setting GIT_INV to ./inv"
+          info "Setting GIT_INV to ./inventory"
           GIT_INV=./inventory
         fi
       fi
@@ -757,7 +765,7 @@ ws() {
         read ANSIBLE_INV
         if [[ -d $ANSIBLE_INV ]]; then
           pushd $ANSIBLE_INV &>/dev/null
-          [[ -d $(git rev-parse --show-toplevel)/inv ]] && export GIT_INV=$(git rev-parse --show-toplevel)/inventory
+          [[ -d $(git rev-parse --show-toplevel)/inventory ]] && export GIT_INV=$(git rev-parse --show-toplevel)/inventory
           popd &>/dev/null
           export ANSIBLE_INVENTORY=$GIT_INV/$WORKSPACE
           alias ap="ansible-playbook -i $ANSIBLE_INVENTORY"
