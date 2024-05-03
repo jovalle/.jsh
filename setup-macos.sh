@@ -6,6 +6,7 @@ test $(uname -s) = "Darwin"
 
 packages=(
   ansible
+  ansible-lint
   awscli
   btop
   caffeine
