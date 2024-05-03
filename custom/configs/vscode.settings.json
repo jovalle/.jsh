@@ -11,28 +11,25 @@
   "[python]": {
     "editor.formatOnType": true
   },
-  "bracket-pair-colorizer-2.activeScopeCSS": [
-    "borderColor : {color}",
-    "borderStyle : solid",
-    "borderWidth : 1px",
-    "opacity: 0.5"
-  ],
-  "bracket-pair-colorizer-2.scopeLineCSS": [
-    "borderColor : {color}",
-    "borderStyle : solid",
-    "borderWidth : 1px",
-    "opacity: 0.5"
-  ],
   "dev.containers.executeInWSL": true,
   "diffEditor.ignoreTrimWhitespace": false,
   "diffEditor.useInlineViewWhenSpaceIsLimited": false,
   "diffEditor.wordWrap": "on",
   "editor.acceptSuggestionOnEnter": "off",
+  "editor.bracketPairColorization.enabled": true,
   "editor.fontFamily": "MesloLGS Nerd Font, MesloLGS NF, Menlo",
+  "editor.fontLigatures": true,
   "editor.fontSize": 12,
+  "editor.guides.bracketPairs": true,
+  "editor.guides.bracketPairsHorizontal": true,
+  "editor.guides.highlightActiveBracketPair": true,
+  "editor.hover.delay": 1500,
   "editor.minimap.enabled": false,
+  "editor.rulers": [100],
+  "editor.stickyScroll.enabled": false,
   "editor.tabSize": 2,
   "editor.wordWrap": "on",
+  "explorer.autoReveal": false,
   "explorer.confirmDelete": false,
   "explorer.confirmDragAndDrop": false,
   "files.trimTrailingWhitespace": true,
@@ -113,15 +110,15 @@
   "vs-kubernetes": {
     "vs-kubernetes.crd-code-completion": "disabled",
     "vs-kubernetes.draft-path.mac": "/Users/jay/.vs-kubernetes/tools/draft/darwin-amd64/draft",
-    "vs-kubernetes.helm-path.mac": "/Users/jay/.vs-kubernetes/tools/helm/darwin-amd64/helm",
-    "vs-kubernetes.kubectl-path.mac": "/Users/jay/.vs-kubernetes/tools/kubectl/kubectl",
-    "vs-kubernetes.minikube-path.mac": "/Users/jay/.vs-kubernetes/tools/minikube/darwin-amd64/minikube",
+    "vs-kubernetes.helm-path.mac": "/opt/homebrew/bin/helm",
+    "vs-kubernetes.kubectl-path.mac": "/opt/homebrew/bin/kubectl",
+    "vs-kubernetes.minikube-path.mac": "/opt/homebrew/bin/minikube",
     "vscode-kubernetes.helm-path.linux": "/home/jay/.vs-kubernetes/tools/helm/linux-amd64/helm",
-    "vscode-kubernetes.helm-path.mac": "/Users/jay/.vs-kubernetes/tools/helm/darwin-arm64/helm",
+    "vscode-kubernetes.helm-path.mac": "/opt/homebrew/bin/helm",
     "vscode-kubernetes.kubectl-path.linux": "/home/jay/.vs-kubernetes/tools/kubectl/kubectl",
-    "vscode-kubernetes.kubectl-path.mac": "/Users/jay/.vs-kubernetes/tools/kubectl/kubectl",
+    "vscode-kubernetes.kubectl-path.mac": "/opt/homebrew/bin/kubectl",
     "vscode-kubernetes.minikube-path.linux": "/home/jay/.vs-kubernetes/tools/minikube/linux-amd64/minikube",
-    "vscode-kubernetes.minikube-path.mac": "/Users/jay/.vs-kubernetes/tools/minikube/darwin-arm64/minikube"
+    "vscode-kubernetes.minikube-path.mac": "/opt/homebrew/bin/minikube"
   },
   "workbench.colorTheme": "Night Owl",
   "workbench.editorAssociations": {
