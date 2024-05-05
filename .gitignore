@@ -6,6 +6,7 @@
 *.sublime-workspace
 *.tmPreferences.cache
 *.tmlanguage.cache
+*.tmp
 *Package\ Control.ca-bundle
 *Package\ Control.ca-certs/
 *Package\ Control.ca-list
@@ -30,6 +31,7 @@
 .fseventsd
 .history
 .idea
+.jsh_local
 .kube
 .sops
 .ssh
