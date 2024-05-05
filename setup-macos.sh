@@ -17,7 +17,6 @@ packages=(
   cryptography
   direnv
   discord
-  # docker
   exiftool
   ffmpeg
   firefox
