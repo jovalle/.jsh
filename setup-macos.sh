@@ -72,7 +72,6 @@ packages=(
   mas
   minikube
   mos
-  mpv
   ncurses
   neofetch
   netcat
@@ -136,6 +135,7 @@ fi
 
 casks=(
   docker
+  mpv
   syncthing
 )
 
