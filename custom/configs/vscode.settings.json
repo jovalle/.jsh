@@ -48,11 +48,6 @@
   "go.useLanguageServer": true,
   "redhat.telemetry.enabled": false,
   "remote.SSH.configFile": "~/.ssh/config",
-  "remote.SSH.remotePlatform": {
-    "192.168.0.2": "linux",
-    "192.168.0.3": "linux",
-    "192.168.0.4": "linux"
-  },
   "remote.SSH.useExecServer": true,
   "remote.SSH.useLocalServer": true,
   "scm.showOutgoingChanges": "never",
@@ -118,7 +113,8 @@
     "vscode-kubernetes.kubectl-path.linux": "/home/jay/.vs-kubernetes/tools/kubectl/kubectl",
     "vscode-kubernetes.kubectl-path.mac": "/opt/homebrew/bin/kubectl",
     "vscode-kubernetes.minikube-path.linux": "/home/jay/.vs-kubernetes/tools/minikube/linux-amd64/minikube",
-    "vscode-kubernetes.minikube-path.mac": "/opt/homebrew/bin/minikube"
+    "vscode-kubernetes.minikube-path.mac": "/opt/homebrew/bin/minikube",
+    "vscode-kubernetes.minikube-path-mac": "/Users/jay/.vs-kubernetes/tools/minikube/darwin-arm64/minikube"
   },
   "workbench.colorTheme": "Night Owl",
   "workbench.editorAssociations": {
