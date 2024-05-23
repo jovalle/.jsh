@@ -4,7 +4,11 @@ set -e
 
 test $(uname -s) = "Darwin"
 
+# variables
+config_base=$HOME/.jsh/custom/configs
 packages=(
+  age
+  alfred
   ansible
   ansible-lint
   awscli
@@ -27,6 +31,7 @@ packages=(
   go-task
   google-chrome
   govc
+  grep
   helm
   helmfile
   ipmitool
@@ -104,11 +109,11 @@ packages=(
   pyyaml
   qemu
   raspberry-pi-imager
+  rsync
   siderolabs/tap/talosctl
   signal
   slack
   sops
-  spotify
   sublime-text
   tailscale
   talosctl
@@ -124,7 +129,16 @@ packages=(
   zoom
   zsh-completions
 )
+casks=(
+  docker
+  mpv
+  syncthing
+)
+links=(
+  ansible
+)
 
+# If not apple silicon, add these
 if [[ $(uname -m) == 'x86_64' ]]; then
   packages+=(
     hyperkit
@@ -132,19 +146,8 @@ if [[ $(uname -m) == 'x86_64' ]]; then
   )
 fi
 
-casks=(
-  docker
-  mpv
-  syncthing
-)
-
-links=(
-  ansible
-)
-
-[[ ! -f $HOME/.zprofile ]] && touch $HOME/.zprofile
-
 # Install brew if missing
+[[ ! -f $HOME/.zprofile ]] && touch $HOME/.zprofile
 if ! [ -x "$(command -v brew)" ]; then
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -222,7 +225,8 @@ if [[ -x $(brew --prefix)/opt/python3/bin/python3 && ! -L /usr/local/bin/python 
   done
 fi
 
-config_base=$HOME/.jsh/custom/configs
+# Override macOS grep with GNU grep
+ln -sf /opt/homebrew/bin/ggrep /opt/homebrew/bin/grep
 
 import_config() {
   if [[ $# != 2 ]]; then
