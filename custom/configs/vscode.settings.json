@@ -48,9 +48,15 @@
   "go.useLanguageServer": true,
   "redhat.telemetry.enabled": false,
   "remote.SSH.configFile": "~/.ssh/config",
+  "remote.SSH.remotePlatform": {
+    "192.168.31.2": "linux",
+    "192.168.31.3": "linux"
+  },
+  "remote.SSH.suppressWindowsSshWarning": true,
   "remote.SSH.useExecServer": true,
-  "remote.SSH.useLocalServer": true,
+  "remote.SSH.useLocalServer": false,
   "scm.showOutgoingChanges": "never",
+  "security.workspace.trust.enabled": false,
   "security.workspace.trust.untrustedFiles": "open",
   "settingsSync.ignoredSettings": [],
   "sync.autoDownload": true,
