@@ -129,23 +129,10 @@ if [[ $(command -v kubectl) == 0 ]]; then
   source <(kubectl completion $SH)
 fi
 
-# Get kubeconfigs by cluster
-# ----------------------------------------------------------
-if [[ -d $HOME/.kube/clusters ]]; then
-  export KUBECONFIG=$(find $HOME/.kube/clusters -type f | sed ':a;N;s/\n/:/;ba')
-fi
-
 # Enable color support of ls and also add handy aliases
 # ----------------------------------------------------------
 if [[ -x /usr/bin/dircolors ]]; then
   test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
-fi
-
-# Enable shortcut to iCloud Drive
-# ----------------------------------------------------------
-if [[ $(uname) == "Darwin" ]]; then
-  export ICLOUD_DRIVE_PATH='~/Library/Mobile\ Documents/com~apple~CloudDocs'
-  alias ic='cd '$ICLOUD_DRIVE_PATH
 fi
 
 # Augment sshrc experience
@@ -180,32 +167,7 @@ export PATH=$(echo "$_path" | tr ':' '\n' | tr -d '^$' | sort -u | tr '\n' ':' |
 # 3. Prompt
 # --------------------------------------------------------------------
 
-prompt_cmd() {
-  [[ $? == 0 ]] && ret="\[${green}\]" || ret="\[${red}\]"
-  [[ -n $PROMPT_SYMBOL ]] && local prompt_symbol="$PROMPT_SYMBOL" || local prompt_symbol='>'
-  local dir="\[${cyan}\]\w\[${reset}\]"
-  local git="\[${purple}\]\$(git branch 2>/dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/')\[${reset}\]"
-  local host="\[${yellow}\]\h\[${reset}\]"
-  local user="\[${orange}\]\u\[${reset}\]"
-  if [[ -n "$WORKSPACE" ]]; then
-    local workspace="\[${red}\][$WORKSPACE]\[${reset}\]"
-  fi
-  if [[ -n $PROMPT_CUSTOM ]]; then
-    PS1=${PROMPT_CUSTOM}
-  else
-    if [[ $PROMPT == 'mini' ]]; then
-      local prompt="${ret}${prompt_symbol} ${reset}"
-      PS1="${prompt}${dir}${git}${workspace} "
-    elif [[ $PROMPT == 'full' ]]; then
-      local prompt="${ret}└─╼ ${reset}"
-      PS1="${bold}┌─[${reset}${user}@${host}:${dir}${git}${bold}]${reset}${workspace}\n${prompt}"
-    else
-      PS1="${workspace}${user}@${host}:${dir}${git}${ret}$ ${reset}"
-    fi
-  fi
-}
-[[ $SH == 'bash' ]] && export PROMPT_COMMAND=prompt_cmd || unset PROMPT_COMMAND
-
+# WIP
 
 # --------------------------------------------------------------------
 # 4. Aliases
@@ -237,7 +199,7 @@ fi
 
 # Conditional
 # ----------------------------------------------------------
-command -v exa >/dev/null 2>&1 && alias ls='exa -lag --header'
+command -v eza >/dev/null 2>&1 && alias ls='eza --git --color=always --icons=always'
 command -v kubecolor >/dev/null 2>&1 && alias kubectl='kubecolor'
 
 # Assorted
@@ -330,55 +292,6 @@ ffs() { /usr/bin/find . -name "$@"'*' ; } # ffs: Find file whose name starts wit
 ffe() { /usr/bin/find . -name '*'"$@" ; } # ffe: Find file whose name ends with a given string
 ffpid() { lsof -t -c "$@" } # ffpid: Find pid of matching process
 
-# curldebug: Download a web page and show info on what took time
-# ----------------------------------------------------------
-curldebug() {
-  /usr/bin/curl "$@" -o /dev/null -w "dns: %{time_namelookup} connect: %{time_connect} pretransfer: %{time_pretransfer} starttransfer: %{time_starttransfer} total: %{time_total}\\n"
-}
-
-# curldiag: Exhaustive output for given web request
-# ----------------------------------------------------------
-curldiag() {
-  CURL_FORMAT="
-      content_type: %{content_type}
-filename_effective: %{filename_effective}
-    ftp_entry_path: %{ftp_entry_path}
-         http_code: %{http_code}
-      http_connect: %{http_connect}
-      num_connects: %{num_connects}
-     num_redirects: %{num_redirects}
-      redirect_url: %{redirect_url}
-     size_download: %{size_download}
-       size_header: %{size_header}
-      size_request: %{size_request}
-       size_upload: %{size_upload}
-    speed_download: %{speed_download}
-      speed_upload: %{speed_upload}
- ssl_verify_result: %{ssl_verify_result}
-     url_effective: %{url_effective}
-
-
-   time_namelookup: %{time_namelookup}
-      time_connect: %{time_connect}
-   time_appconnect: %{time_appconnect}
-  time_pretransfer: %{time_pretransfer}
-     time_redirect: %{time_redirect}
-time_starttransfer: %{time_starttransfer}
-                   -------
-        time_total: %{time_total}
-"
-
-  for arg in $@; do
-    curl -v -w "$CURL_FORMAT" -o /dev/null -s $arg
-  done
-}
-
-# curlheader: Grabs headers from web page
-# ----------------------------------------------------------
-curlheader() {
-  curl -I -L "$@"
-}
-
 # duh: Disk usage per directory, sorted by ascending size
 # ----------------------------------------------------------
 duh() {
@@ -421,41 +334,6 @@ extract() {
   fi
 }
 
-# gitsync: Git pull from all defined repos
-# ----------------------------------------------------------
-gitsync() {
-  SSH_KEY=${HOME}/.ssh/id_rsa
-  if [[ $(ssh-add -l | grep "${SSH_KEY}" | wc -l) == 0 ]]; then
-      eval $(ssh-agent)
-      ssh-add ~/.ssh/id_rsa
-  fi
-
-  REPOS=($(echo "$GIT_REPOS" | tr ',' '\n'))
-  for REPO in ${REPOS[@]}
-  do
-    echo "Checking for ${REPO} repository."
-    TARGET_DIR=$(pwd)
-    if [[ $# == 0 ]]; then
-      TARGET_DIR="${HOME}"
-    fi
-    cd ${TARGET_DIR}
-    REPO_DIR="${TARGET_DIR}/$(echo ${REPO} | sed 's/^\w*\///g')"
-    echo $REPO_DIR
-    BRANCH=master
-    R=$(echo ${REPO} | sed 's/^\w*\///g')
-    if [ -d "${REPO_DIR}" ]
-    then
-      echo "${R}@${BRANCH} found locally. Overwriting master branch with latest remote."
-      pushd ${REPO_DIR} && git checkout -f ${BRANCH} && git fetch --all && git reset --hard origin/${BRANCH} && popd
-    else
-      echo "${R}@${BRANCH} not found locally. Pulling from remote."
-      echo git clone ssh://git@$GIT_URL:7999/${REPO}.git
-      git clone ssh://git@$GIT_URL:7999/${REPO}.git
-      pushd ${REPO_DIR} && git checkout -f ${BRANCH} && git pull && popd
-    fi
-  done
-}
-
 # http2ssh: Convert gitconfig URL from HTTP(S) to SSH
 #   Credit: github.com/m14t/fix_github_https_repo.sh
 # ----------------------------------------------------------
@@ -492,17 +370,6 @@ http2ssh() {
   [[ $# ]] && success "Success" || error "Failed to set new URL origin"
 }
 
-# inv: Move to ansible inventory (or root) if defined
-# ----------------------------------------------------------
-inv() {
-  if [[ -n $ANSIBLE_INVENTORY ]]; then
-    cd $ANSIBLE_INVENTORY
-    if [[ $# == 1 ]]; then
-      cd $(git rev-parse --show-toplevel)
-    fi
-  fi
-}
-
 # ipmi: Common ipmitool shortcuts with no plaintext password
 # ----------------------------------------------------------
 ipmi() {
@@ -517,289 +384,4 @@ ipmi() {
   fi
 
   ipmitool -I lanplus -H ${IPMI_HOST} -U ${IPMI_USER} -f ${IPMI_CRED_FILE} $@
-}
-
-# ips: Display all ip addresses for this host
-# ----------------------------------------------------------
-ips() {
-  if command -v ifconfig &>/dev/null; then
-    ifconfig | awk '/inet /{ print $2 }'
-  elif command -v ip 2>/dev/null; then
-    ip addr | grep -oP 'inet \K[\d.]+'
-  else
-    echo "You don't have ifconfig or ip command installed!"
-  fi
-}
-
-# kc: Fetch admin config from remote server
-# ----------------------------------------------------------
-kc() {
-  if [[ $# == 1 ]]; then
-    [[ ! -d $HOME/.kube ]] && mkdir -p $HOME/.kube
-    scp $1:/etc/kubernetes/admin.conf $HOME/.kube/config
-  else
-    error "Usage: kc <admin host>"
-  fi
-}
-
-# kdrain: Drain any node
-# ----------------------------------------------------------
-kdrain() {
-  node=$1
-  option=$2
-  #kubectl drain $node --ignore-daemonsets --delete-emptydir-data
-
-  # delete all pods on node to avoid daemonset-backed service outages (e.g. traefik DS when one node is unreachable)
-  if [[ $option =~ '--force' ]]; then
-    #for resource in "$(kubectl get pods -A -o custom-columns=:.metadata.namespace,:.metadata.name --no-headers | grep $node)"; do
-    IFS=$'\n'
-    for resource in $(kubectl get pods -A -o wide --no-headers | grep $node); do
-      namespace=$(echo $resource | awk '{print $1}')
-      pod=$(echo $resource | awk '{print $2}')
-      echo "Deleting pod/$pod in $namespace namespace"
-      kubectl -n $namespace delete pod $pod --force --grace-period=0
-    done
-  fi
-}
-
-# kt: Create a cluster-admin SA and fetch bearer token
-# ----------------------------------------------------------
-kt() {
-  kubectl get ns admin || kubectl create ns admin
-  kubectl -n admin get sa jay || kubectl -n admin create sa jay
-  kubectl get clusterrolebinding cluster-admin-jay || kubectl create clusterrolebinding cluster-admin-jay --clusterrole=cluster-admin --serviceaccount=admin:jay
-  kubectl -n admin get secret $(kubectl -n admin get serviceaccounts jay -o json | python -c 'import sys,json; print json.load(sys.stdin)["secrets"][0]["name"]') -o json | python -c 'import sys,json; print json.load(sys.stdin)["data"]["token"]' | base64 -d
-  printf "\nPress any key to cleanup..." && read key
-  kubectl -n admin delete sa jay
-  kubectl delete clusterrolebinding cluster-admin-jay
-}
-
-# kx: Execute command in new busybox instance
-# ----------------------------------------------------------
-kx() {
-  if [[ $# > 0 ]]; then
-    kubectl run -i --tty $1 --image=busybox --restart=Never --rm -- \
-      $@
-  else
-    error "Usage: <command> <arguments> (command is also name of pod)"
-  fi
-}
-
-# lsgrep: Search through directory contents with grep
-# ----------------------------------------------------------
-lsgrep() { ls | grep "$*" ; }
-
-# mkd: Makes new dir and jumps inside
-# ----------------------------------------------------------
-mkd() { mkdir -p -- "$*" ; cd -- "$*" || exit ; }
-
-# myip: Display public IP
-# ----------------------------------------------------------
-myip() {
-  ip=$(curl -s wtfismyip.com/text)
-  echo -e "Your public IP is:${green} ${ip} ${reset}"
-}
-
-# myps: List processes owned by current user
-# ----------------------------------------------------------
-myps() {
-  ps "$@" -u "$USER" -o pid,%cpu,%mem,start,time,bsdtime,command
-}
-
-# src: Batch source files
-# ----------------------------------------------------------
-src() {
-  if [[ $# == 0 ]]; then
-    source $JSH/.jshrc
-  else
-    for f in $@; do
-      if [[ -f $f ]]; then
-        source $f
-      else
-        warn Could not find $f
-      fi
-    done
-  fi
-}
-
-# vimsrc: Edit local config and reload in shell
-# ----------------------------------------------------------
-vimsrc() {
-  vim ${HOME}/.jsh_local
-  src
-}
-
-# Source: https://stackoverflow.com/questions/54814543/bash-how-to-use-an-alias-command-in-combination-with-watch
-# ----------------------------------------------------------
-swatch_usage() {
-    cat <<EOF >&2
-NAME
-       swatch - execute a program periodically with "watch". Supports aliases.
-
-SYNOPSIS
-       swatch [options] command
-
-OPTIONS
-       -n, --interval seconds (default: 1)
-              Specify update interval.  The command will not allow quicker than 0.1 second interval.
-EOF
-}
-
-swatch() {
-    if [ $# -eq 0 ]; then
-        swatch_usage
-        return 1
-    fi
-    seconds=1
-    case "$1" in
-    -n)
-        seconds="$2"
-        args=${*:3}
-        ;;
-    -h)
-        swatch_usage
-        ;;
-    *)
-        seconds=1
-        args=${*:1}
-        ;;
-    esac
-    watch --color -n "$seconds" -d -t --exec ${SH} -ic "$args || true"
-}
-
-# viw: Edit at source
-# ----------------------------------------------------------
-viw() {
-  if [[ $# == 1 && -n $EDITOR ]]; then
-    $EDITOR $(which $1)
-  fi
-}
-
-# vk: Prompt and store vault key
-# ----------------------------------------------------------
-vk() {
-  [[ -z $SHM ]] && error "$SHM not set"
-  [[ -n $WORKSPACE ]] && VAULT=$WORKSPACE
-  [[ $# == 1 ]] && VAULT=$1
-  if [[ -n $VAULT ]]; then
-    local e_data
-    local dir=$SHM/.vault
-    if [[ ! -d $dir ]]; then
-      mkdir $dir
-    fi
-    local target="${dir}/$VAULT"
-    if [[ ! -f $target ]]; then
-      echo -n "Enter vault key for $VAULT: "
-      read -s e_data
-      echo ""
-      echo $e_data > $target
-      chmod 600 $target
-      success "Wrote key to ${target}"
-    fi
-  else
-    error "Usage: vk VAULT_NAME"
-  fi
-}
-
-# ws: Change workspace
-# ----------------------------------------------------------
-ws() {
-  # Define workspace
-  if [[ $# == 1 ]]; then
-    info "Setting WORKSPACE to $1"
-    export WORKSPACE=$1
-  elif [[ $# > 1 ]]; then
-    error "Usage: ws WORKSPACE"
-    return 1
-  else
-    if [[ -z $WORKSPACE && -n $DEFAULT_WORKSPACE ]]; then
-      info "Setting WORKSPACE to default $DEFAULT_WORKSPACE"
-      export WORKSPACE=$DEFAULT_WORKSPACE
-    else
-      error "Usage: ws WORKSPACE"
-      return 2
-    fi
-  fi
-
-  # Black box
-  if command -v setw &>/dev/null; then
-    setw $WORKSPACE
-    return $?
-  fi
-
-  # Set ansible vault password file
-  if command -v ansible-playbook &>/dev/null; then
-
-    # Ensure a workspace is defined
-    if [[ -n $WORKSPACE ]]; then
-
-      # Prompt/set vault key if not already
-      if [[ ! -f $SHM/.vault-$WORKSPACE || $(cat $SHM/.vault-$WORKSPACE) == '' ]]; then
-        info "Opening vault for $WORKSPACE"
-        vk $WORKSPACE
-      fi
-
-      # Check for base definition
-      if [[ -z $GIT_INV ]]; then
-        if [[ $(git status 2>/dev/null) ]]; then
-          if [[ -d $(pwd)/ansible ]]; then
-            info "Setting GIT_INV to $(pwd)/ansible/inventory"
-            GIT_INV=$(pwd)/ansible/inventory
-          else
-            info "Setting GIT_INV to $(pwd)/inventory"
-            GIT_INV=$(pwd)/inventory
-          fi
-        else
-          info "Setting GIT_INV to ./inventory"
-          GIT_INV=./inventory
-        fi
-      fi
-
-      # Check/prompt for valid inventory
-      if [[ -d $GIT_INV/$WORKSPACE ]]; then
-        info "Setting ANSIBLE_INVENTORY to $GIT_INV/$WORKSPACE"
-        export ANSIBLE_INVENTORY="$GIT_INV/$WORKSPACE"
-        alias ap="ansible-playbook -i $ANSIBLE_INVENTORY"
-        alias a="ansible -i $ANSIBLE_INVENTORY"
-      else
-        printf "Ansible Inventory Root: "
-        read ANSIBLE_INV
-        if [[ -d $ANSIBLE_INV ]]; then
-          pushd $ANSIBLE_INV &>/dev/null
-          [[ -d $(git rev-parse --show-toplevel)/inventory ]] && export GIT_INV=$(git rev-parse --show-toplevel)/inventory
-          popd &>/dev/null
-          export ANSIBLE_INVENTORY=$GIT_INV/$WORKSPACE
-          alias ap="ansible-playbook -i $ANSIBLE_INVENTORY"
-          alias a="ansible -i $ANSIBLE_INVENTORY"
-          success "Ansible inventory set to $ANSIBLE_INVENTORY"
-        else
-          if [[ ! -d $ANSIBLE_INV ]]; then
-            error "Ansible inventory $ANSIBLE_INV not valid!"
-            return 3
-          else
-            error "Ansible inventory $GIT_INV/$WORKSPACE not found!"
-            return 4
-          fi
-        fi
-      fi
-      if [[ -f $SHM/.vault/$WORKSPACE ]]; then
-        export ANSIBLE_VAULT_PASSWORD_FILE="$SHM/.vault/$WORKSPACE"
-      else
-        error "Ansible vault password file $SHM/.vault/$WORKSPACE not found!"
-        return 5
-      fi
-
-    # Clean up if no workspace defined
-    else
-      unset ANSIBLE_INVENTORY
-      unset ANSIBLE_VAULT_PASSWORD_FILE
-      alias ap="ansible-playbook"
-      alias a="ansible"
-    fi
-
-  else
-
-    warn "Ansible not installed!"
-
-  fi
 }
