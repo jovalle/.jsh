@@ -9,7 +9,7 @@ fi
 # export PATH=$HOME/bin:/usr/local/bin:$PATH
 
 # Path to your oh-my-zsh installation.
-export ZSH="$HOME/.oh-my-zsh"
+export ZSH="$HOME/.jsh/.oh-my-zsh"
 
 # Set name of the theme to load --- if set to "random", it will
 # load a random theme each time oh-my-zsh is loaded, in which case,
@@ -86,35 +86,6 @@ plugins=(
   zsh-syntax-highlighting
 )
 
-# User configuration
-
-# export MANPATH="/usr/local/man:$MANPATH"
-
-# You may need to manually set your language environment
-# export LANG=en_US.UTF-8
-
-# Preferred editor for local and remote sessions
-# if [[ -n $SSH_CONNECTION ]]; then
-#   export EDITOR='vim'
-# else
-#   export EDITOR='mvim'
-# fi
-
-# Compilation flags
-# export ARCHFLAGS="-arch x86_64"
-
-# Set personal aliases, overriding those provided by oh-my-zsh libs,
-# plugins, and themes. Aliases can be placed here, though oh-my-zsh
-# users are encouraged to define aliases within the ZSH_CUSTOM folder.
-# For a full list of active aliases, run `alias`.
-#
-# Example aliases
-# alias zshconfig="mate ~/.zshrc"
-# alias ohmyzsh="mate ~/.oh-my-zsh"
-
-# Initiate autojump
-[[ -s $HOME/.autojump/etc/profile.d/autojump.sh ]] && source $HOME/.autojump/etc/profile.d/autojump.sh
-
 # Fix zsh initialization and completion
 if command -v brew &> /dev/null; then
   FPATH=$(brew --prefix)/share/zsh-completions:$FPATH
@@ -122,19 +93,15 @@ if command -v brew &> /dev/null; then
   compaudit | xargs chmod g-w,o-w
 fi
 
-# Enable thefuck
-eval $(thefuck --alias)
-eval $(thefuck --alias fk)
+# Enable Oh My Zsh
+source $ZSH/oh-my-zsh.sh
+
+# Shell agnostic enchancements
+[[ -f $HOME/.jshrc ]] && source $HOME/.jshrc
 
 # Import fzf
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 [ -d $JSH/.fzf ] && export FZF_BASE=$JSH/.fzf
-
-# Enable Oh My Zsh
-[[ -f $JSH/.oh-my-zsh/oh-my-zsh.sh ]] && source $JSH/.oh-my-zsh/oh-my-zsh.sh
-
-# Shell agnostic enchancements
-[[ -f $HOME/.jshrc ]] && source $HOME/.jshrc
 
 # Fix oh-my-zsh override of vi-mode in shell
 set -o vi
@@ -153,6 +120,10 @@ export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 
 # Add llvm to path
 [[ -d /opt/homebrew/opt/llvm/bin ]] && export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+
+# Enable thefuck
+eval $(thefuck --alias)
+eval $(thefuck --alias fk)
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
