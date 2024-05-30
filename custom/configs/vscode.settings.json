@@ -11,6 +11,10 @@
   "[python]": {
     "editor.formatOnType": true
   },
+  "codeium.enableConfig": {
+    "*": true,
+    "markdown": true
+  },
   "dev.containers.executeInWSL": true,
   "diffEditor.ignoreTrimWhitespace": false,
   "diffEditor.useInlineViewWhenSpaceIsLimited": false,
