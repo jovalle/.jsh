@@ -122,8 +122,9 @@ if command -v brew &> /dev/null; then
   compaudit | xargs chmod g-w,o-w
 fi
 
-# Shell agnostic enchancements
-[[ -f $HOME/.jshrc ]] && source $HOME/.jshrc
+# Enable thefuck
+eval $(thefuck --alias)
+eval $(thefuck --alias fk)
 
 # Import fzf
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
@@ -131,6 +132,9 @@ fi
 
 # Enable Oh My Zsh
 [[ -f $JSH/.oh-my-zsh/oh-my-zsh.sh ]] && source $JSH/.oh-my-zsh/oh-my-zsh.sh
+
+# Shell agnostic enchancements
+[[ -f $HOME/.jshrc ]] && source $HOME/.jshrc
 
 # Fix oh-my-zsh override of vi-mode in shell
 set -o vi
