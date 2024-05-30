@@ -12,6 +12,7 @@ packages=(
   ansible
   ansible-lint
   awscli
+  bat
   btop
   caffeine
   cilium-cli
@@ -26,6 +27,7 @@ packages=(
   firefox
   fluxcd/tap/flux
   fzf
+  git-delta
   glances
   go
   go-task
@@ -84,6 +86,7 @@ packages=(
   node
   npm
   npth
+  nvim
   oniguruma
   openexr
   openjpeg
@@ -120,6 +123,8 @@ packages=(
   telegram
   terraform
   tg-pro
+  thefuck
+  tldr
   tmux
   vagrant
   visual-studio-code
