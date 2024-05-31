@@ -121,9 +121,12 @@ export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 # Add llvm to path
 [[ -d /opt/homebrew/opt/llvm/bin ]] && export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
 
-# Enable thefuck
+# Enable TF for command error correction
 eval $(thefuck --alias)
 eval $(thefuck --alias fk)
+
+# Enable atuin for history syncing
+eval "$(atuin init zsh)"
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
