@@ -1,0 +1,12 @@
+.DS_Store
+.git
+.gitignore
+.gitmodules
+.stfolder
+LICENSE
+VERSION
+\w.*\.(md|zsh)
+configs
+custom
+plugins
+themes

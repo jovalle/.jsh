@@ -1,0 +1,23 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+vars:
+  packages: git software-properties-common build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev wget libbz2-dev zsh python3
+
+tasks:
+  default:
+    deps:
+      - upgrade
+      - install
+
+  upgrade:
+    desc: Upgrade OS and installed packages
+    cmds:
+      - sudo apt update
+      - sudo apt upgrade -y
+
+  install:
+    desc: Install packages
+    cmds:
+      - sudo apt install -y {{.packages}}

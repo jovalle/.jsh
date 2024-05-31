@@ -1,0 +1,25 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+dotenv: ['.env', '{{.ENV}}/.env.', '{{.HOME}}/.env']
+
+includes:
+  os: ./taskfile_{{OS}}.yaml
+
+tasks:
+
+  default:
+    cmd: task -l
+    silent: true
+
+  install:
+    desc: Propagate dotfiles from the current directory to the home directory
+    deps: [os]
+    dir: '{{.ROOT_DIR}}'
+    cmd: stow .
+
+  uninstall:
+    desc: Retract dotfiles from home directory
+    dir: '{{.ROOT_DIR}}'
+    cmd: stow -D .

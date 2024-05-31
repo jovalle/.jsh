@@ -1,18 +1,12 @@
-# .jsh
+<div align="center">
+  <img src="jsh.jpeg" width="200px" height="200px" />
 
-```go
-          _____                _____       __     __
-         |\    \_         _____\    \     /  \   /  \
-         \ \     \       /    / \    |   /   /| |\   \
-          \|      |     |    |  /___/|  /   //   \\   \
-           |      |  ____\    \ |   || /    \_____/    \
-   ______  |      | /    /\    \|___|//    /\_____/\    \
-  /     / /      /||    |/ \    \    /    //\_____/\\    \
- |      |/______/ ||\____\ /____/|  /____/ |       | \____\
- |\_____\      | / | |   ||    | |  |    | |       | |    |
- | |     |_____|/   \|___||____|/   |____|/         \|____|
-  \|_____|
-```
+  # jsh
+
+  <p>
+    A collection of files to improve life in the shell
+  </p>
+</div>
 
 ## 📖 Overview
 
@@ -20,17 +14,17 @@ A feature-rich and consistent life in the shell. This is a mono repository for m
 
 ## 📚 Core Elements
 
-My shell of choice is zsh. This repository strives to be platform agnostic but given I only use zsh, and mostly on macOS, cannot guarantee support for other shells and operating systems.
+My shell of choice is `zsh` with [oh-my-zsh](https://github.com/ohmyzsh/ohmyzsh) as the shell framework. Bootstrapping with [`task`](https://github.com/go-task/task) and [`stow`](https://www.gnu.org/software/stow/).
 
 ### 🔌 Shell Plugins
 
 Plugins are either installed as git repo submodules or explicitly in the setup script:
 
-- `autojump`: Aliased to `j`, enables shortcuts to commonly used directories
 - `fzf`: Fuzzy finder enabled in shell reverse search and in `vim`
 - `oh-my-zsh`: Shell framework that enables themes and plugins
-- `powerlevel10k`: Excellent shell theme
-- `zsh-autosuggestions`: Partial auto-completion like in `fish` shell
+- `powerlevel10k`: Stunning yet functional shell prompt
+- `zsh-autosuggestions`: Pseudo auto-completion like in `fish` shell
+- `zsh-highlighting`: Emphasizes, as you write, if a command/file/directory is missing (usually due to a typo)
 
 ### 🍟 Binaries
 
@@ -55,20 +49,20 @@ Project includes custom configs for `iTerm2` and `vscode`.
 
 ## 🐣 Prerequisites
 
-Before installing the shell scripts and shell plugins mentioned above, there are numerous tweaks, fonts, and applications I like to install on my devices. Do review the list and update accordingly.
+The only prereq not handled by this repo is the installation of `task`. Once `task` is installed, see the [install](#📲-install) section to continue.
+
+### Font
+
+p10k recommends [Meslo Nerd Font](https://github.com/ryanoasis/nerd-fonts) and will install it (`p10k configure`) if missing and using iTerm2.
 
 ## 📲 Install
 
-Run `setup-macos.sh` or `setup-debian.sh` to handle prerequisites and install all that this repo has to offer.
-
 ```sh
-./setup-macos.sh
+task install
 ```
-
-Use `j.sh` if these special install scripts are of no use to you.
 
 ### 🗑️ Uninstall
 
 ```sh
-./j.sh uninstall
+task uninstall
 ```
