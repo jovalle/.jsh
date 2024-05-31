@@ -29,10 +29,12 @@
 .apdisk
 .com.apple.timemachine.donotpresent
 .fseventsd
+.fzf
 .history
 .idea
 .jsh_local
 .kube
+.oh-my-zsh
 .sops
 .ssh
 .stfolder
