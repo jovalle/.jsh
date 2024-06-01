@@ -126,7 +126,6 @@
     "vscode-kubernetes.minikube-path.mac": "/opt/homebrew/bin/minikube",
     "vscode-kubernetes.minikube-path-mac": "/Users/jay/.vs-kubernetes/tools/minikube/darwin-arm64/minikube"
   },
-  "workbench.colorTheme": "Night Owl",
   "workbench.editorAssociations": {
     "*.plist": "default"
   },
