@@ -5,7 +5,7 @@
 .stfolder
 LICENSE
 VERSION
-\w.*\.(md|zsh)
+\w.*\.(jpeg|md|sh|yaml|zsh)
 configs
 custom
 plugins
