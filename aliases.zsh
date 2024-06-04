@@ -43,17 +43,10 @@ alias grep='grep --color=auto -i' # Preferred 'grep' implementation
 alias gvimdiff='git difftool --tool=vimdiff --no-prompt' # Open all git changes in vimdiff
 alias h='history'
 alias k='kubectl' # Abbreviate kube control
-alias kaf='kubectl apply -f' # Apply k8s manifest
-alias kar='kubectl api-resources --verbs=list --namespaced -o name | grep -v "events.events.k8s.io" | grep -v "events" | sort | uniq' # Get all possible kinds
 alias kav='kubectl api-versions' # List all APIs
 alias kctx='kubectx' # Change kube context
-alias kdel='kubectl delete' # Delete resource
-alias kdelp='kubectl delete pods' # Delete all pods matching passed arguments
-alias kdp='kubectl describe pods' # Describe all pods
 alias kenc="sops --age \$(cat \${SOPS_AGE_KEY_FILE} | grep -oP \"public key: \K(.*)\") --encrypt --encrypted-regex '^(data|stringData)$' --in-place"
-alias keti='kubectl exec -it' # Open terminal into pod
-alias kgd='kubectl get deployments' # Get the deployment
-alias kgp='kubectl get pods' # List all pods in ps output format
+alias kexec='kubectl exec -it' # Open terminal into pod
 alias kns='kubens' # Change kube namespace
 alias l='ls -la' # Long, show hidden files
 alias ls='ls -G' # Show colors
