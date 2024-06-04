@@ -49,7 +49,11 @@ Project includes custom configs for `iTerm2` and `vscode`.
 
 ## 🐣 Prerequisites
 
-The only prereq not handled by this repo is the installation of `task`. Once `task` is installed, see the [install](#📲-install) section to continue.
+The only prereq not handled by this repo is the installation of `task`.
+
+```sh
+sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d
+```
 
 ### Font
 

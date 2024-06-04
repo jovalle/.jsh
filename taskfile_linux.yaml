@@ -3,7 +3,7 @@
 version: "3"
 
 vars:
-  packages: git software-properties-common build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev wget libbz2-dev zsh python3
+  packages: git software-properties-common build-essential zlib1g-dev fzf libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev wget libbz2-dev zsh python3
 
 tasks:
   default:

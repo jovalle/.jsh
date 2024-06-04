@@ -3,7 +3,7 @@
 version: "3"
 
 vars:
-  packages: age alfred ansible ansible-lint awscli bat btop caffeine cilium-cli cloudflared corepack coreutils cryptography direnv discord exiftool ffmpeg firefox fluxcd/tap/flux fzf git-delta glances go go-task google-chrome govc grep helm helmfile ipmitool istat-menus ipmitool iterm2 johanhaleby/kubetail/kubetail jq k3sup kind krew kubecm kubecolor/tap/kubecolor kubectx kubernetes-cli kubetail lens libassuan libde265 libev libevent libffi libgcrypt libgpg-error libheif libidn2 libksba liblqr libomp libpng libtasn1 libtiff libtool libunistring libusb libvirt libyaml little-cms2 llvm lua mailsy mas minikube mos ncurses neofetch netcat nettle nmap node npm npth nvim oniguruma openexr openjpeg openssl@1.1 p11-kit pcre pcre2 perl pinentry pkg-config plex podman poetry python-dateutil python-distlib python-filelock python-jinja python-lxml python-platformdirs python-pyparsing python-pytz python3 pyyaml qemu raspberry-pi-imager rsync siderolabs/tap/talosctl signal slack sops sublime-text tailscale talosctl telegram terraform tg-pro thefuck tldr tmux vagrant visual-studio-code virtualenv watch wireshark zoom zsh-completions
+  packages: age alfred ansible ansible-lint awscli bat btop caffeine cilium-cli cloudflared corepack coreutils cryptography direnv discord exiftool ffmpeg firefox fluxcd/tap/flux font-meslo-lg-nerd-font fzf git-delta glances go google-chrome govc grep helm helmfile ipmitool istat-menus ipmitool iterm2 johanhaleby/kubetail/kubetail jq k3sup kind krew kubecm kubecolor/tap/kubecolor kubectx kubernetes-cli kubetail lens libassuan libde265 libev libevent libffi libgcrypt libgpg-error libheif libidn2 libksba liblqr libomp libpng libtasn1 libtiff libtool libunistring libusb libvirt libyaml little-cms2 llvm lua mailsy mas minikube mos ncurses neofetch netcat nettle nmap node npm npth nvim oniguruma openexr openjpeg openssl@1.1 p11-kit pcre pcre2 perl pinentry pkg-config plex podman poetry python-dateutil python-distlib python-filelock python-jinja python-lxml python-platformdirs python-pyparsing python-pytz python3 pyyaml qemu raspberry-pi-imager rsync siderolabs/tap/talosctl signal slack sops stow sublime-text tailscale talosctl telegram terraform tg-pro thefuck tldr tmux vagrant visual-studio-code virtualenv watch wireshark zoom zoxide zsh-completions
   casks: docker mpv
   links: ansible python3
 
@@ -39,13 +39,13 @@ tasks:
 
   brew-install:
     desc: Install package using brew
-    cmd: brew install {{.package}}
+    cmd: brew install {{.package}} --force
     requires:
       vars: ['package']
 
   brew-install-cask:
     desc: Install cask using brew
-    cmd: brew install --cask {{.cask}}
+    cmd: brew install --cask {{.cask}} --force
     requires:
       vars: ['cask']
 
@@ -57,7 +57,7 @@ tasks:
 
   install-packages:
     desc: Iterate through packages for install
-    deps: [install-homebrew]
+    #deps: [install-homebrew]
     cmds:
       - for: {var: packages, split: ' '}
         task: brew-install
@@ -68,7 +68,7 @@ tasks:
 
   install-casks:
     desc: Iterate through casks for install
-    deps: [install-homebrew]
+    #deps: [install-homebrew]
     cmds:
       - for: {var: casks, split: ' '}
         task: brew-install-cask
@@ -79,7 +79,7 @@ tasks:
 
   install-links:
     desc: Iterate through packages for linking
-    deps: [install-homebrew]
+    #deps: [install-homebrew]
     cmds:
       - for: {var: links, split: ' '}
         task: brew-link
@@ -90,5 +90,5 @@ tasks:
 
   brew-upgrade:
     desc: Upgrade brew packages
-    deps: [install-homebrew]
+    #deps: [install-homebrew]
     cmd: brew upgrade

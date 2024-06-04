@@ -14,8 +14,13 @@ tasks:
     silent: true
 
   install:
-    desc: Propagate dotfiles from the current directory to the home directory
+    desc: Install packages and stow
     deps: [os]
+    tasks:
+      - stow
+
+  stow:
+    desc: Propagate dotfiles from the current directory to the home directory
     dir: '{{.ROOT_DIR}}'
     cmd: stow .
 

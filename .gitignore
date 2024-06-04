@@ -42,6 +42,7 @@
 .vault
 .vim/bundle/*
 .vim/plugged/*
+.zsh_history
 GitHub.sublime-settings
 Network\ Trash\ Folder
 Temporary\ Items
