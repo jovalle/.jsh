@@ -14,8 +14,10 @@ tasks:
       - ln -sf $HOME/.jsh/configs/firefox/user.js "{{ .FF_DIR }}/user.js"
     desc: Tweak Firefox using Betterfox + own enhancements
     preconditions:
-      - test -d /Applications/Firefox.app
-      - test -d $HOME/Library/Application\ Support/Firefox/Profiles/
+      - msg: "Firefox not installed. Install from https://www.mozilla.org/firefox/"
+        sh: test -d /Applications/Firefox.app
+      - msg: "Firefox profiles directory not found. Run Firefox at least once to create profile."
+        sh: test -d $HOME/Library/Application\ Support/Firefox/Profiles/
     vars:
       FF_DIR:
         sh: 'find $HOME/Library/Application\ Support/Firefox/Profiles -type d -name "*.default-release"'

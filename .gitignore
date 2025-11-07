@@ -67,6 +67,7 @@
 .zsh_history
 .zsh_history.*
 AppSupport
+backup/
 GitHub.sublime-settings
 Network\ Trash\ Folder
 Temporary\ Items

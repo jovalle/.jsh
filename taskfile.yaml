@@ -14,6 +14,23 @@ includes:
   wsl: ".taskfiles/windows/taskfile.yaml"
 
 tasks:
+  backup:
+    cmds:
+      - mkdir -p {{.ROOT_DIR}}/backup/{{.TIMESTAMP}}
+      - cmd: |
+          echo "Backing up current configs to {{.ROOT_DIR}}/backup/{{.TIMESTAMP}}..."
+          # Backup key config files from home directory
+          for file in .zshrc .vimrc .tmux.conf .gitconfig .inputrc; do
+            if [ -f "$HOME/$file" ] && [ ! -L "$HOME/$file" ]; then
+              cp "$HOME/$file" {{.ROOT_DIR}}/backup/{{.TIMESTAMP}}/ 2>/dev/null || true
+            fi
+          done
+          echo "✓ Backup completed at {{.ROOT_DIR}}/backup/{{.TIMESTAMP}}"
+    desc: Backup current configs before applying jsh changes
+    vars:
+      TIMESTAMP:
+        sh: date +%Y%m%d_%H%M%S
+
   chsh:
     cmd: chsh -s /bin/zsh
     status:
@@ -70,7 +87,8 @@ tasks:
   fzf:
     cmd: "{{.ROOT_DIR}}/.fzf/install --bin --no-zsh"
     preconditions:
-      - test -x "{{.ROOT_DIR}}/.fzf/install"
+      - msg: "fzf install script not found. Run: git submodule update --init"
+        sh: test -x "{{.ROOT_DIR}}/.fzf/install"
 
   git:
     cmds:
@@ -125,14 +143,48 @@ tasks:
     status:
       - test -z "{{.links}}"
 
+  lint:
+    cmds:
+      - cmd: shellcheck --severity=warning --exclude=SC1071 .bin/* scripts/**/*.sh 2>/dev/null || true
+      - cmd: yamllint taskfile.yaml .taskfiles/**/*.yaml 2>/dev/null || echo "⚠ yamllint not found, skipping YAML lint"
+        ignore_error: true
+      - cmd: markdownlint '**/*.md' --ignore node_modules --ignore .fzf 2>/dev/null || echo "⚠ markdownlint not found, skipping markdown lint"
+        ignore_error: true
+    desc: Run all linters (shellcheck, yamllint, markdownlint)
+
   mount:
     cmd: "{{.ROOT_DIR}}/scripts/unix/configure-mounts.sh {{.CLI_ARGS}}"
     desc: "Configure and mount SMB shares. Usage: task mount [mount_name]"
     dir: "{{.ROOT_DIR}}"
     interactive: true
 
+  preflight:
+    cmds:
+      - cmd: |
+          echo "Running pre-flight checks..."
+          # Check for required commands
+          MISSING_CMDS=()
+          for cmd in git stow curl wget; do
+            if ! command -v "$cmd" &> /dev/null; then
+              MISSING_CMDS+=("$cmd")
+            fi
+          done
+          if [ ${#MISSING_CMDS[@]} -ne 0 ]; then
+            echo "✗ Error: Missing required commands: ${MISSING_CMDS[*]}"
+            echo "  Please install these before running setup."
+            exit 1
+          fi
+          # Check for internet connectivity
+          if ! curl -s --connect-timeout 5 https://google.com > /dev/null 2>&1; then
+            echo "⚠ Warning: No internet connection detected. Some installations may fail."
+          fi
+          echo "✓ Pre-flight checks passed"
+    desc: Verify prerequisites before running setup
+    silent: false
+
   setup:
     cmds:
+      - task: preflight
       - task: install
       - task: configure
     desc: Configure and install jsh
