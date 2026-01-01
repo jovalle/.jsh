@@ -1,0 +1,148 @@
+name: Auto Version Bump
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get current version
+        id: current_version
+        run: |
+          VERSION=$(cat VERSION | tr -d 'v' | tr -d '\n')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Current version: ${VERSION}"
+
+      - name: Determine version bump type
+        id: bump_type
+        run: |
+          # Get the last commit message
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          echo "Commit message: ${COMMIT_MSG}"
+
+          # Extract conventional commit type (everything before first colon or opening paren)
+          TYPE=$(echo "${COMMIT_MSG}" | grep -oP '^[a-z]+' || echo "")
+          echo "Commit type: ${TYPE}"
+
+          # Determine bump type based on conventional commit
+          case "${TYPE}" in
+            # Breaking changes (major)
+            break|breaking)
+              BUMP="major"
+              ;;
+            # Features and enhancements (minor)
+            feat|feature|add|enhance|improvement)
+              BUMP="minor"
+              ;;
+            # Everything else (patch)
+            fix|docs|style|refactor|perf|test|build|ci|chore|revert|*)
+              BUMP="patch"
+              ;;
+          esac
+
+          # Check for BREAKING CHANGE in commit body (forces major)
+          if echo "${COMMIT_MSG}" | grep -qi "BREAKING CHANGE"; then
+            BUMP="major"
+          fi
+
+          echo "bump=${BUMP}" >> $GITHUB_OUTPUT
+          echo "Version bump type: ${BUMP}"
+
+      - name: Calculate new version
+        id: new_version
+        run: |
+          CURRENT="${{ steps.current_version.outputs.version }}"
+          BUMP="${{ steps.bump_type.outputs.bump }}"
+
+          # Split version into components
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${CURRENT}"
+
+          # Bump the appropriate component
+          case "${BUMP}" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "New version: ${NEW_VERSION}"
+
+      - name: Update version files
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.version }}"
+
+          # Update VERSION file
+          echo "v${NEW_VERSION}" > VERSION
+
+          # Update bashly.yml
+          sed -i "s/^version: .*/version: ${NEW_VERSION}/" src/bashly.yml
+
+          # Update package.json
+          if [ -f package.json ]; then
+            sed -i "s/\"version\": \".*\"/\"version\": \"${NEW_VERSION}\"/" package.json
+          fi
+
+          echo "Updated version to ${NEW_VERSION} in all files"
+
+      - name: Install bashly
+        run: |
+          gem install bashly
+
+      - name: Regenerate jsh script
+        run: |
+          cd src && bashly generate
+          echo "Regenerated jsh script with new version"
+
+      - name: Commit version bump
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.version }}"
+          BUMP_TYPE="${{ steps.bump_type.outputs.bump }}"
+
+          git add VERSION src/bashly.yml package.json jsh
+
+          # Only commit if there are changes
+          if git diff --staged --quiet; then
+            echo "No version changes to commit"
+          else
+            git commit -m "chore: bump version to ${NEW_VERSION} (${BUMP_TYPE}) [skip ci]"
+            git push
+            echo "Version bumped to ${NEW_VERSION}"
+          fi
+
+      - name: Create Git tag
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.version }}"
+
+          # Create and push tag
+          git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
+          git push origin "v${NEW_VERSION}"
+          echo "Created and pushed tag v${NEW_VERSION}"
