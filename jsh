@@ -202,6 +202,16 @@ jsh_install_usage() {
     printf "    Install via zypper (openSUSE)\n"
     echo
 
+    # :flag.usage
+    printf "  %s\n" "--no-progress"
+    printf "    Disable TUI progress display\n"
+    echo
+
+    # :flag.usage
+    printf "  %s\n" "--quiet, -q"
+    printf "    Minimal output\n"
+    echo
+
     # :command.usage_fixed_flags
     printf "  %s\n" "--help, -h"
     printf "    Show this help\n"
@@ -255,7 +265,7 @@ jsh_upgrade_usage() {
   echo
 
   printf "%s\n" "Usage:"
-  printf "  jsh upgrade\n"
+  printf "  jsh upgrade [OPTIONS]\n"
   printf "  jsh upgrade --help | -h\n"
   echo
 
@@ -263,6 +273,17 @@ jsh_upgrade_usage() {
   if [[ -n "$long_usage" ]]; then
     # :command.usage_options
     printf "%s\n" "Options:"
+
+    # :command.usage_flags
+    # :flag.usage
+    printf "  %s\n" "--no-progress"
+    printf "    Disable TUI progress display\n"
+    echo
+
+    # :flag.usage
+    printf "  %s\n" "--quiet, -q"
+    printf "    Minimal output\n"
+    echo
 
     # :command.usage_fixed_flags
     printf "  %s\n" "--help, -h"
@@ -1398,6 +1419,227 @@ get_user_shell() {
   echo "${user_shell}"
 }
 
+# ============================================================================
+# Upgrade Helpers (for TUI integration)
+# ============================================================================
+
+# Get list of outdated packages
+# Returns: newline-separated list of package names
+brew_get_outdated() {
+  run_brew outdated --quiet 2>/dev/null || true
+}
+
+# Get count of outdated packages
+# Returns: integer count
+brew_get_outdated_count() {
+  local outdated
+  outdated=$(brew_get_outdated)
+  if [[ -z "$outdated" ]]; then
+    echo 0
+  else
+    echo "$outdated" | wc -l | tr -d ' '
+  fi
+}
+
+# Run brew update with progress callback
+# Arguments:
+#   $1 - callback function name (receives: stage, message)
+brew_update_with_progress() {
+  local callback="${1:-}"
+
+  [[ -n "$callback" ]] && "$callback" "start" "Updating Homebrew"
+
+  if run_brew update 2>&1 | while IFS= read -r line; do
+    # Parse update output for progress info
+    if [[ "$line" == *"Fetching"* ]]; then
+      local repo="${line#*Fetching }"
+      [[ -n "$callback" ]] && "$callback" "item" "Fetching $repo"
+    elif [[ "$line" == *"Updated"* ]]; then
+      [[ -n "$callback" ]] && "$callback" "item" "$line"
+    fi
+  done; then
+    [[ -n "$callback" ]] && "$callback" "done" "Update complete"
+    return 0
+  else
+    [[ -n "$callback" ]] && "$callback" "fail" "Update failed"
+    return 1
+  fi
+}
+
+# Run brew upgrade with TUI progress
+# This streams brew upgrade output and updates TUI progress for each package
+brew_upgrade_with_tui() {
+  local root_dir
+  root_dir="$(get_root_dir)"
+
+  # Source TUI if available and not already loaded
+  # (Don't re-source - it resets state variables like _TUI_ENABLED)
+  if ! declare -f tui_progress_start &>/dev/null; then
+    if [[ -f "$root_dir/src/lib/tui.sh" ]]; then
+      # shellcheck source=src/lib/tui.sh
+      source "$root_dir/src/lib/tui.sh"
+    fi
+  fi
+
+  # Check if TUI functions exist
+  if ! declare -f tui_progress_start &>/dev/null; then
+    # Fallback to simple execution
+    log "Upgrading Homebrew packages..."
+    run_brew update && run_brew upgrade
+    return $?
+  fi
+
+  # Phase 1: Update
+  tui_progress_start "Updating Homebrew" 0
+  local update_output
+  update_output=$(run_brew update 2>&1) || {
+    tui_progress_fail "Update failed"
+    tui_error "$update_output"
+    return 1
+  }
+  # Show relevant update messages
+  while IFS= read -r line; do
+    if [[ "$line" == *"Fetching"* ]] || [[ "$line" == *"Updated"* ]]; then
+      tui_log "${line:0:60}"
+    fi
+  done <<< "$update_output"
+  tui_progress_complete "Homebrew updated"
+
+  # Phase 2: Get outdated packages
+  local outdated outdated_count
+  outdated=$(brew_get_outdated)
+  # Count non-empty lines, trim whitespace
+  if [[ -z "$outdated" ]] || [[ "$outdated" == $'\n' ]]; then
+    outdated_count=0
+  else
+    outdated_count=$(echo "$outdated" | grep -c . 2>/dev/null || echo 0)
+    # Trim any whitespace/newlines from count
+    outdated_count="${outdated_count//[$'\n\r\t ']}"
+    outdated_count="${outdated_count:-0}"
+  fi
+
+  if [[ "$outdated_count" -eq 0 ]]; then
+    tui_log "All packages are up to date"
+    return 0
+  fi
+
+  # Phase 3: Upgrade with progress
+  tui_progress_start "Upgrading packages" "$outdated_count"
+
+  local current=0
+  local current_pkg=""
+  local failed_packages=()
+  local link_errors=()
+  local upgrade_output_file="${TMPDIR:-/tmp}/brew_upgrade_$$"
+
+  # Create the file before starting background process to avoid race condition
+  : > "$upgrade_output_file"
+
+  # Run upgrade and capture output to temp file for processing
+  run_brew upgrade >> "$upgrade_output_file" 2>&1 &
+  local brew_pid=$!
+
+  # Process output in real-time
+  local last_line=0
+  while kill -0 "$brew_pid" 2>/dev/null; do
+    # Read new lines from output file (use process substitution to avoid subshell)
+    local current_line=0
+    while IFS= read -r line; do
+      ((current_line++)) || true
+      # Skip lines we've already processed
+      [[ "$current_line" -le "$last_line" ]] && continue
+
+      # Detect package being upgraded (brew uses ==> prefix)
+      if [[ "$line" =~ ^==\>\ Upgrading\ ([a-zA-Z0-9@._-]+) ]] || \
+         [[ "$line" =~ ^Upgrading\ ([a-zA-Z0-9@._-]+) ]]; then
+        current_pkg="${BASH_REMATCH[1]}"
+        ((current++)) || true
+        tui_progress_update "$current" "$current_pkg"
+      elif [[ "$line" =~ ^==\>\ Pouring\ ([a-zA-Z0-9@._-]+) ]]; then
+        current_pkg="${BASH_REMATCH[1]}"
+        tui_progress_update "$current" "pouring $current_pkg"
+      elif [[ "$line" =~ ^==\>\ Linking\ ([a-zA-Z0-9@._-]+) ]]; then
+        tui_progress_update "$current" "linking ${BASH_REMATCH[1]}"
+      fi
+    done < "$upgrade_output_file" 2>/dev/null
+    last_line="$current_line"
+    sleep 0.1
+  done
+
+  # Process any remaining output after brew finishes
+  while IFS= read -r line; do
+    ((last_line++)) || true
+    if [[ "$line" =~ ^==\>\ Upgrading\ ([a-zA-Z0-9@._-]+) ]] || \
+       [[ "$line" =~ ^Upgrading\ ([a-zA-Z0-9@._-]+) ]]; then
+      current_pkg="${BASH_REMATCH[1]}"
+      ((current++)) || true
+      tui_progress_update "$current" "$current_pkg"
+    fi
+  done < <(tail -n +"$((last_line + 1))" "$upgrade_output_file" 2>/dev/null)
+
+  # Wait for brew to finish and get exit code
+  wait "$brew_pid"
+  local exit_code=$?
+
+  # Process final output for errors
+  if [[ -f "$upgrade_output_file" ]]; then
+    local in_error_block=false
+    local error_pkg=""
+
+    while IFS= read -r line; do
+      # Track current package context
+      if [[ "$line" =~ ^==\>\ Upgrading\ ([a-zA-Z0-9@._-]+) ]] || \
+         [[ "$line" =~ ^Upgrading\ ([a-zA-Z0-9@._-]+) ]]; then
+        error_pkg="${BASH_REMATCH[1]}"
+      fi
+
+      # Detect brew link errors
+      if [[ "$line" == *"brew link"* ]] || [[ "$line" == *"The \`brew link\`"* ]]; then
+        if [[ -n "$error_pkg" ]]; then
+          link_errors+=("$error_pkg: $line")
+        else
+          link_errors+=("$line")
+        fi
+      fi
+
+      # Detect general errors
+      if [[ "$line" == "Error:"* ]] || [[ "$line" == *"Error:"* ]]; then
+        if [[ -n "$error_pkg" ]]; then
+          failed_packages+=("$error_pkg")
+        fi
+        tui_error "$line"
+      fi
+    done < "$upgrade_output_file"
+
+    rm -f "$upgrade_output_file"
+  fi
+
+  if [[ $exit_code -eq 0 ]] && [[ ${#link_errors[@]} -eq 0 ]]; then
+    tui_progress_complete "Upgraded $outdated_count package(s)"
+    return 0
+  else
+    # Report specific failures
+    if [[ ${#link_errors[@]} -gt 0 ]]; then
+      tui_progress_fail "The \`brew link\` step did not complete successfully"
+      for err in "${link_errors[@]}"; do
+        tui_error "$err"
+      done
+    fi
+
+    if [[ ${#failed_packages[@]} -gt 0 ]]; then
+      local unique_failed
+      unique_failed=$(printf '%s\n' "${failed_packages[@]}" | sort -u | tr '\n' ', ' | sed 's/,$//')
+      tui_error "Failed packages: $unique_failed"
+    fi
+
+    if [[ ${#link_errors[@]} -eq 0 ]] && [[ ${#failed_packages[@]} -eq 0 ]]; then
+      tui_progress_fail "Some packages failed to upgrade (exit code: $exit_code)"
+    fi
+
+    return 1
+  fi
+}
+
 # src/lib/colors.sh
 # Common colors and output functions for jsh
 
@@ -1462,6 +1704,791 @@ get_root_dir() {
       echo "$script_path"
     fi
   fi
+}
+
+# src/lib/dependencies.sh
+# Dependency checking library for jsh
+# Validates required tools/commands and reports missing ones with environment-specific guidance
+#
+# Usage:
+#   source dependencies.sh
+#   # Core dependencies auto-registered on source
+#
+#   # Check if a dependency is available
+#   if has_dependency "jq"; then
+#     # use jq
+#   fi
+#
+#   # Require a dependency (error if missing)
+#   require_dependency "git"
+#
+#   # Report all missing dependencies with install guidance
+#   report_missing_dependencies
+
+# Get the directory containing this script (resolve to absolute path)
+_JSH_DEPS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+
+# Source environment detection if JSH_ENV not already set
+if [[ -z "${JSH_ENV:-}" ]]; then
+  # shellcheck source=environment.sh
+  source "${_JSH_DEPS_DIR}/environment.sh"
+  get_jsh_env > /dev/null
+fi
+
+# Source colors for cmd_exists if not already available
+if ! declare -f cmd_exists &>/dev/null; then
+  # shellcheck source=colors.sh
+  source "${_JSH_DEPS_DIR}/colors.sh"
+fi
+
+# ============================================================================
+# Internal State
+# ============================================================================
+
+# Associative array to store dependency metadata
+# Key: dependency name
+# Value: "check_cmd|required|guidance_macos_personal|guidance_macos_corporate|guidance_truenas|guidance_ssh_remote|guidance_linux_generic"
+declare -gA _JSH_DEPS
+
+# Track if core dependencies have been registered
+_JSH_DEPS_INITIALIZED=""
+
+# ============================================================================
+# Registration Functions
+# ============================================================================
+
+# Register a dependency with its check command and install guidance
+# Arguments:
+#   $1 - name: Dependency identifier
+#   $2 - check_cmd: Command/expression to check availability (eval'd)
+#   $3 - required: "true" or "false"
+#   $4 - guidance_macos_personal: Install instructions for personal macOS
+#   $5 - guidance_macos_corporate: Install instructions for corporate macOS
+#   $6 - guidance_truenas: Install instructions for TrueNAS
+#   $7 - guidance_ssh_remote: Install instructions for SSH sessions
+#   $8 - guidance_linux_generic: Install instructions for generic Linux
+_register_dependency() {
+  local name="$1"
+  local check_cmd="$2"
+  local required="$3"
+  local guidance_macos_personal="${4:-}"
+  local guidance_macos_corporate="${5:-}"
+  local guidance_truenas="${6:-}"
+  local guidance_ssh_remote="${7:-}"
+  local guidance_linux_generic="${8:-}"
+
+  # Store as pipe-delimited string
+  _JSH_DEPS["$name"]="${check_cmd}|${required}|${guidance_macos_personal}|${guidance_macos_corporate}|${guidance_truenas}|${guidance_ssh_remote}|${guidance_linux_generic}"
+}
+
+# ============================================================================
+# Check Functions
+# ============================================================================
+
+# Check if a single dependency is available
+# Arguments:
+#   $1 - name: Dependency name
+# Returns: 0 if available, 1 if missing
+check_dependency() {
+  local name="$1"
+  local dep_data="${_JSH_DEPS[$name]:-}"
+
+  if [[ -z "$dep_data" ]]; then
+    # Unknown dependency
+    return 1
+  fi
+
+  local check_cmd
+  check_cmd="${dep_data%%|*}"
+
+  # Evaluate the check command
+  if eval "$check_cmd" &>/dev/null; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# Check all registered dependencies
+# Returns: Count of missing required dependencies
+check_all_dependencies() {
+  local missing_required=0
+  local name
+
+  for name in "${!_JSH_DEPS[@]}"; do
+    local dep_data="${_JSH_DEPS[$name]}"
+    local required
+    required="$(echo "$dep_data" | cut -d'|' -f2)"
+
+    if ! check_dependency "$name"; then
+      if [[ "$required" == "true" ]]; then
+        ((missing_required++))
+      fi
+    fi
+  done
+
+  echo "$missing_required"
+  return "$missing_required"
+}
+
+# Get list of missing dependencies
+# Arguments:
+#   --required: Only list required dependencies
+#   --optional: Only list optional dependencies
+# Output: Newline-separated list of missing dependency names
+get_missing_dependencies() {
+  local filter="${1:-}"
+  local name
+
+  for name in "${!_JSH_DEPS[@]}"; do
+    if ! check_dependency "$name"; then
+      local dep_data="${_JSH_DEPS[$name]}"
+      local required
+      required="$(echo "$dep_data" | cut -d'|' -f2)"
+
+      case "$filter" in
+        --required)
+          [[ "$required" == "true" ]] && echo "$name"
+          ;;
+        --optional)
+          [[ "$required" == "false" ]] && echo "$name"
+          ;;
+        *)
+          echo "$name"
+          ;;
+      esac
+    fi
+  done
+}
+
+# ============================================================================
+# Reporting Functions
+# ============================================================================
+
+# Get install guidance for a dependency based on current environment
+# Arguments:
+#   $1 - name: Dependency name
+# Output: Install guidance string
+_get_guidance() {
+  local name="$1"
+  local dep_data="${_JSH_DEPS[$name]:-}"
+
+  if [[ -z "$dep_data" ]]; then
+    echo "Unknown dependency"
+    return
+  fi
+
+  local guidance=""
+  case "${JSH_ENV:-linux-generic}" in
+    macos-personal)
+      guidance="$(echo "$dep_data" | cut -d'|' -f3)"
+      ;;
+    macos-corporate)
+      guidance="$(echo "$dep_data" | cut -d'|' -f4)"
+      ;;
+    truenas)
+      guidance="$(echo "$dep_data" | cut -d'|' -f5)"
+      ;;
+    ssh-remote)
+      guidance="$(echo "$dep_data" | cut -d'|' -f6)"
+      ;;
+    linux-generic|*)
+      guidance="$(echo "$dep_data" | cut -d'|' -f7)"
+      ;;
+  esac
+
+  # Fall back to linux-generic guidance if specific guidance is empty
+  if [[ -z "$guidance" ]]; then
+    guidance="$(echo "$dep_data" | cut -d'|' -f7)"
+  fi
+
+  # Final fallback
+  if [[ -z "$guidance" ]]; then
+    guidance="Install $name"
+  fi
+
+  echo "$guidance"
+}
+
+# Report missing dependencies with install guidance
+# Arguments:
+#   --quiet: Suppress output
+# Returns: 0 if no required deps missing, 1 otherwise
+report_missing_dependencies() {
+  local quiet=""
+  [[ "${1:-}" == "--quiet" ]] && quiet="true"
+
+  local missing_required=0
+  local missing_optional=0
+  local name
+  local output=""
+
+  for name in "${!_JSH_DEPS[@]}"; do
+    if ! check_dependency "$name"; then
+      local dep_data="${_JSH_DEPS[$name]}"
+      local required
+      required="$(echo "$dep_data" | cut -d'|' -f2)"
+      local guidance
+      guidance="$(_get_guidance "$name")"
+
+      if [[ "$required" == "true" ]]; then
+        ((missing_required++))
+        output+="  [REQUIRED] $name: $guidance\n"
+      else
+        ((missing_optional++))
+        output+="  [optional] $name: $guidance\n"
+      fi
+    fi
+  done
+
+  if [[ -z "$quiet" ]] && [[ -n "$output" ]]; then
+    echo "Missing dependencies:"
+    echo -e "$output"
+
+    if [[ "$missing_required" -gt 0 ]]; then
+      echo "($missing_required required, $missing_optional optional)"
+    else
+      echo "($missing_optional optional)"
+    fi
+  fi
+
+  [[ "$missing_required" -eq 0 ]]
+}
+
+# ============================================================================
+# Predicate Helpers
+# ============================================================================
+
+# Boolean check if dependency is available
+# Arguments:
+#   $1 - name: Dependency name
+# Returns: 0 if available, 1 if missing
+has_dependency() {
+  check_dependency "$1"
+}
+
+# Check and error if dependency is missing
+# Arguments:
+#   $1 - name: Dependency name
+# Returns: 0 if available, exits with error if missing
+require_dependency() {
+  local name="$1"
+
+  if ! check_dependency "$name"; then
+    local guidance
+    guidance="$(_get_guidance "$name")"
+    # Use error function if available, otherwise echo and return 1
+    if declare -f error &>/dev/null; then
+      error "Required dependency missing: $name. $guidance"
+    else
+      echo "Error: Required dependency missing: $name. $guidance" >&2
+      return 1
+    fi
+  fi
+  return 0
+}
+
+# ============================================================================
+# Core Dependencies
+# ============================================================================
+
+# Register jsh's core dependencies
+_register_core_dependencies() {
+  # Prevent double registration
+  [[ -n "$_JSH_DEPS_INITIALIZED" ]] && return 0
+  _JSH_DEPS_INITIALIZED="true"
+
+  # Critical: bash 4.2+
+  _register_dependency "bash" \
+    '[[ "${BASH_VERSINFO[0]}" -gt 4 ]] || { [[ "${BASH_VERSINFO[0]}" -eq 4 ]] && [[ "${BASH_VERSINFO[1]}" -ge 2 ]]; }' \
+    "true" \
+    "brew install bash (then add to /etc/shells)" \
+    "Request bash 4.2+ from IT, or install manually" \
+    "bash 4.2+ typically pre-installed on TrueNAS SCALE" \
+    "Upgrade bash on remote host" \
+    "apt install bash / dnf install bash"
+
+  # Critical: jq
+  _register_dependency "jq" \
+    'cmd_exists jq' \
+    "true" \
+    "brew install jq" \
+    "Request jq from IT, or download from https://jqlang.github.io/jq/" \
+    "apt install jq (if delegate has permissions)" \
+    "Install jq on remote host" \
+    "apt install jq / dnf install jq"
+
+  # Optional: brew
+  _register_dependency "brew" \
+    'cmd_exists brew' \
+    "false" \
+    "Install Homebrew: https://brew.sh" \
+    "Homebrew may require IT approval" \
+    "Not available on TrueNAS SCALE" \
+    "Not applicable for SSH sessions" \
+    "Install Linuxbrew: https://brew.sh"
+
+  # Optional: fzf
+  _register_dependency "fzf" \
+    'cmd_exists fzf' \
+    "false" \
+    "brew install fzf" \
+    "Use bundled fzf at ~/.jsh/.fzf/" \
+    "Use bundled fzf at ~/.jsh/.fzf/" \
+    "Feature unavailable in SSH sessions (use bundled)" \
+    "apt install fzf / brew install fzf"
+
+  # Optional: git
+  _register_dependency "git" \
+    'cmd_exists git' \
+    "false" \
+    "brew install git" \
+    "Request git from IT, or use Xcode Command Line Tools" \
+    "apt install git (if delegate has permissions)" \
+    "Install git on remote host" \
+    "apt install git / dnf install git"
+
+  # Optional: zinit (zsh-only)
+  _register_dependency "zinit" \
+    '[[ -d "${ZINIT[HOME_DIR]:-$HOME/.local/share/zinit/zinit.git}" ]] || [[ -d "$HOME/.zinit" ]]' \
+    "false" \
+    "Installed automatically when using zsh with jsh" \
+    "Installed automatically when using zsh with jsh" \
+    "Not applicable (bash-only on TrueNAS)" \
+    "Not applicable for SSH sessions" \
+    "Installed automatically when using zsh with jsh"
+}
+
+# ============================================================================
+# Auto-initialization
+# ============================================================================
+
+# Register core dependencies when this file is sourced
+_register_core_dependencies
+
+# src/lib/environment.sh
+# Environment detection library for jsh
+# Detects runtime environment type for graceful degradation and environment-specific behavior
+#
+# Environment types:
+#   - macos-personal:   macOS with full admin access, no corporate signals
+#   - macos-corporate:  macOS with restrictions (MDM, proxy, restricted paths)
+#   - truenas:          TrueNAS SCALE appliance (Debian-based, read-only system)
+#   - ssh-remote:       Remote SSH session (any OS, detected via SSH_* vars)
+#   - linux-generic:    Linux fallback when no specific environment detected
+
+# Cache configuration
+_JSH_ENV_CACHE_DIR="${HOME}/.cache/jsh"
+_JSH_ENV_CACHE_FILE="${_JSH_ENV_CACHE_DIR}/environment"
+_JSH_ENV_CACHE_TTL=3600  # 1 hour in seconds
+
+# ============================================================================
+# Detection Predicates
+# ============================================================================
+
+# Check if running in an SSH session
+# Returns: 0 (true) if SSH session, 1 (false) otherwise
+is_ssh_session() {
+  # Check common SSH environment variables
+  [[ -n "${SSH_CLIENT:-}" ]] && return 0
+  [[ -n "${SSH_TTY:-}" ]] && return 0
+  [[ -n "${SSH_CONNECTION:-}" ]] && return 0
+  return 1
+}
+
+# Check if running on TrueNAS SCALE
+# Returns: 0 (true) if TrueNAS, 1 (false) otherwise
+is_truenas() {
+  # Check for TrueNAS directory
+  [[ -d "/usr/share/truenas" ]] && return 0
+
+  # Check /etc/version for TrueNAS or SCALE string
+  if [[ -f "/etc/version" ]]; then
+    grep -qiE "(truenas|scale)" "/etc/version" 2>/dev/null && return 0
+  fi
+
+  return 1
+}
+
+# Check for corporate macOS environment
+# Returns: 0 (true) if corporate macOS, 1 (false) otherwise
+is_macos_corporate() {
+  # Must be macOS first
+  [[ "$(uname -s)" != "Darwin" ]] && return 1
+
+  # Check for MDM profiles directory with content
+  if [[ -d "/var/db/ConfigurationProfiles" ]]; then
+    # Check if it's non-empty (has enrolled profiles)
+    local profile_count
+    profile_count=$(find "/var/db/ConfigurationProfiles" -maxdepth 2 -type f 2>/dev/null | wc -l | tr -d ' ')
+    [[ "${profile_count}" -gt 0 ]] && return 0
+  fi
+
+  # Check for corporate hostname patterns
+  local hostname
+  hostname="$(hostname 2>/dev/null || echo '')"
+  if [[ -n "${hostname}" ]]; then
+    # Common corporate patterns: .corp., .internal., -mac suffix
+    [[ "${hostname}" == *".corp."* ]] && return 0
+    [[ "${hostname}" == *".internal."* ]] && return 0
+    [[ "${hostname}" == *"-mac" ]] && return 0
+  fi
+
+  # Check for proxy environment variables (often set by corporate networks)
+  [[ -n "${http_proxy:-}" ]] && return 0
+  [[ -n "${https_proxy:-}" ]] && return 0
+  [[ -n "${HTTP_PROXY:-}" ]] && return 0
+  [[ -n "${HTTPS_PROXY:-}" ]] && return 0
+
+  # Check if /usr/local is restricted (common in corporate environments)
+  if [[ -d "/usr/local" ]] && [[ ! -w "/usr/local" ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
+# Check for personal macOS environment
+# Returns: 0 (true) if personal macOS, 1 (false) otherwise
+is_macos_personal() {
+  # Must be macOS
+  [[ "$(uname -s)" != "Darwin" ]] && return 1
+
+  # Personal means macOS without corporate indicators
+  is_macos_corporate && return 1
+
+  return 0
+}
+
+# ============================================================================
+# Main Detection Function
+# ============================================================================
+
+# Detect the current environment type
+# Priority order: ssh-remote > truenas > macos-corporate > macos-personal > linux-generic
+# Sets JSH_ENV and exports it
+detect_environment() {
+  local env_type=""
+
+  # SSH detection runs first because you can SSH into any environment type
+  # This takes precedence to ensure remote sessions behave appropriately
+  if is_ssh_session; then
+    env_type="ssh-remote"
+  elif is_truenas; then
+    env_type="truenas"
+  elif [[ "$(uname -s)" == "Darwin" ]]; then
+    if is_macos_corporate; then
+      env_type="macos-corporate"
+    else
+      env_type="macos-personal"
+    fi
+  elif [[ "$(uname -s)" == "Linux" ]]; then
+    env_type="linux-generic"
+  else
+    # Unknown OS fallback
+    env_type="linux-generic"
+  fi
+
+  JSH_ENV="${env_type}"
+  export JSH_ENV
+}
+
+# ============================================================================
+# Caching Wrapper
+# ============================================================================
+
+# Check if cache is valid
+# Returns: 0 if cache is valid, 1 if cache should be refreshed
+_is_cache_valid() {
+  local cache_file="${_JSH_ENV_CACHE_FILE}"
+  local mtime_file="${cache_file}.mtime"
+
+  # Cache file must exist
+  [[ ! -f "${cache_file}" ]] && return 1
+  [[ ! -f "${mtime_file}" ]] && return 1
+
+  # Cache must not be empty
+  [[ ! -s "${cache_file}" ]] && return 1
+
+  # Check TTL
+  local cached_mtime current_time
+  cached_mtime=$(cat "${mtime_file}" 2>/dev/null || echo "0")
+  current_time=$(date +%s)
+
+  if (( current_time - cached_mtime >= _JSH_ENV_CACHE_TTL )); then
+    return 1
+  fi
+
+  return 0
+}
+
+# Write cache
+_write_cache() {
+  local env_type="$1"
+
+  mkdir -p "${_JSH_ENV_CACHE_DIR}"
+  echo "${env_type}" > "${_JSH_ENV_CACHE_FILE}"
+  date +%s > "${_JSH_ENV_CACHE_FILE}.mtime"
+}
+
+# Read cache
+_read_cache() {
+  cat "${_JSH_ENV_CACHE_FILE}" 2>/dev/null
+}
+
+# Get JSH environment with caching
+# This is the primary entry point for shell startup
+get_jsh_env() {
+  if _is_cache_valid; then
+    JSH_ENV=$(_read_cache)
+    export JSH_ENV
+  else
+    detect_environment
+    _write_cache "${JSH_ENV}"
+  fi
+
+  # Return the environment type for callers that want it
+  echo "${JSH_ENV}"
+}
+
+# Force re-detection (bypasses cache)
+refresh_jsh_env() {
+  detect_environment
+  _write_cache "${JSH_ENV}"
+  echo "${JSH_ENV}"
+}
+
+# Clear the environment cache
+clear_jsh_env_cache() {
+  rm -f "${_JSH_ENV_CACHE_FILE}" "${_JSH_ENV_CACHE_FILE}.mtime" 2>/dev/null
+}
+
+# src/lib/graceful.sh
+# Graceful degradation library for jsh
+# Provides safe helpers for sourcing, eval, and completion loading
+# that gracefully skip unavailable features without errors
+#
+# Requires: Bash 4.2+
+# Dependencies: Optionally uses has_dependency from dependencies.sh
+#
+# Usage:
+#   source graceful.sh
+#   _jsh_try_source "$HOME/.local/config"        # Skip if missing
+#   _jsh_try_eval "direnv" "direnv hook bash"    # Skip if command missing
+#   _jsh_try_completion "kubectl" "eval"         # Load completion if available
+#   _jsh_with_timeout 2 "slow_command"           # Run with timeout
+
+# Get the directory containing this script
+_JSH_GRACEFUL_DIR="${_JSH_GRACEFUL_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)}"
+
+# ============================================================================
+# Debug Logging
+# ============================================================================
+
+# Debug logging - only outputs when JSH_DEBUG=1
+# Arguments:
+#   $@ - Message to log (all arguments joined)
+# Output: Writes to stderr when JSH_DEBUG=1, otherwise silent
+_jsh_debug() {
+  [[ "${JSH_DEBUG:-}" == "1" ]] || return 0
+  echo "[jsh:debug] $*" >&2
+}
+
+# ============================================================================
+# Safe Sourcing
+# ============================================================================
+
+# Safely source a file with fallback
+# Arguments:
+#   $1 - File path to source
+#   $2 - Optional fallback value/command on failure
+# Returns: 0 on success, 1 if skipped
+_jsh_try_source() {
+  local file="$1"
+  local fallback="${2:-}"
+
+  # Check if file exists and is readable
+  if [[ ! -f "$file" ]]; then
+    _jsh_debug "skip source: file not found: $file"
+    [[ -n "$fallback" ]] && eval "$fallback"
+    return 1
+  fi
+
+  if [[ ! -r "$file" ]]; then
+    _jsh_debug "skip source: file not readable: $file"
+    [[ -n "$fallback" ]] && eval "$fallback"
+    return 1
+  fi
+
+  # Attempt to source the file
+  # shellcheck disable=SC1090
+  if source "$file"; then
+    _jsh_debug "sourced: $file"
+    return 0
+  else
+    _jsh_debug "source failed: $file"
+    [[ -n "$fallback" ]] && eval "$fallback"
+    return 1
+  fi
+}
+
+# ============================================================================
+# Safe Eval
+# ============================================================================
+
+# Safely eval a command if dependency exists
+# Arguments:
+#   $1 - Command name to check for
+#   $2 - Expression to eval if command exists
+# Returns: 0 on success, 1 if skipped
+_jsh_try_eval() {
+  local cmd="$1"
+  local expr="$2"
+
+  # Check if command exists using command -v (fast, builtin)
+  if ! command -v "$cmd" &>/dev/null; then
+    _jsh_debug "skip eval: command not found: $cmd"
+    return 1
+  fi
+
+  # Attempt to eval the expression
+  if eval "$expr"; then
+    _jsh_debug "eval success: $cmd"
+    return 0
+  else
+    _jsh_debug "eval failed: $cmd"
+    return 1
+  fi
+}
+
+# ============================================================================
+# Safe Completion Loading
+# ============================================================================
+
+# Safely load shell completions for a command
+# Handles both eval and source patterns
+# Arguments:
+#   $1 - Command name to check for
+#   $2 - Load method: "eval" or "source"
+#   $3 - Completion expression (for eval) or file path (for source)
+#        If not provided, attempts common patterns
+#   $4 - Optional shell name (defaults to current shell)
+# Returns: 0 on success, 1 if skipped
+_jsh_try_completion() {
+  local cmd="$1"
+  local method="${2:-eval}"
+  local completion_arg="${3:-}"
+  local shell="${4:-${SH:-bash}}"
+
+  # Check if command exists
+  if ! command -v "$cmd" &>/dev/null; then
+    _jsh_debug "skip completion: command not found: $cmd"
+    return 1
+  fi
+
+  case "$method" in
+    eval)
+      # If no expression provided, try common patterns
+      if [[ -z "$completion_arg" ]]; then
+        completion_arg="$cmd completion $shell"
+      fi
+
+      # Try to eval the completion command
+      local completion_output
+      if completion_output=$(eval "$completion_arg" 2>/dev/null); then
+        if eval "$completion_output" 2>/dev/null; then
+          _jsh_debug "completion loaded (eval): $cmd"
+          return 0
+        fi
+      fi
+
+      _jsh_debug "completion failed (eval): $cmd"
+      return 1
+      ;;
+
+    source)
+      # Source a completion file directly
+      if [[ -n "$completion_arg" ]] && [[ -f "$completion_arg" ]] && [[ -r "$completion_arg" ]]; then
+        # shellcheck disable=SC1090
+        if source "$completion_arg"; then
+          _jsh_debug "completion loaded (source): $cmd from $completion_arg"
+          return 0
+        fi
+      fi
+
+      _jsh_debug "completion failed (source): $cmd"
+      return 1
+      ;;
+
+    *)
+      _jsh_debug "completion: unknown method: $method"
+      return 1
+      ;;
+  esac
+}
+
+# ============================================================================
+# Timeout Execution
+# ============================================================================
+
+# Execute a command with timeout
+# Arguments:
+#   $1 - Timeout in seconds (default: 2)
+#   $@ - Command and arguments to execute
+# Returns: Command exit status, or 124 on timeout
+_jsh_with_timeout() {
+  local timeout_secs="${1:-2}"
+  shift
+
+  # Check if there's something to run
+  if [[ $# -eq 0 ]]; then
+    _jsh_debug "timeout: no command provided"
+    return 1
+  fi
+
+  # Use timeout command if available (GNU coreutils)
+  if command -v timeout &>/dev/null; then
+    timeout "$timeout_secs" "$@"
+    local exit_status=$?
+    if [[ $exit_status -eq 124 ]]; then
+      _jsh_debug "timeout: command timed out after ${timeout_secs}s: $*"
+    fi
+    return $exit_status
+  fi
+
+  # Use gtimeout (Homebrew coreutils on macOS)
+  if command -v gtimeout &>/dev/null; then
+    gtimeout "$timeout_secs" "$@"
+    local exit_status=$?
+    if [[ $exit_status -eq 124 ]]; then
+      _jsh_debug "timeout: command timed out after ${timeout_secs}s: $*"
+    fi
+    return $exit_status
+  fi
+
+  # Fallback: run without timeout (log warning in debug mode)
+  _jsh_debug "timeout: no timeout command available, running without limit: $*"
+  "$@"
+}
+
+# ============================================================================
+# Auto-source dependencies if needed (lazy load)
+# ============================================================================
+
+# Ensure has_dependency is available (for scripts that need it)
+# This is lazy-loaded to avoid sourcing dependencies.sh unnecessarily
+_jsh_ensure_has_dependency() {
+  if ! declare -f has_dependency &>/dev/null; then
+    if [[ -f "${_JSH_GRACEFUL_DIR}/dependencies.sh" ]]; then
+      # shellcheck source=dependencies.sh
+      source "${_JSH_GRACEFUL_DIR}/dependencies.sh"
+      _jsh_debug "lazy loaded: dependencies.sh"
+    else
+      _jsh_debug "dependencies.sh not found, has_dependency unavailable"
+      return 1
+    fi
+  fi
+  return 0
 }
 
 # src/lib/packages.sh
@@ -1706,6 +2733,1941 @@ upgrade_packages() {
       sudo zypper update -y
     fi
   fi
+}
+
+# src/lib/profiler.sh
+#!/usr/bin/env bash
+# Shell initialization profiling library (bash/zsh compatible)
+# Usage:
+#   source /path/to/profiler.sh
+#   profile_init
+#   profile_start "section_name" "description"
+#   # ... code to profile ...
+#   profile_end "section_name"
+#   profile_report
+
+# Enable profiling only if JSH_PROFILE is set
+: "${JSH_PROFILE:=0}"
+
+# Profiling data storage - file-based for shell compatibility
+# Using files avoids associative array issues across bash/zsh versions
+_PROFILE_DIR="${HOME}/.cache/jsh/profile/current"
+_PROFILE_TOTAL_START=0
+_PROFILE_ENABLED=0
+
+# Initialize profiling
+profile_init() {
+  if [[ "${JSH_PROFILE}" != "1" ]]; then
+    return 0
+  fi
+
+  _PROFILE_ENABLED=1
+
+  # Clean up any previous profile run
+  rm -rf "${_PROFILE_DIR}" 2>/dev/null
+  mkdir -p "${_PROFILE_DIR}"
+
+  _PROFILE_TOTAL_START=$(get_time_ms)
+  echo "${_PROFILE_TOTAL_START}" > "${_PROFILE_DIR}/_total_start"
+  : > "${_PROFILE_DIR}/_order"  # Create empty order file
+}
+
+# Get current time in milliseconds
+get_time_ms() {
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    # macOS
+    python3 -c 'import time; print(int(time.time() * 1000))'
+  else
+    # Linux
+    date +%s%3N
+  fi
+}
+
+# Start profiling a section
+profile_start() {
+  [[ "${_PROFILE_ENABLED}" != "1" ]] && [[ ! -d "${_PROFILE_DIR}" ]] && return 0
+
+  local section_name="$1"
+  local description="${2:-$section_name}"
+
+  # Store start time and description in files
+  get_time_ms > "${_PROFILE_DIR}/${section_name}.start"
+  echo "${description}" > "${_PROFILE_DIR}/${section_name}.desc"
+
+  # Track order of sections
+  if ! grep -qx "${section_name}" "${_PROFILE_DIR}/_order" 2>/dev/null; then
+    echo "${section_name}" >> "${_PROFILE_DIR}/_order"
+  fi
+}
+
+# End profiling a section
+profile_end() {
+  [[ "${_PROFILE_ENABLED}" != "1" ]] && [[ ! -d "${_PROFILE_DIR}" ]] && return 0
+
+  local section_name="$1"
+
+  if [[ ! -f "${_PROFILE_DIR}/${section_name}.start" ]]; then
+    echo "Warning: profile_end called for '$section_name' without matching profile_start" >&2
+    return 1
+  fi
+
+  get_time_ms > "${_PROFILE_DIR}/${section_name}.end"
+}
+
+# Get duration for a section in milliseconds
+profile_duration() {
+  local section_name="$1"
+  local start_file="${_PROFILE_DIR}/${section_name}.start"
+  local end_file="${_PROFILE_DIR}/${section_name}.end"
+
+  if [[ ! -f "${start_file}" ]] || [[ ! -f "${end_file}" ]]; then
+    echo "0"
+    return 1
+  fi
+
+  local start end
+  start=$(cat "${start_file}")
+  end=$(cat "${end_file}")
+  echo $((end - start))
+}
+
+# Generate profiling report
+profile_report() {
+  [[ ! -d "${_PROFILE_DIR}" ]] && return 0
+
+  local total_end total_start total_duration
+  total_end=$(get_time_ms)
+  total_start=$(cat "${_PROFILE_DIR}/_total_start" 2>/dev/null || echo "$total_end")
+  total_duration=$((total_end - total_start))
+
+  # Output format
+  local output_format="${JSH_PROFILE_FORMAT:-table}"
+  local output_file="${JSH_PROFILE_OUTPUT:-}"
+
+  # Generate report
+  local report=""
+  report+="=== Shell Initialization Profile ===\n"
+  report+="\n"
+  report+="Date: $(date '+%Y-%m-%d %H:%M:%S')\n"
+  report+="Total Duration: ${total_duration} ms\n"
+  report+="\n"
+
+  if [[ "$output_format" == "json" ]]; then
+    profile_report_json
+    return
+  fi
+
+  # Table format (default) - use actual newlines for compatibility
+  {
+    echo "┌─────────────────────────────────────────┬──────────┬─────────┐"
+    echo "│ Section                                 │ Time (ms)│ % Total │"
+    echo "├─────────────────────────────────────────┼──────────┼─────────┤"
+
+    local accumulated_time=0 duration description percentage
+    while IFS= read -r section || [[ -n "$section" ]]; do
+      [[ -z "$section" ]] && continue
+      # Skip wrapper sections (they contain other sections, would double-count)
+      [[ "$section" == *"_total" ]] && continue
+
+      duration=$(profile_duration "$section")
+      description=$(cat "${_PROFILE_DIR}/${section}.desc" 2>/dev/null || echo "$section")
+      percentage=0
+
+      if [[ "$total_duration" -gt 0 ]]; then
+        percentage=$((duration * 100 / total_duration))
+      fi
+
+      accumulated_time=$((accumulated_time + duration))
+
+      # Truncate description if too long
+      if [[ ${#description} -gt 39 ]]; then
+        description="${description:0:36}..."
+      fi
+
+      printf "│ %-39s │ %8d │ %6d%% │\n" "$description" "$duration" "$percentage"
+    done < "${_PROFILE_DIR}/_order"
+
+    # Calculate unaccounted time
+    local unaccounted=$((total_duration - accumulated_time))
+    local unaccounted_pct=0
+    if [[ "$total_duration" -gt 0 ]] && [[ "$unaccounted" -gt 0 ]]; then
+      unaccounted_pct=$((unaccounted * 100 / total_duration))
+      printf "│ %-39s │ %8d │ %6d%% │\n" "(other: keybindings, options, etc.)" "$unaccounted" "$unaccounted_pct"
+    fi
+
+    echo "├─────────────────────────────────────────┼──────────┼─────────┤"
+    printf "│ %-39s │ %8d │ %6d%% │\n" "TOTAL (wall-clock)" "$total_duration" "100"
+    echo "└─────────────────────────────────────────┴──────────┴─────────┘"
+
+    # Top 5 slowest sections
+    echo ""
+    echo "=== Top 5 Slowest Sections ==="
+
+    # Build sorted list from files
+    local sorted_output="" count=0
+    while IFS= read -r section || [[ -n "$section" ]]; do
+      [[ -z "$section" ]] && continue
+      # Skip wrapper sections
+      [[ "$section" == *"_total" ]] && continue
+      duration=$(profile_duration "$section")
+      sorted_output+="${duration}|${section}"$'\n'
+    done < "${_PROFILE_DIR}/_order"
+
+    # Sort by duration (descending) and show top 5
+    count=0
+    echo "$sorted_output" | sort -t'|' -k1 -rn | head -5 | while IFS='|' read -r dur sec; do
+      [[ -z "$sec" ]] && continue
+      description=$(cat "${_PROFILE_DIR}/${sec}.desc" 2>/dev/null || echo "$sec")
+      printf "%2d. %-40s %6d ms\n" $((count + 1)) "$description" "$dur"
+      count=$((count + 1))
+    done
+  } >&2
+}
+
+# Generate JSON format report
+profile_report_json() {
+  local total_end=$(get_time_ms)
+  local total_duration=$((total_end - _PROFILE_TOTAL_START))
+  local output_file="${JSH_PROFILE_OUTPUT:-}"
+
+  local json="{\n"
+  json+="  \"timestamp\": \"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\",\n"
+  json+="  \"total_duration_ms\": $total_duration,\n"
+  json+="  \"sections\": [\n"
+
+  local first=1
+  for section in "${_PROFILE_ORDER[@]}"; do
+    local duration=$(profile_duration "$section")
+    local description="${_PROFILE_DESCRIPTIONS[$section]}"
+    local percentage=0
+
+    if [[ "$total_duration" -gt 0 ]]; then
+      percentage=$((duration * 100 / total_duration))
+    fi
+
+    if [[ $first -eq 0 ]]; then
+      json+=",\n"
+    fi
+    first=0
+
+    json+="    {\n"
+    json+="      \"name\": \"$section\",\n"
+    json+="      \"description\": \"$description\",\n"
+    json+="      \"duration_ms\": $duration,\n"
+    json+="      \"percentage\": $percentage\n"
+    json+="    }"
+  done
+
+  json+="\n  ]\n"
+  json+="}\n"
+
+  if [[ -n "$output_file" ]]; then
+    echo -e "$json" > "$output_file"
+    echo "Profile report saved to: $output_file" >&2
+  else
+    echo -e "$json"
+  fi
+}
+
+# Save profile data for comparison
+profile_save() {
+  [[ "${_PROFILE_ENABLED}" != "1" ]] && return 0
+
+  local profile_name="${1:-$(date '+%Y%m%d_%H%M%S')}"
+  local profile_dir="${HOME}/.cache/jsh/profile"
+  local profile_file="${profile_dir}/${profile_name}.json"
+
+  mkdir -p "$profile_dir"
+
+  # Save as JSON
+  JSH_PROFILE_OUTPUT="$profile_file" JSH_PROFILE_FORMAT="json" profile_report > /dev/null
+
+  echo "Profile saved: $profile_file" >&2
+}
+
+# Compare two profiles
+profile_compare() {
+  local profile1="$1"
+  local profile2="$2"
+
+  if [[ ! -f "$profile1" ]] || [[ ! -f "$profile2" ]]; then
+    echo "Error: Profile files not found" >&2
+    return 1
+  fi
+
+  echo "=== Profile Comparison ===" >&2
+  echo "Profile 1: $(basename "$profile1")" >&2
+  echo "Profile 2: $(basename "$profile2")" >&2
+  echo >&2
+
+  # This is a placeholder for comparison logic
+  # Would require jq or python to parse JSON and compare
+  echo "Comparison feature requires jq - coming soon" >&2
+}
+
+# Convenience function to profile a command
+profile_command() {
+  [[ "${_PROFILE_ENABLED}" != "1" ]] && {
+    "$@"
+    return $?
+  }
+
+  local section_name="$1"
+  shift
+
+  profile_start "$section_name" "$section_name"
+  "$@"
+  local exit_code=$?
+  profile_end "$section_name"
+
+  return $exit_code
+}
+
+# Export functions for use in shell configs
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+  # Being sourced
+  export -f profile_init profile_start profile_end profile_report 2>/dev/null || true
+  export -f profile_save profile_compare profile_command 2>/dev/null || true
+fi
+
+# src/lib/projects.sh
+# projects.sh - Project directory navigation and status
+#
+# Provides two functions:
+#   project <name>  - cd to a project directory by name (zoxide-like)
+#   projects        - List all projects with git status summaries
+#
+# Configuration:
+#   JSH_PROJECTS - Comma-separated list of paths to scan for projects
+#                  Supports glob patterns for directories containing projects
+#                  and direct paths for individual projects
+#
+#   Default: "~/.jsh,~/projects/*"
+#
+# Examples:
+#   JSH_PROJECTS="~/.jsh,~/projects/*,~/work/*,/opt/myproject"
+#
+# Git status format (zsh-style):
+#   ~/.jsh    main *9 !9 ?18
+#   - * = staged changes
+#   - ! = unstaged changes
+#   - ? = untracked files
+
+# shellcheck disable=SC2034
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+# Ensure essential paths are available (script may load before PATH is configured)
+[[ ":$PATH:" != *":/bin:"* ]] && PATH="/bin:$PATH"
+[[ ":$PATH:" != *":/usr/bin:"* ]] && PATH="/usr/bin:$PATH"
+[[ ":$PATH:" != *":/usr/local/bin:"* ]] && PATH="/usr/local/bin:$PATH"
+[[ -d /opt/homebrew/bin && ":$PATH:" != *":/opt/homebrew/bin:"* ]] && PATH="/opt/homebrew/bin:$PATH"
+
+# Default project paths if JSH_PROJECTS not set
+_PROJECTS_DEFAULT_PATHS="${HOME}/.jsh,${HOME}/projects/*"
+
+# Remote projects config file
+_PROJECTS_REMOTE_CONFIG="${JSH_HOME:-${HOME}/.jsh}/configs/projects/remote.json"
+
+# Portable lowercase conversion (works in both bash and zsh)
+_projects_lowercase() {
+  printf '%s' "$1" | /usr/bin/tr '[:upper:]' '[:lower:]'
+}
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+# Expand a path pattern to actual directories
+# Arguments:
+#   $1 - Path pattern (may contain ~ and *)
+# Output: List of directories, one per line
+_projects_expand_path() {
+  local pattern="$1"
+
+  # Expand ~ to $HOME
+  pattern="${pattern/#\~/$HOME}"
+
+  # If pattern contains *, expand it
+  if [[ "$pattern" == *"*"* ]]; then
+    # Use eval for portable glob expansion (works in both bash and zsh)
+    local expanded
+    eval "for expanded in $pattern; do [[ -d \"\$expanded\" ]] && printf '%s\n' \"\$expanded\"; done" 2>/dev/null
+  else
+    # Direct path - just check if it exists
+    [[ -d "$pattern" ]] && printf '%s\n' "$pattern"
+  fi
+}
+
+# Get all project directories from JSH_PROJECTS
+# Output: List of project directories, one per line
+_projects_get_all() {
+  local paths="${JSH_PROJECTS:-$_PROJECTS_DEFAULT_PATHS}"
+  local path
+
+  # Split on comma using parameter substitution (portable between bash and zsh)
+  # Use literal newline for compatibility
+  local newline='
+'
+  local paths_newline="${paths//,/${newline}}"
+
+  while IFS= read -r path; do
+    # Skip empty entries
+    [[ -z "$path" ]] && continue
+
+    # Trim whitespace
+    path="${path#"${path%%[![:space:]]*}"}"
+    path="${path%"${path##*[![:space:]]}"}"
+
+    _projects_expand_path "$path"
+  done <<< "$paths_newline"
+}
+
+# Get git status summary for a directory (with color codes)
+# Arguments:
+#   $1 - Directory path
+#   $2 - If "color", output with ANSI color codes
+# Output: Status string like "main *2 !3 ?5" or empty if not a git repo
+_projects_git_status() {
+  local dir="$1"
+  local use_color="${2:-}"
+
+  # Check if it's a git repo
+  if [[ ! -d "$dir/.git" ]] && ! git -C "$dir" rev-parse --git-dir &>/dev/null; then
+    return
+  fi
+
+  local branch staged unstaged untracked git_status=""
+
+  # Color codes (only used if use_color is set)
+  local C_CYAN="" C_GREEN="" C_YELLOW="" C_RED="" C_RESET=""
+  if [[ "$use_color" == "color" ]]; then
+    C_CYAN=$'\033[36m'
+    C_GREEN=$'\033[32m'
+    C_YELLOW=$'\033[33m'
+    C_RED=$'\033[31m'
+    C_RESET=$'\033[0m'
+  fi
+
+  # Get branch name
+  branch=$(git -C "$dir" branch --show-current 2>/dev/null)
+  [[ -z "$branch" ]] && branch=$(git -C "$dir" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+  # Color main/master/develop branches cyan
+  if [[ "$branch" == "main" || "$branch" == "master" || "$branch" == "develop" ]]; then
+    git_status="${C_CYAN}${branch}${C_RESET}"
+  else
+    git_status="$branch"
+  fi
+
+  # Count staged changes (green)
+  staged=$(git -C "$dir" diff --cached --numstat 2>/dev/null | wc -l | tr -d ' ')
+  [[ "$staged" -gt 0 ]] && git_status+=" ${C_GREEN}*${staged}${C_RESET}"
+
+  # Count unstaged changes (yellow)
+  unstaged=$(git -C "$dir" diff --numstat 2>/dev/null | wc -l | tr -d ' ')
+  [[ "$unstaged" -gt 0 ]] && git_status+=" ${C_YELLOW}!${unstaged}${C_RESET}"
+
+  # Count untracked files (red)
+  untracked=$(git -C "$dir" ls-files --others --exclude-standard 2>/dev/null | wc -l | tr -d ' ')
+  [[ "$untracked" -gt 0 ]] && git_status+=" ${C_RED}?${untracked}${C_RESET}"
+
+  printf '%s\n' "$git_status"
+}
+
+# Get display name for a project (shortened path)
+# Arguments:
+#   $1 - Full path
+# Output: Shortened display path (e.g., ~/.jsh instead of /Users/jay/.jsh)
+_projects_display_name() {
+  local path="$1"
+
+  # Replace $HOME with ~ using parameter substitution (portable)
+  if [[ "$path" == "$HOME"* ]]; then
+    printf '%s\n' "~${path#$HOME}"
+  else
+    printf '%s\n' "$path"
+  fi
+}
+
+# =============================================================================
+# Remote Project Functions
+# =============================================================================
+
+# Get remote project info from config
+# Arguments:
+#   $1 - Project name
+# Output: JSON object with host and path, or empty if not found
+_projects_get_remote() {
+  local name="$1"
+
+  if [[ ! -f "$_PROJECTS_REMOTE_CONFIG" ]]; then
+    return 1
+  fi
+
+  jq -r --arg name "$name" '.remotes[$name] // empty' "$_PROJECTS_REMOTE_CONFIG" 2>/dev/null
+}
+
+# List all remote projects
+# Output: Project names, one per line
+_projects_list_remotes() {
+  if [[ ! -f "$_PROJECTS_REMOTE_CONFIG" ]]; then
+    return 0
+  fi
+
+  jq -r '.remotes | keys[]' "$_PROJECTS_REMOTE_CONFIG" 2>/dev/null
+}
+
+# Open a remote project in VS Code
+# Arguments:
+#   $1 - Project name
+# Returns: 0 on success, 1 on failure
+_projects_open_remote() {
+  local name="$1"
+  local remote_info host remote_path description
+
+  remote_info="$(_projects_get_remote "$name")"
+
+  if [[ -z "$remote_info" ]]; then
+    printf '%s\n' "No remote project found: $name" >&2
+    printf '%s\n' "" >&2
+    printf '%s\n' "Available remote projects:" >&2
+    _projects_list_remotes | while read -r proj; do
+      printf '%s\n' "  $proj" >&2
+    done
+    return 1
+  fi
+
+  host=$(printf '%s' "$remote_info" | jq -r '.host')
+  remote_path=$(printf '%s' "$remote_info" | jq -r '.path')
+  description=$(printf '%s' "$remote_info" | jq -r '.description // empty')
+
+  if [[ -z "$host" ]] || [[ -z "$remote_path" ]]; then
+    printf '%s\n' "Invalid remote project config for: $name" >&2
+    return 1
+  fi
+
+  # Open in VS Code Remote SSH
+  local C_CYAN=$'\033[36m' C_DIM=$'\033[2m' C_RESET=$'\033[0m'
+  printf '%b\n' "Opening remote: ${C_CYAN}${name}${C_RESET} (${host}:${remote_path})"
+  [[ -n "$description" ]] && printf '%b\n' "  ${C_DIM}${description}${C_RESET}"
+
+  code --remote "ssh-remote+${host}" "$remote_path"
+}
+
+# =============================================================================
+# Main Functions
+# =============================================================================
+
+# project - cd to a project directory by name
+# Usage: project [-c] [-l] [-r] <name>
+#   -c  Open in VS Code after navigating
+#   -l  List all projects (runs `projects`)
+#   -r  Open remote project in VS Code Remote SSH
+# If multiple matches, prompts for selection
+project() {
+  local open_code=false
+  local open_remote=false
+
+  # Parse flags
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -l|--list)
+        projects
+        return $?
+        ;;
+      -c|--code)
+        open_code=true
+        shift
+        ;;
+      -r|--remote)
+        open_remote=true
+        shift
+        ;;
+      -h|--help)
+        printf '%s\n' "Usage: project [-c] [-l] [-r] <name>"
+        printf '%s\n' ""
+        printf '%s\n' "Navigate to a project directory by name."
+        printf '%s\n' ""
+        printf '%s\n' "Options:"
+        printf '%s\n' "  -c, --code    Open in VS Code after navigating"
+        printf '%s\n' "  -l, --list    List all projects (runs 'projects')"
+        printf '%s\n' "  -r, --remote  Open remote project in VS Code Remote SSH"
+        printf '%s\n' ""
+        printf '%s\n' "Configure paths with \$JSH_PROJECTS (comma-separated)."
+        printf '%s\n' ""
+        printf '%s\n' "Current search paths:"
+        local paths="${JSH_PROJECTS:-$_PROJECTS_DEFAULT_PATHS}"
+        local IFS=','
+        local path
+        for path in $paths; do
+          path="${path#"${path%%[![:space:]]*}"}"
+          path="${path%"${path##*[![:space:]]}"}"
+          printf '%s\n' "  $path"
+        done
+        printf '%s\n' ""
+        printf '%s\n' "Remote projects (from $_PROJECTS_REMOTE_CONFIG):"
+        if [[ -f "$_PROJECTS_REMOTE_CONFIG" ]]; then
+          jq -r '.remotes | to_entries[] | "  \(.key): \(.value.host):\(.value.path)"' "$_PROJECTS_REMOTE_CONFIG" 2>/dev/null || \
+            printf '%s\n' "  (jq not available)"
+        else
+          printf '%s\n' "  (none configured)"
+        fi
+        return 0
+        ;;
+      -*)
+        printf '%s\n' "Unknown option: $1" >&2
+        printf '%s\n' "Usage: project [-c] [-r] <name>" >&2
+        return 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if [[ $# -eq 0 ]]; then
+    printf '%s\n' "Usage: project [-c] [-r] <name>"
+    printf '%s\n' "Use 'project --help' for more information."
+    return 0
+  fi
+
+  # Handle remote project mode
+  if [[ "$open_remote" == true ]]; then
+    _projects_open_remote "$1"
+    return $?
+  fi
+
+  local name="$1"
+  local matches=()
+  local dir basename
+
+  # Find all matching projects
+  while IFS= read -r dir; do
+    [[ -z "$dir" ]] && continue
+    basename="${dir##*/}"
+
+    # Case-insensitive match (also match without leading dot)
+    local basename_nodot="${basename#.}"
+    local name_lower="$(_projects_lowercase "$name")"
+    local basename_lower="$(_projects_lowercase "$basename")"
+    local basename_nodot_lower="$(_projects_lowercase "$basename_nodot")"
+
+    if [[ "$basename_lower" == "$name_lower" ]] || [[ "$basename_nodot_lower" == "$name_lower" ]]; then
+      matches+=("$dir")
+    fi
+  done < <(_projects_get_all)
+
+  case ${#matches[@]} in
+    0)
+      printf '%s\n' "No project found matching: $name" >&2
+      printf '%s\n' "" >&2
+      printf '%s\n' "Available projects:" >&2
+      while IFS= read -r dir; do
+        [[ -z "$dir" ]] && continue
+        printf '%s\n' "  ${dir##*/}" >&2
+      done < <(_projects_get_all | sort -u)
+      return 1
+      ;;
+    1)
+      # Use ${matches[1]} for zsh compatibility (1-indexed)
+      # bash will still work because matches[1] exists after appending one element
+      local target="${matches[1]:-${matches[0]}}"
+      local C_CYAN=$'\033[36m' C_RESET=$'\033[0m'
+      cd "$target" || return 1
+      printf '%b\n' "${C_CYAN}$(_projects_display_name "$target")${C_RESET}"
+      [[ "$open_code" == true ]] && code .
+      ;;
+    *)
+      local C_CYAN=$'\033[36m' C_YELLOW=$'\033[33m' C_RESET=$'\033[0m'
+      printf '%s\n' "Multiple projects match '$name':"
+      local i=1
+      for dir in "${matches[@]}"; do
+        printf '%b\n' "  ${C_YELLOW}$i)${C_RESET} ${C_CYAN}$(_projects_display_name "$dir")${C_RESET}"
+        ((i++))
+      done
+      printf '%s\n' ""
+
+      # Prompt for selection
+      local selection
+      read -r -p "Select (1-${#matches[@]}): " selection
+
+      if [[ "$selection" =~ ^[0-9]+$ ]] && [[ "$selection" -ge 1 ]] && [[ "$selection" -le ${#matches[@]} ]]; then
+        # In zsh, selection can be used directly (1-indexed)
+        # In bash, we need selection for 0-indexed, but ${matches[@]} iteration uses the right elements
+        local idx="$selection"
+        # Try zsh index first, fall back to bash index
+        local selected="${matches[$idx]:-${matches[$((idx-1))]}}"
+        cd "$selected" || return 1
+        printf '%b\n' "${C_CYAN}$(_projects_display_name "$selected")${C_RESET}"
+        [[ "$open_code" == true ]] && code .
+      else
+        printf '%s\n' "Invalid selection" >&2
+        return 1
+      fi
+      ;;
+  esac
+}
+
+# Truncate a path in the middle if too long
+# Arguments:
+#   $1 - Path string
+#   $2 - Max length
+# Output: Truncated path with ... in middle if needed
+_projects_truncate_path() {
+  local input_path="$1"
+  local max_len="${2:-40}"
+  local len=${#input_path}
+
+  if [[ $len -le $max_len ]]; then
+    printf '%s' "$input_path"
+    return
+  fi
+
+  # Keep first part and last part, add ... in middle
+  local keep=$(( (max_len - 3) / 2 ))
+  local first="${input_path:0:$keep}"
+  local last="${input_path: -$keep}"
+  printf '%s' "${first}...${last}"
+}
+
+# projects - List all projects with git status
+# Displays a table with project paths and git status summaries
+# Shows a fixed footer with scanning progress
+projects() {
+  # Collect all project directories first
+  local all_dirs=()
+  local dir
+
+  while IFS= read -r dir; do
+    [[ -z "$dir" ]] && continue
+    all_dirs+=("$dir")
+  done < <(_projects_get_all)
+
+  local total=${#all_dirs[@]}
+
+  if [[ $total -eq 0 ]]; then
+    printf '%s\n' "No projects found."
+    printf '%s\n' ""
+    printf '%s\n' "Configure paths with \$JSH_PROJECTS (comma-separated)."
+    printf '%s\n' "Current: ${JSH_PROJECTS:-$_PROJECTS_DEFAULT_PATHS}"
+    return 0
+  fi
+
+  # Determine if we can use TUI mode (interactive terminal)
+  local use_tui=false
+  local term_height term_width
+
+  if [[ -t 1 ]] && [[ -z "${JSH_NO_TUI:-}" ]]; then
+    use_tui=true
+    term_height=$(tput lines 2>/dev/null || printf '%s' 24)
+    term_width=$(tput cols 2>/dev/null || printf '%s' 80)
+  else
+    term_width=80
+  fi
+
+  # ANSI color codes
+  local CYAN=$'\033[36m'
+  local GREEN=$'\033[32m'
+  local YELLOW=$'\033[33m'
+  local RED=$'\033[31m'
+  local BLUE=$'\033[34m'
+  local MAGENTA=$'\033[35m'
+  local BOLD=$'\033[1m'
+  local DIM=$'\033[2m'
+  local RESET=$'\033[0m'
+
+  # Calculate column widths - cap based on terminal width
+  local max_path_len=40
+  local status_col_width=25
+
+  # Adjust for narrow terminals
+  if [[ $term_width -lt 80 ]]; then
+    max_path_len=$(( term_width - status_col_width - 5 ))
+    [[ $max_path_len -lt 20 ]] && max_path_len=20
+  fi
+
+  # Results array
+  local results=()
+  local current=0
+
+  if [[ "$use_tui" == true ]]; then
+    # Clear screen and hide cursor
+    tput clear
+    tput civis  # Hide cursor
+
+    # Set up cleanup trap (INT/TERM for Ctrl+C)
+    trap 'tput cnorm' INT TERM
+  fi
+
+  # Process each project
+  for dir in "${all_dirs[@]}"; do
+    ((current++))
+
+    local display_name="$(_projects_display_name "$dir")"
+    local truncated_name="$(_projects_truncate_path "$display_name" "$max_path_len")"
+
+    # Update progress at bottom of screen
+    if [[ "$use_tui" == true ]]; then
+      # Use escape sequence with high row number (clamps to actual bottom)
+      printf '\033[999;1H\033[K%b' "${DIM}Scanning ${current}/${total}: ${truncated_name}${RESET}"
+    fi
+
+    # Get git status with colors
+    local git_status="$(_projects_git_status "$dir" "color")"
+
+    # Format the result with colored path
+    local padded_name="$(printf "%-${max_path_len}s" "$truncated_name")"
+
+    if [[ -n "$git_status" ]]; then
+      results+=("${CYAN}${padded_name}${RESET}  ${git_status}")
+    else
+      results+=("${DIM}${padded_name}${RESET}  ${DIM}─${RESET}")
+    fi
+  done
+
+  # Clear screen and print results
+  if [[ "$use_tui" == true ]]; then
+    tput clear  # Clear screen (moves cursor to top)
+  fi
+
+  # Print legend/key
+  printf '%b\n' "${DIM}Key: ${GREEN}*${RESET}${DIM}staged ${YELLOW}!${RESET}${DIM}modified ${RED}?${RESET}${DIM}untracked${RESET}"
+  printf '%s\n' ""
+
+  # Print header
+  local header_project header_status
+  header_project="$(printf "%-${max_path_len}s" "PROJECT")"
+  header_status="STATUS"
+  printf '%b\n' "${BOLD}${header_project}  ${header_status}${RESET}"
+  printf '%*s\n' "$((max_path_len + status_col_width))" '' | /usr/bin/tr ' ' '─'
+
+  # Print results (already colorized)
+  for line in "${results[@]}"; do
+    printf '%b\n' "$line"
+  done
+
+  # Print summary footer
+  printf '%*s\n' "$((max_path_len + status_col_width))" '' | /usr/bin/tr ' ' '─'
+  printf '%b\n' "${DIM}${total} projects${RESET}  ${DIM}Key: ${GREEN}*${RESET}${DIM}staged ${YELLOW}!${RESET}${DIM}modified ${RED}?${RESET}${DIM}untracked${RESET}"
+
+  if [[ "$use_tui" == true ]]; then
+    # Show cursor and reset trap
+    printf '\033[?25h'
+    trap - INT TERM
+  fi
+}
+
+# =============================================================================
+# Completion Support
+# =============================================================================
+
+# Completion function for project command
+_project_completions() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  local prev="${COMP_WORDS[COMP_CWORD-1]}"
+  local projects=()
+  local dir
+
+  # Check if completing after -r/--remote flag
+  if [[ "$prev" == "-r" ]] || [[ "$prev" == "--remote" ]]; then
+    # Complete with remote project names
+    while IFS= read -r proj; do
+      [[ -z "$proj" ]] && continue
+      projects+=("$proj")
+    done < <(_projects_list_remotes)
+  else
+    # Complete with local project names
+    while IFS= read -r dir; do
+      [[ -z "$dir" ]] && continue
+      projects+=("${dir##*/}")
+    done < <(_projects_get_all)
+  fi
+
+  # shellcheck disable=SC2207
+  COMPREPLY=($(compgen -W "${projects[*]}" -- "$cur"))
+}
+
+# Alias for quick access
+alias p='project'
+
+# Register completion for bash
+if [[ -n "${BASH_VERSION:-}" ]]; then
+  complete -F _project_completions project
+  complete -F _project_completions p
+fi
+
+# Register completion for zsh
+if [[ -n "${ZSH_VERSION:-}" ]]; then
+  # Zsh completion
+  _project_zsh_completions() {
+    local projects=()
+    local dir
+    local -a words
+    words=(${(s: :)BUFFER})
+
+    # Check if completing after -r/--remote flag
+    if [[ "${words[-1]}" == "-r" ]] || [[ "${words[-1]}" == "--remote" ]] || \
+       [[ "${words[-2]}" == "-r" ]] || [[ "${words[-2]}" == "--remote" ]]; then
+      # Complete with remote project names
+      while IFS= read -r proj; do
+        [[ -z "$proj" ]] && continue
+        projects+=("$proj")
+      done < <(_projects_list_remotes)
+    else
+      # Complete with local project names
+      while IFS= read -r dir; do
+        [[ -z "$dir" ]] && continue
+        projects+=("${dir##*/}")
+      done < <(_projects_get_all)
+    fi
+
+    _describe 'project' projects
+  }
+
+  # Only set up if compdef exists
+  if (( ${+functions[compdef]} )); then
+    compdef _project_zsh_completions project
+    compdef _project_zsh_completions p
+  fi
+fi
+
+# src/lib/ssh.sh
+# SSH portability library for jsh
+# Provides bundle/inject functionality for portable SSH sessions
+#
+# This library enables "jssh" - SSH with your shell config.
+# It creates a minimal jsh config bundle, encodes it, and injects it
+# into remote SSH sessions via command substitution.
+#
+# Requires: Bash 4.2+
+# Dependencies: tar, base64 (on local system)
+# Remote needs: bash, base64, tar (ubiquitous)
+#
+# Usage:
+#   source ssh.sh
+#   _jsh_ssh_bundle           # Returns base64-encoded config payload
+#   _jsh_ssh_inject_command host [ssh_args...]  # Echoes full SSH command
+
+# Get the directory containing this script
+_JSH_SSH_DIR="${_JSH_SSH_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)}"
+
+# Load graceful.sh for _jsh_debug if not already loaded
+if ! declare -f _jsh_debug &>/dev/null; then
+  if [[ -f "${_JSH_SSH_DIR}/graceful.sh" ]]; then
+    # shellcheck source=graceful.sh
+    source "${_JSH_SSH_DIR}/graceful.sh"
+  else
+    # Minimal fallback if graceful.sh unavailable
+    _jsh_debug() { [[ "${JSH_DEBUG:-}" == "1" ]] && echo "[jsh:debug] $*" >&2; }
+  fi
+fi
+
+# ============================================================================
+# Dependency Check
+# ============================================================================
+
+# Check if required dependencies exist on local system
+# Returns: 0 if all deps available, 1 with error message if missing
+_jsh_ssh_check_deps() {
+  local missing=()
+
+  if ! command -v tar &>/dev/null; then
+    missing+=("tar")
+  fi
+
+  if ! command -v base64 &>/dev/null; then
+    missing+=("base64")
+  fi
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "Missing required dependencies: ${missing[*]}" >&2
+    return 1
+  fi
+
+  _jsh_debug "ssh: all dependencies available"
+  return 0
+}
+
+# ============================================================================
+# Configuration Path
+# ============================================================================
+
+# Get path to minimal SSH config file
+# Returns: Path to .jshrc.ssh (or empty if not found)
+_jsh_ssh_get_minimal_config() {
+  local jsh_root="${JSH:-${HOME}/.jsh}"
+  local config_path="${jsh_root}/dotfiles/.jshrc.ssh"
+
+  if [[ -f "${config_path}" ]]; then
+    echo "${config_path}"
+    return 0
+  fi
+
+  _jsh_debug "ssh: minimal config not found at ${config_path}"
+  return 1
+}
+
+# ============================================================================
+# Bundle Creation
+# ============================================================================
+
+# Maximum payload size (64KB is safe for ARG_MAX on most systems)
+_JSH_SSH_MAX_PAYLOAD_SIZE=65536
+
+# Create base64-encoded tarball of minimal SSH config
+# Returns: Base64 encoded payload string (stdout)
+# Errors: Returns 1 if config missing, 2 if payload too large
+_jsh_ssh_bundle() {
+  local config_path
+
+  # Check dependencies first
+  if ! _jsh_ssh_check_deps; then
+    return 1
+  fi
+
+  # Get minimal config path
+  config_path=$(_jsh_ssh_get_minimal_config)
+  if [[ -z "${config_path}" ]]; then
+    echo "Error: Minimal SSH config not found. Expected: ${JSH:-${HOME}/.jsh}/dotfiles/.jshrc.ssh" >&2
+    return 1
+  fi
+
+  _jsh_debug "ssh: bundling config from ${config_path}"
+
+  # Create tarball and encode
+  # Use gzip for smaller payload, base64 for safe transmission
+  local payload
+  payload=$(tar -czf - -C "$(dirname "${config_path}")" "$(basename "${config_path}")" 2>/dev/null | base64)
+
+  if [[ -z "${payload}" ]]; then
+    echo "Error: Failed to create bundle" >&2
+    return 1
+  fi
+
+  # Validate size
+  local payload_size=${#payload}
+  if [[ ${payload_size} -gt ${_JSH_SSH_MAX_PAYLOAD_SIZE} ]]; then
+    echo "Error: Payload size (${payload_size} bytes) exceeds maximum (${_JSH_SSH_MAX_PAYLOAD_SIZE} bytes)" >&2
+    return 2
+  fi
+
+  _jsh_debug "ssh: bundle created, size=${payload_size} bytes"
+
+  # Output the payload
+  echo "${payload}"
+  return 0
+}
+
+# ============================================================================
+# SSH Command Construction
+# ============================================================================
+
+# Build SSH command with embedded jsh config payload
+# Arguments:
+#   $1 - Remote host (required)
+#   $@ - Additional SSH arguments (optional)
+# Returns: Echoes full SSH command to execute
+_jsh_ssh_inject_command() {
+  if [[ $# -lt 1 ]]; then
+    echo "Usage: _jsh_ssh_inject_command <host> [ssh_args...]" >&2
+    return 1
+  fi
+
+  local host="$1"
+  shift
+  local ssh_args=("$@")
+
+  # Generate payload
+  local payload
+  payload=$(_jsh_ssh_bundle)
+  if [[ $? -ne 0 ]]; then
+    return 1
+  fi
+
+  # Construct remote command
+  # This command:
+  # 1. Creates temp directory for jsh config
+  # 2. Decodes and extracts the payload
+  # 3. Sets up cleanup trap on exit
+  # 4. Sources the config
+  # 5. Starts interactive bash
+  local remote_script
+  remote_script='
+JSHHOME=$(mktemp -d)
+export JSHHOME
+trap "rm -rf \"$JSHHOME\"" EXIT
+echo "$JSH_PAYLOAD" | base64 -d | tar xzf - -C "$JSHHOME"
+bash --rcfile "$JSHHOME/.jshrc.ssh"
+'
+
+  # Build the SSH command
+  # Note: Using single quotes around remote command, double quotes around payload
+  local ssh_cmd="ssh"
+
+  # Add any additional SSH arguments
+  if [[ ${#ssh_args[@]} -gt 0 ]]; then
+    ssh_cmd+=" ${ssh_args[*]}"
+  fi
+
+  # Add -t for interactive TTY
+  ssh_cmd+=" -t"
+
+  # Add host and remote command
+  # The payload is exported as JSH_PAYLOAD, then bash executes our setup script
+  ssh_cmd+=" ${host} 'export JSH_PAYLOAD=\"${payload}\"; bash -c '\''${remote_script}'\''"
+
+  _jsh_debug "ssh: built inject command for host=${host}"
+
+  echo "${ssh_cmd}"
+  return 0
+}
+
+# ============================================================================
+# Documentation: Cleanup
+# ============================================================================
+
+# Remote cleanup happens automatically via EXIT trap set in _jsh_ssh_inject_command.
+# The trap `rm -rf "$JSHHOME"` removes the temporary directory containing:
+# - .jshrc.ssh (the extracted config)
+# - Any other files that were in the bundle
+#
+# This ensures no jsh artifacts are left on the remote system after disconnect.
+# The trap fires on:
+# - Normal shell exit (exit, logout, Ctrl-D)
+# - Shell termination via signal (Ctrl-C, etc.)
+# - Connection drop (SSH timeout, network failure)
+_jsh_ssh_cleanup_remote() {
+  echo "Remote cleanup is handled automatically via EXIT trap."
+  echo "Temp directory (\$JSHHOME) is removed when the SSH session ends."
+}
+
+# src/lib/tui.sh
+# TUI Progress Display Library for jsh
+#
+# Provides cargo-style progress displays with:
+# - Scrolling log region (top)
+# - Fixed status bar (bottom) with progress bar, count, current item, elapsed time
+#
+# Environment Variables:
+#   JSH_NO_TUI=1     - Disable TUI, use simple line output
+#   JSH_FORCE_TUI=1  - Force TUI even in non-interactive mode (testing)
+#   JSH_DEBUG_TUI=1  - Debug TUI operations
+#
+# Usage:
+#   source "$root_dir/src/lib/tui.sh"
+#   tui_init || true  # OK if fails, uses fallback
+#   tui_progress_start "Installing packages" 10
+#   for pkg in "${packages[@]}"; do
+#     tui_progress_next "$pkg"
+#     # ... install ...
+#   done
+#   tui_progress_complete
+
+# shellcheck disable=SC2034
+
+# =============================================================================
+# State Variables
+# =============================================================================
+
+_TUI_ENABLED=""           # Whether TUI mode is active
+_TUI_SCROLLING_TOP=1      # Top line of scrolling region
+_TUI_SCROLLING_BOTTOM=0   # Bottom line of scrolling region
+_TUI_STATUS_LINE=0        # Line number for status bar
+_TUI_TERM_HEIGHT=0        # Terminal height
+_TUI_TERM_WIDTH=0         # Terminal width
+
+# Progress state
+_TUI_OPERATION=""         # Current operation name
+_TUI_CURRENT=0            # Current item number
+_TUI_TOTAL=0              # Total items (0 = indeterminate/spinner)
+_TUI_CURRENT_ITEM=""      # Name of current item being processed
+_TUI_START_TIME=0         # Epoch timestamp when operation started
+
+# Spinner state
+_TUI_SPINNER_IDX=0        # Current spinner frame index
+
+# Background animation state
+_TUI_ANIM_PID=""          # PID of background animation process
+_TUI_ANIM_FIFO=""         # FIFO for state communication
+
+# =============================================================================
+# Terminal Control Sequences
+# =============================================================================
+
+# These are set during tui_init based on terminal capabilities
+_TUI_SAVE_CURSOR=""
+_TUI_RESTORE_CURSOR=""
+_TUI_HIDE_CURSOR=""
+_TUI_SHOW_CURSOR=""
+
+# =============================================================================
+# Capability Detection
+# =============================================================================
+
+# Check if terminal supports TUI features
+# Returns: 0 if supported, 1 if not
+tui_is_supported() {
+  # Already determined?
+  if [[ "${_TUI_SUPPORTED:-}" == "1" ]]; then
+    return 0
+  elif [[ "${_TUI_SUPPORTED:-}" == "0" ]]; then
+    return 1
+  fi
+
+  # Check for forced disable
+  if [[ -n "${JSH_NO_TUI:-}" ]]; then
+    _TUI_SUPPORTED=0
+    return 1
+  fi
+
+  # Must be interactive terminal (unless forced)
+  if [[ ! -t 1 ]] && [[ -z "${JSH_FORCE_TUI:-}" ]]; then
+    _TUI_SUPPORTED=0
+    return 1
+  fi
+
+  # Check TERM is set and not dumb
+  if [[ -z "${TERM:-}" ]] || [[ "$TERM" == "dumb" ]]; then
+    _TUI_SUPPORTED=0
+    return 1
+  fi
+
+  # Check for tput availability
+  if ! command -v tput &>/dev/null; then
+    _TUI_SUPPORTED=0
+    return 1
+  fi
+
+  # Check required tput capabilities
+  if ! tput lines &>/dev/null || ! tput cols &>/dev/null; then
+    _TUI_SUPPORTED=0
+    return 1
+  fi
+
+  # Check for scrolling region support (csr capability)
+  # Note: Not all terminals support this, fall back to simpler approach if not
+  if ! tput csr 0 10 &>/dev/null 2>&1; then
+    # Try ANSI escape directly
+    if ! printf '\033[1;10r' &>/dev/null 2>&1; then
+      _TUI_SUPPORTED=0
+      return 1
+    fi
+    # Reset scrolling region
+    printf '\033[r' >/dev/null 2>&1
+  else
+    # Reset scrolling region
+    tput csr 0 "$(tput lines)" >/dev/null 2>&1
+  fi
+
+  _TUI_SUPPORTED=1
+  return 0
+}
+
+# =============================================================================
+# Initialization and Cleanup
+# =============================================================================
+
+# Initialize TUI mode with scrolling region
+# Arguments:
+#   $1 - status_lines: Number of lines to reserve for status bar (default: 1)
+# Returns: 0 on success, 1 if TUI not supported (falls back to simple mode)
+tui_init() {
+  local status_lines="${1:-1}"
+
+  # Check if TUI should be enabled
+  if ! tui_is_supported; then
+    _TUI_ENABLED=""
+    [[ -n "${JSH_DEBUG_TUI:-}" ]] && echo "[tui:debug] TUI not supported, using fallback" >&2
+    return 1
+  fi
+
+  # Set up terminal control sequences
+  _TUI_HIDE_CURSOR=$(tput civis 2>/dev/null || printf '\033[?25l')
+  _TUI_SHOW_CURSOR=$(tput cnorm 2>/dev/null || printf '\033[?25h')
+
+  # Get terminal dimensions
+  local size_output
+  if size_output=$(stty size 2>/dev/null) && [[ -n "$size_output" ]]; then
+    _TUI_TERM_HEIGHT="${size_output%% *}"
+    _TUI_TERM_WIDTH="${size_output##* }"
+  else
+    _TUI_TERM_HEIGHT=$(tput lines 2>/dev/null || echo 24)
+    _TUI_TERM_WIDTH=$(tput cols 2>/dev/null || echo 80)
+  fi
+
+  # Ensure we have valid numbers
+  [[ "$_TUI_TERM_HEIGHT" =~ ^[0-9]+$ ]] || _TUI_TERM_HEIGHT=24
+  [[ "$_TUI_TERM_WIDTH" =~ ^[0-9]+$ ]] || _TUI_TERM_WIDTH=80
+
+  # Hide cursor during TUI operations
+  printf '%b' "$_TUI_HIDE_CURSOR"
+
+  # Calculate regions (all 1-indexed for ANSI)
+  # We'll use the bottom of the current viewport for the status bar
+  # Scrolling region: rows 1 to (height - status_lines)
+  # Status bar: last row (height)
+  _TUI_SCROLLING_TOP=1
+  _TUI_SCROLLING_BOTTOM=$((_TUI_TERM_HEIGHT - status_lines))
+  _TUI_STATUS_LINE=$_TUI_TERM_HEIGHT
+
+  # Push existing content up and create space for our TUI
+  # Print enough newlines to ensure we have a clean working area
+  local i
+  for ((i = 0; i < _TUI_TERM_HEIGHT; i++)); do
+    printf '\n'
+  done
+
+  # Move to top of screen
+  printf '\033[H'
+
+  # Set up scrolling region using ANSI DECSTBM (1-indexed)
+  # This makes the status bar line fixed while content above scrolls
+  printf '\033[%d;%dr' "$_TUI_SCROLLING_TOP" "$_TUI_SCROLLING_BOTTOM"
+
+  # Move cursor to top of scrolling region
+  printf '\033[%d;1H' "$_TUI_SCROLLING_TOP"
+
+  # Draw initial empty status bar at the fixed bottom position
+  _tui_draw_status_bar
+
+  # Set trap for cleanup
+  trap 'tui_cleanup' EXIT INT TERM
+
+  _TUI_ENABLED=1
+  [[ -n "${JSH_DEBUG_TUI:-}" ]] && echo "[tui:debug] TUI initialized: ${_TUI_TERM_WIDTH}x${_TUI_TERM_HEIGHT}, scroll region ${_TUI_SCROLLING_TOP}-${_TUI_SCROLLING_BOTTOM}, status at row ${_TUI_STATUS_LINE}" >&2
+  return 0
+}
+
+# Cleanup TUI mode and restore terminal
+tui_cleanup() {
+  # Remove trap to prevent recursion
+  trap - EXIT INT TERM
+
+  # Stop background animation
+  _tui_anim_stop
+
+  if [[ -n "$_TUI_ENABLED" ]]; then
+    # Get current cursor row before resetting (this is where content ended)
+    # Use escape sequence to query, with fallback
+    local cursor_row=""
+    if read -rs -t0.1 -d'R' -p $'\033[6n' cursor_pos 2>/dev/null; then
+      cursor_row="${cursor_pos#*[}"
+      cursor_row="${cursor_row%;*}"
+    fi
+
+    # Reset scrolling region to full terminal
+    printf '\033[r'
+
+    # Clear the status bar line (move there, clear, move back)
+    printf '\033[%d;1H\033[2K' "$_TUI_STATUS_LINE"
+
+    # Return to content position (or stay at bottom-1 if query failed)
+    if [[ -n "$cursor_row" && "$cursor_row" =~ ^[0-9]+$ ]]; then
+      printf '\033[%d;1H' "$cursor_row"
+    else
+      printf '\033[%d;1H' "$_TUI_SCROLLING_BOTTOM"
+    fi
+
+    # Show cursor
+    printf '%b' "$_TUI_SHOW_CURSOR"
+
+    _TUI_ENABLED=""
+    [[ -n "${JSH_DEBUG_TUI:-}" ]] && echo "[tui:debug] TUI cleanup complete" >&2
+  fi
+
+  # Reset state
+  _TUI_OPERATION=""
+  _TUI_CURRENT=0
+  _TUI_TOTAL=0
+  _TUI_CURRENT_ITEM=""
+  _TUI_START_TIME=0
+}
+
+# =============================================================================
+# Progress Bar Rendering
+# =============================================================================
+
+# Draw a progress bar
+# Arguments:
+#   $1 - current: Current value
+#   $2 - total: Total value
+#   $3 - width: Bar width in characters (default: 20)
+# Output: Progress bar string like "████████░░░░░░░░░░░░"
+_tui_progress_bar() {
+  local current=$1
+  local total=$2
+  local width=${3:-20}
+
+  if [[ $total -eq 0 ]]; then
+    # Empty bar for indeterminate
+    printf '%*s' "$width" | tr ' ' '░'
+    return
+  fi
+
+  # Clamp current to valid range before calculation
+  [[ $current -lt 0 ]] && current=0
+  [[ $current -gt $total ]] && current=$total
+
+  local filled=$((current * width / total))
+  local empty=$((width - filled))
+
+  # Clamp values (safety check)
+  [[ $filled -gt $width ]] && filled=$width
+  [[ $filled -lt 0 ]] && filled=0
+  [[ $empty -lt 0 ]] && empty=0
+
+  local bar=""
+  if [[ $filled -gt 0 ]]; then
+    bar+=$(printf '%*s' "$filled" | tr ' ' '█')
+  fi
+  if [[ $empty -gt 0 ]]; then
+    bar+=$(printf '%*s' "$empty" | tr ' ' '░')
+  fi
+
+  printf '%s' "$bar"
+}
+
+# Get spinner character for current frame
+_tui_spinner_char() {
+  local spinner_chars='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+  local len=${#spinner_chars}
+  local idx=$((_TUI_SPINNER_IDX % len))
+  printf '%s' "${spinner_chars:$idx:1}"
+}
+
+# Advance spinner to next frame
+_tui_spinner_advance() {
+  _TUI_SPINNER_IDX=$((_TUI_SPINNER_IDX + 1))
+}
+
+# =============================================================================
+# Background Animation
+# =============================================================================
+
+# Start background animation loop
+# This runs a subprocess that periodically redraws the status bar
+# to keep the spinner animated and timer updated
+_tui_anim_start() {
+  [[ -z "$_TUI_ENABLED" ]] && return 0
+  [[ -n "$_TUI_ANIM_PID" ]] && return 0  # Already running
+
+  # Create state file for communication (faster than FIFO for reads)
+  _TUI_ANIM_FIFO="${TMPDIR:-/tmp}/tui_state_$$"
+
+  # Write initial state
+  _tui_anim_write_state
+
+  # Start background animation loop
+  (
+    local spinner_chars='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    local spinner_len=${#spinner_chars}
+    local idx=0
+    local interval=0.1  # 100ms refresh rate
+
+    while true; do
+      # Check if state file still exists (signals shutdown)
+      [[ ! -f "$_TUI_ANIM_FIFO" ]] && break
+
+      # Read current state
+      local operation="" total=0 current=0 item="" start_time=0 term_width=80 status_line=1 scroll_bottom=1
+      if [[ -f "$_TUI_ANIM_FIFO" ]]; then
+        # shellcheck disable=SC1090
+        source "$_TUI_ANIM_FIFO" 2>/dev/null || true
+      fi
+
+      # Skip if no operation
+      [[ -z "$operation" ]] && { sleep "$interval"; continue; }
+
+      # Build status line
+      local spinner="${spinner_chars:$((idx % spinner_len)):1}"
+      idx=$((idx + 1))
+
+      local status=""
+      local elapsed="" eta=""
+
+      # Calculate times
+      if [[ "$start_time" -gt 0 ]]; then
+        local now elapsed_secs
+        now=$(date +%s)
+        elapsed_secs=$((now - start_time))
+
+        # Format elapsed time
+        if [[ $elapsed_secs -ge 60 ]]; then
+          elapsed="$(( elapsed_secs / 60 ))m$(( elapsed_secs % 60 ))s"
+        else
+          elapsed="${elapsed_secs}s"
+        fi
+
+        # Calculate ETA if we have progress
+        if [[ "$total" -gt 0 ]] && [[ "$current" -gt 0 ]]; then
+          local avg_per_item=$(( elapsed_secs * 100 / current ))  # centiseconds
+          local remaining_items=$(( total - current ))
+          local eta_secs=$(( remaining_items * avg_per_item / 100 ))
+          if [[ $eta_secs -ge 60 ]]; then
+            eta="~$(( eta_secs / 60 ))m$(( eta_secs % 60 ))s remaining"
+          elif [[ $eta_secs -gt 0 ]]; then
+            eta="~${eta_secs}s remaining"
+          fi
+        fi
+      fi
+
+      # Build the status string with ANSI codes
+      # Operation name (cyan)
+      status="\033[36m${operation}\033[0m "
+
+      # Progress bar or spinner
+      if [[ "$total" -gt 0 ]]; then
+        # Determinate progress bar
+        local bar_width=20
+        local filled=$(( current * bar_width / total ))
+        [[ $filled -gt $bar_width ]] && filled=$bar_width
+        [[ $filled -lt 0 ]] && filled=0
+        local empty=$(( bar_width - filled ))
+
+        local bar=""
+        [[ $filled -gt 0 ]] && bar+=$(printf '%*s' "$filled" | tr ' ' '█')
+        [[ $empty -gt 0 ]] && bar+=$(printf '%*s' "$empty" | tr ' ' '░')
+        status+="[${bar}] ${current}/${total}"
+      else
+        # Indeterminate spinner
+        status+="[$spinner] "
+      fi
+
+      # Current item (bold)
+      if [[ -n "$item" ]]; then
+        status+=" \033[1m${item}\033[0m"
+      fi
+
+      # Time display (yellow) - show ETA if available, otherwise elapsed
+      if [[ -n "$eta" ]]; then
+        status+=" \033[33m(${eta})\033[0m"
+      elif [[ -n "$elapsed" ]]; then
+        status+=" \033[33m(${elapsed})\033[0m"
+      fi
+
+      # Draw status bar - position cursor to scroll_bottom after to avoid race with main process
+      printf '\033[%d;1H' "$status_line"       # Move to status line
+      printf '\033[2K'                         # Clear line
+      printf '%b' "$status"                    # Print status
+      printf '\033[%d;1H' "$scroll_bottom"     # Return to scroll region bottom
+
+      sleep "$interval"
+    done
+  ) &
+  _TUI_ANIM_PID=$!
+
+  [[ -n "${JSH_DEBUG_TUI:-}" ]] && echo "[tui:debug] Animation started with PID $_TUI_ANIM_PID" >&2
+}
+
+# Write current state to file for animation process
+_tui_anim_write_state() {
+  [[ -z "$_TUI_ANIM_FIFO" ]] && return 0
+
+  cat > "$_TUI_ANIM_FIFO" <<EOF
+operation="$_TUI_OPERATION"
+total=$_TUI_TOTAL
+current=$_TUI_CURRENT
+item="$_TUI_CURRENT_ITEM"
+start_time=$_TUI_START_TIME
+term_width=$_TUI_TERM_WIDTH
+status_line=$_TUI_STATUS_LINE
+scroll_bottom=$_TUI_SCROLLING_BOTTOM
+EOF
+}
+
+# Stop background animation
+_tui_anim_stop() {
+  if [[ -n "$_TUI_ANIM_PID" ]]; then
+    # Remove state file first (signals the loop to exit)
+    [[ -n "$_TUI_ANIM_FIFO" ]] && rm -f "$_TUI_ANIM_FIFO"
+
+    # Kill the process if still running
+    kill "$_TUI_ANIM_PID" 2>/dev/null || true
+    wait "$_TUI_ANIM_PID" 2>/dev/null || true
+
+    [[ -n "${JSH_DEBUG_TUI:-}" ]] && echo "[tui:debug] Animation stopped" >&2
+    _TUI_ANIM_PID=""
+    _TUI_ANIM_FIFO=""
+  fi
+}
+
+# =============================================================================
+# Status Bar Rendering
+# =============================================================================
+
+# Draw the status bar at the fixed bottom position
+_tui_draw_status_bar() {
+  if [[ -z "$_TUI_ENABLED" ]]; then
+    return 0
+  fi
+
+  # Save cursor position (ESC 7 = DECSC)
+  printf '\0337'
+
+  # Move to status line (1-indexed)
+  printf '\033[%d;1H' "$_TUI_STATUS_LINE"
+
+  # Clear the line
+  printf '\033[2K'
+
+  # Build status content if we have an active operation
+  if [[ -n "$_TUI_OPERATION" ]]; then
+    local status=""
+    local bar_width=20
+    local elapsed=""
+
+    # Calculate elapsed time
+    if [[ "$_TUI_START_TIME" -gt 0 ]]; then
+      local now elapsed_secs
+      now=$(date +%s)
+      elapsed_secs=$((now - _TUI_START_TIME))
+      if [[ $elapsed_secs -ge 60 ]]; then
+        elapsed="$(( elapsed_secs / 60 ))m$(( elapsed_secs % 60 ))s"
+      else
+        elapsed="${elapsed_secs}s"
+      fi
+    fi
+
+    # Operation name (cyan)
+    status="${CYAN}${_TUI_OPERATION}${RESET} "
+
+    # Progress bar or spinner
+    if [[ "$_TUI_TOTAL" -gt 0 ]]; then
+      # Determinate progress bar
+      local bar
+      bar=$(_tui_progress_bar "$_TUI_CURRENT" "$_TUI_TOTAL" "$bar_width")
+      status+="[${bar}] "
+      status+="${_TUI_CURRENT}/${_TUI_TOTAL}"
+    else
+      # Indeterminate spinner
+      _tui_spinner_advance
+      local spinner
+      spinner=$(_tui_spinner_char)
+      status+="[$spinner] "
+    fi
+
+    # Current item (bold)
+    if [[ -n "$_TUI_CURRENT_ITEM" ]]; then
+      status+=" ${BOLD}${_TUI_CURRENT_ITEM}${RESET}"
+    fi
+
+    # Elapsed time (yellow)
+    if [[ -n "$elapsed" ]]; then
+      status+=" ${YELLOW}(${elapsed})${RESET}"
+    fi
+
+    # Print the status
+    printf '%b' "$status"
+  fi
+
+  # Restore cursor position (using ESC 8 which is more reliable)
+  printf '\0338'
+}
+
+# Clear the status bar area (alias for backward compatibility)
+_tui_clear_status_area() {
+  if [[ -z "$_TUI_ENABLED" ]]; then
+    return 0
+  fi
+
+  printf '\0337'  # Save cursor (ESC 7)
+  printf '\033[%d;1H' "$_TUI_STATUS_LINE"  # Move to status line
+  printf '\033[2K'  # Clear line
+  printf '\0338'  # Restore cursor (ESC 8)
+}
+
+# Render the status bar (alias for _tui_draw_status_bar)
+_tui_render_status() {
+  _tui_draw_status_bar
+}
+
+# =============================================================================
+# Single-Process Animated Command Runner
+# =============================================================================
+
+# Run a command with animated progress (single-process, no race conditions)
+# Arguments:
+#   $1 - command to run (will be eval'd)
+# Output lines are displayed in scroll region, status bar animates
+# Returns: exit code of the command
+tui_run_animated() {
+  local cmd="$1"
+  local output_file="${TMPDIR:-/tmp}/tui_output_$$"
+  local pid_file="${TMPDIR:-/tmp}/tui_pid_$$"
+  local interval=0.1
+  local spinner_chars='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+  local spinner_len=${#spinner_chars}
+  local lines_read=0
+
+  # Fallback if TUI not enabled
+  if [[ -z "$_TUI_ENABLED" ]]; then
+    eval "$cmd"
+    return $?
+  fi
+
+  # Start command in background, capture output
+  : > "$output_file"
+  ( eval "$cmd" > "$output_file" 2>&1; echo $? > "$pid_file" ) &
+  local bg_pid=$!
+
+  # Poll for output while command runs
+  while true; do
+    # Check if command finished
+    if [[ -f "$pid_file" ]]; then
+      # Process any remaining output
+      local line
+      tail -n +$((lines_read + 1)) "$output_file" 2>/dev/null | while IFS= read -r line; do
+        [[ -n "$line" ]] && echo -e "${BLUE}[*]${RESET} $line"
+      done
+      break
+    fi
+
+    # Read new lines from output file
+    local new_lines
+    new_lines=$(tail -n +$((lines_read + 1)) "$output_file" 2>/dev/null)
+    if [[ -n "$new_lines" ]]; then
+      local line
+      while IFS= read -r line; do
+        [[ -n "$line" ]] && echo -e "${BLUE}[*]${RESET} $line"
+        ((lines_read++))
+      done <<< "$new_lines"
+    fi
+
+    # Update spinner and redraw status bar
+    _tui_spinner_advance
+    _tui_draw_status_bar
+
+    sleep "$interval"
+  done
+
+  # Get exit code
+  local exit_code=0
+  [[ -f "$pid_file" ]] && exit_code=$(cat "$pid_file")
+
+  # Cleanup
+  rm -f "$output_file" "$pid_file"
+
+  # Final status bar update
+  _tui_draw_status_bar
+
+  return "${exit_code:-0}"
+}
+
+# =============================================================================
+# Progress Management
+# =============================================================================
+
+# Start a new progress operation
+# Arguments:
+#   $1 - operation: Name of the operation (e.g., "Installing packages")
+#   $2 - total: Total number of items (0 for indeterminate)
+tui_progress_start() {
+  local operation="$1"
+  local total="${2:-0}"
+
+  _TUI_OPERATION="$operation"
+  _TUI_TOTAL="$total"
+  _TUI_CURRENT=0
+  _TUI_CURRENT_ITEM=""
+  _TUI_START_TIME=$(date +%s)
+  _TUI_SPINNER_IDX=0
+
+  if [[ -z "$_TUI_ENABLED" ]]; then
+    # Fallback: use header
+    header "$operation"
+    return 0
+  fi
+
+  # Background animation disabled - causes issues with log output display
+  # _tui_anim_start
+
+  _tui_render_status
+}
+
+# Update progress to next item
+# Arguments:
+#   $1 - item_name: Name of current item
+tui_progress_next() {
+  local item="${1:-}"
+
+  _TUI_CURRENT=$((_TUI_CURRENT + 1))
+  _TUI_CURRENT_ITEM="$item"
+
+  if [[ -z "$_TUI_ENABLED" ]]; then
+    # Fallback: log with count
+    if [[ "$_TUI_TOTAL" -gt 0 ]]; then
+      log "[$_TUI_CURRENT/$_TUI_TOTAL] $item"
+    else
+      log "$item"
+    fi
+    return 0
+  fi
+
+  # Update state for background animation
+  _tui_anim_write_state
+
+  _tui_render_status
+}
+
+# Update progress with specific count
+# Arguments:
+#   $1 - current: Current item number
+#   $2 - item_name: Name of current item (optional)
+tui_progress_update() {
+  local current="$1"
+  local item="${2:-}"
+
+  _TUI_CURRENT="$current"
+  [[ -n "$item" ]] && _TUI_CURRENT_ITEM="$item"
+
+  if [[ -z "$_TUI_ENABLED" ]]; then
+    # Fallback: log with count
+    if [[ "$_TUI_TOTAL" -gt 0 ]]; then
+      log "[$_TUI_CURRENT/$_TUI_TOTAL] ${item:-processing...}"
+    else
+      log "${item:-processing...}"
+    fi
+    return 0
+  fi
+
+  # Update state for background animation
+  _tui_anim_write_state
+
+  _tui_render_status
+}
+
+# Mark progress as complete
+# Arguments:
+#   $1 - message: Completion message (optional)
+tui_progress_complete() {
+  local message="${1:-}"
+
+  # Stop background animation first
+  _tui_anim_stop
+
+  if [[ -z "$_TUI_ENABLED" ]]; then
+    # Fallback: success message
+    if [[ -n "$message" ]]; then
+      success "$message"
+    elif [[ -n "$_TUI_OPERATION" ]]; then
+      success "${_TUI_OPERATION} complete"
+    fi
+  else
+    # Clear status and show completion in scroll area
+    _tui_clear_status_area
+    if [[ -n "$message" ]]; then
+      tui_success "$message"
+    elif [[ -n "$_TUI_OPERATION" ]]; then
+      tui_success "${_TUI_OPERATION} complete"
+    fi
+  fi
+
+  # Reset progress state
+  _TUI_OPERATION=""
+  _TUI_CURRENT=0
+  _TUI_TOTAL=0
+  _TUI_CURRENT_ITEM=""
+  _TUI_START_TIME=0
+}
+
+# Mark progress as failed
+# Arguments:
+#   $1 - message: Error message (optional)
+tui_progress_fail() {
+  local message="${1:-}"
+
+  # Stop background animation first
+  _tui_anim_stop
+
+  if [[ -z "$_TUI_ENABLED" ]]; then
+    # Fallback: error message (but don't exit)
+    if [[ -n "$message" ]]; then
+      warn "$message"
+    elif [[ -n "$_TUI_OPERATION" ]]; then
+      warn "${_TUI_OPERATION} failed"
+    fi
+  else
+    # Clear status and show failure in scroll area
+    _tui_clear_status_area
+    if [[ -n "$message" ]]; then
+      tui_warn "$message"
+    elif [[ -n "$_TUI_OPERATION" ]]; then
+      tui_warn "${_TUI_OPERATION} failed"
+    fi
+  fi
+
+  # Reset progress state
+  _TUI_OPERATION=""
+  _TUI_CURRENT=0
+  _TUI_TOTAL=0
+  _TUI_CURRENT_ITEM=""
+  _TUI_START_TIME=0
+}
+
+# =============================================================================
+# Output Functions (scroll-aware)
+# =============================================================================
+
+# Log message to scrolling region
+tui_log() {
+  if [[ -z "$_TUI_ENABLED" ]]; then
+    log "$@"
+    return
+  fi
+
+  # Print message (will scroll within region)
+  echo -e "${BLUE}[*]${RESET} $*"
+
+  # Refresh status bar
+  _tui_render_status
+}
+
+# Success message to scrolling region
+tui_success() {
+  if [[ -z "$_TUI_ENABLED" ]]; then
+    success "$@"
+    return
+  fi
+
+  echo -e "${GREEN}[✓]${RESET} $*"
+  _tui_render_status
+}
+
+# Warning message to scrolling region
+tui_warn() {
+  if [[ -z "$_TUI_ENABLED" ]]; then
+    warn "$@"
+    return
+  fi
+
+  echo -e "${YELLOW}[!]${RESET} $*"
+  _tui_render_status
+}
+
+# Error message to scrolling region (does NOT exit)
+tui_error() {
+  if [[ -z "$_TUI_ENABLED" ]]; then
+    # Note: Using warn instead of error to avoid exit
+    echo -e "${RED}[✗] $*${RESET}"
+    return
+  fi
+
+  echo -e "${RED}[✗]${RESET} $*"
+  _tui_render_status
+}
+
+# Info message to scrolling region
+tui_info() {
+  if [[ -z "$_TUI_ENABLED" ]]; then
+    info "$@"
+    return
+  fi
+
+  echo -e "${CYAN}[i]${RESET} $*"
+  _tui_render_status
 }
 
 # :command.command_functions
@@ -1964,6 +4926,38 @@ jsh_install_command() {
   root_dir="$(get_root_dir)"
   package="${args[package]:-}"
 
+  # Source TUI library if available
+  # shellcheck source=src/lib/tui.sh
+  [[ -f "$root_dir/src/lib/tui.sh" ]] && source "$root_dir/src/lib/tui.sh"
+
+  # Check flags (bashly populates ${args[--flag]})
+  use_tui=true
+  if [[ -n "${args[--no-progress]:-}" ]] || [[ -n "${args[--quiet]:-}" ]]; then
+    use_tui=false
+  fi
+
+  # Initialize TUI if available and enabled
+  if [[ "$use_tui" == "true" ]] && declare -f tui_init &>/dev/null; then
+    tui_init || use_tui=false
+  fi
+
+  # Helper function for TUI-aware logging
+  _install_log() {
+    if [[ "$use_tui" == "true" ]] && declare -f tui_log &>/dev/null; then
+      tui_log "$@"
+    else
+      log "$@"
+    fi
+  }
+
+  _install_success() {
+    if [[ "$use_tui" == "true" ]] && declare -f tui_success &>/dev/null; then
+      tui_success "$@"
+    else
+      success "$@"
+    fi
+  }
+
   # Determine which package manager to use based on flags
   detect_package_manager() {
     [[ "${args[--brew]}" ]] && echo "brew" && return
@@ -2017,7 +5011,11 @@ jsh_install_command() {
         ;;
       bun)
         if command -v bun &>/dev/null; then
-          bun install -g "$pkg" && success "Installed bun package: $pkg" && return 0
+          if bun install -g "$pkg"; then
+            success "Installed bun package: $pkg"
+            add_package_to_json "$root_dir/configs/npm.json" "$pkg"
+            return 0
+          fi
         else
           error "bun not found. Install from https://bun.sh"
         fi
@@ -2025,7 +5023,11 @@ jsh_install_command() {
         ;;
       npm)
         if command -v npm &>/dev/null; then
-          npm install -g "$pkg" && success "Installed npm package: $pkg" && return 0
+          if npm install -g "$pkg"; then
+            success "Installed npm package: $pkg"
+            add_package_to_json "$root_dir/configs/npm.json" "$pkg"
+            return 0
+          fi
         else
           error "npm not found. Install Node.js first."
         fi
@@ -2103,7 +5105,7 @@ jsh_install_command() {
     if is_linux; then
       # Install Linux system packages from config
       # Note: These are managed via system package managers (apt, dnf, pacman)
-      log "Updating package cache..."
+      _install_log "Updating package cache..."
       update_package_cache
 
       # Determine package manager
@@ -2122,27 +5124,50 @@ jsh_install_command() {
         done < <(load_packages_from_json "$root_dir/configs/linux/pacman.json")
       fi
 
-      for pkg in "${packages[@]}"; do
-        install_package "$pkg" || warn "Failed to install $pkg"
-      done
+      if [[ ${#packages[@]} -gt 0 ]]; then
+        if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+          tui_progress_start "Installing system packages" "${#packages[@]}"
+          local i=0
+          for pkg in "${packages[@]}"; do
+            ((i++))
+            tui_progress_next "$pkg"
+            install_package "$pkg" || warn "Failed to install $pkg"
+          done
+          tui_progress_complete "System packages installed"
+        else
+          for pkg in "${packages[@]}"; do
+            install_package "$pkg" || warn "Failed to install $pkg"
+          done
+        fi
+      fi
     fi
 
     if is_macos && check_brew; then
       # Install casks
-      log "Installing Casks..."
       casks=()
       while IFS= read -r line; do
         [[ -n "$line" ]] && casks+=("$line")
       done < <(load_packages_from_json "$root_dir/configs/macos/casks.json")
 
       if [[ ${#casks[@]} -gt 0 ]]; then
-        brew install --force --cask "${casks[@]}" 2>/dev/null || true
+        if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+          tui_progress_start "Installing casks" "${#casks[@]}"
+          local i=0
+          for cask in "${casks[@]}"; do
+            ((i++))
+            tui_progress_next "$cask"
+            brew install --force --cask "$cask" 2>/dev/null || true
+          done
+          tui_progress_complete "Casks installed"
+        else
+          _install_log "Installing Casks..."
+          brew install --force --cask "${casks[@]}" 2>/dev/null || true
+        fi
       fi
     fi
 
     if check_brew; then
       # Install formulae
-      log "Installing Formulae..."
       formulae=()
       if is_macos; then
         while IFS= read -r line; do
@@ -2155,11 +5180,22 @@ jsh_install_command() {
       fi
 
       if [[ ${#formulae[@]} -gt 0 ]]; then
-        brew install --force "${formulae[@]}" 2>/dev/null || true
+        if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+          tui_progress_start "Installing formulae" "${#formulae[@]}"
+          local i=0
+          for formula in "${formulae[@]}"; do
+            ((i++))
+            tui_progress_next "$formula"
+            brew install --force "$formula" 2>/dev/null || true
+          done
+          tui_progress_complete "Formulae installed"
+        else
+          _install_log "Installing Formulae..."
+          brew install --force "${formulae[@]}" 2>/dev/null || true
+        fi
       fi
 
       # Start services
-      log "Starting Services..."
       services=()
       if is_macos; then
         while IFS= read -r line; do
@@ -2171,12 +5207,120 @@ jsh_install_command() {
         done < <(load_packages_from_json "$root_dir/configs/linux/services.json")
       fi
 
-      for svc in "${services[@]}"; do
-        brew services start "$svc" 2>/dev/null || true
-      done
+      if [[ ${#services[@]} -gt 0 ]]; then
+        if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+          tui_progress_start "Starting services" "${#services[@]}"
+          local i=0
+          for svc in "${services[@]}"; do
+            ((i++))
+            tui_progress_next "$svc"
+            brew services start "$svc" 2>/dev/null || true
+          done
+          tui_progress_complete "Services started"
+        else
+          _install_log "Starting Services..."
+          for svc in "${services[@]}"; do
+            brew services start "$svc" 2>/dev/null || true
+          done
+        fi
+      fi
     fi
 
-    success "Package installation complete"
+    # Install npm/bun packages from config
+    npm_packages=()
+    if [[ -f "$root_dir/configs/npm.json" ]]; then
+      while IFS= read -r line; do
+        [[ -n "$line" ]] && npm_packages+=("$line")
+      done < <(load_packages_from_json "$root_dir/configs/npm.json")
+    fi
+
+    if [[ ${#npm_packages[@]} -gt 0 ]]; then
+      # Prefer bun if available, fall back to npm
+      if command -v bun &>/dev/null; then
+        pkg_cmd="bun"
+        pkg_install="bun install -g"
+      elif command -v npm &>/dev/null; then
+        pkg_cmd="npm"
+        pkg_install="npm install -g"
+      else
+        pkg_cmd=""
+      fi
+
+      if [[ -n "$pkg_cmd" ]]; then
+        if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+          tui_progress_start "Installing $pkg_cmd packages" "${#npm_packages[@]}"
+          for pkg in "${npm_packages[@]}"; do
+            tui_progress_next "$pkg"
+            $pkg_install "$pkg" &>/dev/null || true
+          done
+          tui_progress_complete "${pkg_cmd^} packages installed"
+        else
+          _install_log "Installing $pkg_cmd packages..."
+          for pkg in "${npm_packages[@]}"; do
+            $pkg_install "$pkg" || warn "Failed to install $pkg"
+          done
+        fi
+      fi
+    fi
+
+    # Install cargo packages from config
+    if command -v cargo &>/dev/null && [[ -f "$root_dir/configs/cargo.json" ]]; then
+      # Count cargo packages
+      local cargo_count=0
+      if command -v jq &>/dev/null; then
+        cargo_count=$(jq 'length' "$root_dir/configs/cargo.json" 2>/dev/null || echo 0)
+      fi
+
+      if [[ "$cargo_count" -gt 0 ]]; then
+        if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+          tui_progress_start "Installing cargo packages" "$cargo_count"
+
+          # Parse and install each cargo package
+          while IFS= read -r pkg_json; do
+            [[ -z "$pkg_json" ]] && continue
+
+            local git_url features pkg_name install_cmd
+            git_url=$(echo "$pkg_json" | jq -r '.git // empty')
+            features=$(echo "$pkg_json" | jq -r '.features // [] | join(",")')
+
+            if [[ -n "$git_url" ]]; then
+              pkg_name=$(basename "$git_url" .git)
+              tui_progress_next "$pkg_name"
+
+              install_cmd="cargo install --git $git_url"
+              [[ -n "$features" ]] && install_cmd+=" --features $features"
+
+              eval "$install_cmd" &>/dev/null || true
+            fi
+          done < <(jq -c '.[]' "$root_dir/configs/cargo.json" 2>/dev/null)
+
+          tui_progress_complete "Cargo packages installed"
+        else
+          _install_log "Installing cargo packages..."
+          while IFS= read -r pkg_json; do
+            [[ -z "$pkg_json" ]] && continue
+
+            local git_url features install_cmd
+            git_url=$(echo "$pkg_json" | jq -r '.git // empty')
+            features=$(echo "$pkg_json" | jq -r '.features // [] | join(",")')
+
+            if [[ -n "$git_url" ]]; then
+              install_cmd="cargo install --git $git_url"
+              [[ -n "$features" ]] && install_cmd+=" --features $features"
+
+              eval "$install_cmd" || warn "Failed to install from $git_url"
+            fi
+          done < <(jq -c '.[]' "$root_dir/configs/cargo.json" 2>/dev/null)
+        fi
+      fi
+    fi
+
+    # Cleanup TUI
+    if [[ "$use_tui" == "true" ]] && declare -f tui_cleanup &>/dev/null; then
+      tui_cleanup
+    fi
+
+    _install_success "Package installation complete"
   else
     # Install single package
     header "Installing package: $package"
@@ -2204,11 +5348,24 @@ jsh_install_command() {
       fi
     fi
 
+    # Start TUI spinner for single package install
+    if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+      tui_progress_start "Installing $package" 0
+      tui_progress_update 0 "$package via $pm"
+    fi
+
     # Install via specified package manager
     if install_via_package_manager "$package" "$pm"; then
       # Package installed successfully - don't search for cross-platform equivalents
-      success "Installation complete"
+      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_complete &>/dev/null; then
+        tui_progress_complete "Installed $package"
+        tui_cleanup
+      fi
+      _install_success "Installation complete"
     else
+      if [[ "$use_tui" == "true" ]] && declare -f tui_cleanup &>/dev/null; then
+        tui_cleanup
+      fi
       error "Failed to install '$package' via $pm"
       # Only search for alternatives if installation failed
       search_cross_platform_packages "$package"
@@ -2328,33 +5485,187 @@ jsh_upgrade_command() {
   # src/upgrade_command.sh
   root_dir="$(get_root_dir)"
 
-  header "Upgrading packages"
+  # Source required libraries
+  # shellcheck source=src/lib/tui.sh
+  [[ -f "$root_dir/src/lib/tui.sh" ]] && source "$root_dir/src/lib/tui.sh"
+  # shellcheck source=src/lib/brew.sh
+  [[ -f "$root_dir/src/lib/brew.sh" ]] && source "$root_dir/src/lib/brew.sh"
+
+  # Check flags (bashly populates ${args[--flag]})
+  use_tui=true
+  if [[ -n "${args[--no-progress]:-}" ]] || [[ -n "${args[--quiet]:-}" ]]; then
+    use_tui=false
+  fi
+
+  # Initialize TUI if available and enabled
+  if [[ "$use_tui" == "true" ]] && declare -f tui_init &>/dev/null; then
+    tui_init || use_tui=false
+  fi
+
+  # Helper function for TUI-aware logging
+  _upgrade_log() {
+    if [[ "$use_tui" == "true" ]] && declare -f tui_log &>/dev/null; then
+      tui_log "$@"
+    else
+      log "$@"
+    fi
+  }
+
+  _upgrade_success() {
+    if [[ "$use_tui" == "true" ]] && declare -f tui_success &>/dev/null; then
+      tui_success "$@"
+    else
+      success "$@"
+    fi
+  }
 
   # Update zinit if present
   if command -v zsh &> /dev/null; then
-    log "Cleaning zinit..."
-    zsh -ic 'zinit delete --clean' 2> /dev/null || true
-    log "Updating zinit..."
-    zsh -ic 'zinit self-update' 2> /dev/null || true
-    zsh -ic 'zinit update --all' 2> /dev/null || true
+    if [[ "$use_tui" == "true" ]] && declare -f tui_run_animated &>/dev/null; then
+      tui_progress_start "Updating zinit" 0
+      tui_progress_update 0 "cleaning"
+      tui_run_animated "zsh -c 'source ~/.zshrc && zinit delete --clean' 2>/dev/null" || true
+      tui_progress_update 0 "self-update"
+      tui_run_animated "zsh -c 'source ~/.zshrc && zinit self-update' 2>/dev/null" || true
+      tui_progress_update 0 "updating plugins"
+      tui_run_animated "zsh -c 'source ~/.zshrc && zinit update --all' 2>/dev/null" || true
+      tui_progress_complete "Zinit updated"
+    else
+      log "Cleaning zinit..."
+      zsh -ic 'zinit delete --clean' 2> /dev/null || true
+      log "Updating zinit..."
+      zsh -ic 'zinit self-update' 2> /dev/null || true
+      zsh -ic 'zinit update --all' 2> /dev/null || true
+    fi
   fi
 
   if is_macos; then
     if command -v brew &> /dev/null; then
-      log "Upgrading Homebrew packages..."
-      brew update && brew upgrade
+      if [[ "$use_tui" == "true" ]] && declare -f brew_upgrade_with_tui &>/dev/null; then
+        brew_upgrade_with_tui
+      else
+        log "Upgrading Homebrew packages..."
+        brew update && brew upgrade
+      fi
     fi
     if command -v mas &> /dev/null; then
-      log "Upgrading Mac App Store apps..."
-      mas upgrade
+      if [[ "$use_tui" == "true" ]] && declare -f tui_run_animated &>/dev/null; then
+        tui_progress_start "Upgrading Mac App Store" 0
+        tui_run_animated "mas upgrade"
+        tui_progress_complete "App Store updated"
+      else
+        log "Upgrading Mac App Store apps..."
+        mas upgrade
+      fi
     fi
   elif is_linux; then
-    log "Upgrading packages..."
-    upgrade_packages
-    if command -v brew &> /dev/null; then
-      log "Upgrading Homebrew packages..."
-      brew update && brew upgrade
+    if [[ "$use_tui" == "true" ]] && declare -f tui_run_animated &>/dev/null; then
+      tui_progress_start "Upgrading system packages" 0
+      tui_run_animated "upgrade_packages"
+      tui_progress_complete "System packages updated"
+    else
+      log "Upgrading packages..."
+      upgrade_packages
     fi
+    if command -v brew &> /dev/null; then
+      if [[ "$use_tui" == "true" ]] && declare -f brew_upgrade_with_tui &>/dev/null; then
+        brew_upgrade_with_tui
+      else
+        log "Upgrading Homebrew packages..."
+        brew update && brew upgrade
+      fi
+    fi
+  fi
+
+  # Upgrade npm/bun packages from config
+  npm_packages=()
+  if [[ -f "$root_dir/configs/npm.json" ]]; then
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && npm_packages+=("$line")
+    done < <(load_packages_from_json "$root_dir/configs/npm.json")
+  fi
+
+  if [[ ${#npm_packages[@]} -gt 0 ]]; then
+    # Prefer bun if available, fall back to npm
+    if command -v bun &>/dev/null; then
+      pkg_cmd="bun"
+      pkg_install="bun install -g"
+    elif command -v npm &>/dev/null; then
+      pkg_cmd="npm"
+      pkg_install="npm install -g"
+    else
+      pkg_cmd=""
+    fi
+
+    if [[ -n "$pkg_cmd" ]]; then
+      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+        tui_progress_start "Upgrading $pkg_cmd packages" "${#npm_packages[@]}"
+        for pkg in "${npm_packages[@]}"; do
+          tui_progress_next "$pkg"
+          $pkg_install "$pkg" &>/dev/null || true
+        done
+        tui_progress_complete "${pkg_cmd^} packages updated"
+      else
+        log "Upgrading $pkg_cmd packages..."
+        for pkg in "${npm_packages[@]}"; do
+          $pkg_install "$pkg" || warn "Failed to upgrade $pkg"
+        done
+      fi
+    fi
+  fi
+
+  # Upgrade cargo packages from config
+  if command -v cargo &>/dev/null && [[ -f "$root_dir/configs/cargo.json" ]]; then
+    # Count cargo packages
+    cargo_count=0
+    if command -v jq &>/dev/null; then
+      cargo_count=$(jq 'length' "$root_dir/configs/cargo.json" 2>/dev/null || echo 0)
+    fi
+
+    if [[ "$cargo_count" -gt 0 ]]; then
+      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+        tui_progress_start "Upgrading cargo packages" "$cargo_count"
+
+        while IFS= read -r pkg_json; do
+          [[ -z "$pkg_json" ]] && continue
+
+          git_url=$(echo "$pkg_json" | jq -r '.git // empty')
+          features=$(echo "$pkg_json" | jq -r '.features // [] | join(",")')
+
+          if [[ -n "$git_url" ]]; then
+            pkg_name=$(basename "$git_url" .git)
+            tui_progress_next "$pkg_name"
+
+            install_cmd="cargo install --force --git $git_url"
+            [[ -n "$features" ]] && install_cmd+=" --features $features"
+
+            eval "$install_cmd" &>/dev/null || true
+          fi
+        done < <(jq -c '.[]' "$root_dir/configs/cargo.json" 2>/dev/null)
+
+        tui_progress_complete "Cargo packages updated"
+      else
+        log "Upgrading cargo packages..."
+        while IFS= read -r pkg_json; do
+          [[ -z "$pkg_json" ]] && continue
+
+          git_url=$(echo "$pkg_json" | jq -r '.git // empty')
+          features=$(echo "$pkg_json" | jq -r '.features // [] | join(",")')
+
+          if [[ -n "$git_url" ]]; then
+            install_cmd="cargo install --force --git $git_url"
+            [[ -n "$features" ]] && install_cmd+=" --features $features"
+
+            eval "$install_cmd" || warn "Failed to upgrade from $git_url"
+          fi
+        done < <(jq -c '.[]' "$root_dir/configs/cargo.json" 2>/dev/null)
+      fi
+    fi
+  fi
+
+  # Cleanup TUI
+  if [[ "$use_tui" == "true" ]] && declare -f tui_cleanup &>/dev/null; then
+    tui_cleanup
   fi
 
   success "Upgrade complete"
@@ -2949,70 +6260,67 @@ jsh_completions_command() {
     exit 0
   fi
 
-  # Generate completions
-  cat << 'EOF'
-#compdef jsh
-
-_jsh() {
-  local -a commands
-  commands=(
-    'init:Set up shell environment'
-    'install:Install packages'
-    'uninstall:Uninstall a package and remove from config'
-    'upgrade:Upgrade all packages'
-    'configure:Apply dotfiles, OS settings, and app configs'
-    'dotfiles:Manage dotfile symlinks'
-    'clean:Remove caches, temp files, old Homebrew versions'
-    'status:Show brew packages, services, symlinks, git status'
-    'doctor:Check for missing tools, broken symlinks, repo issues'
-    'deinit:Remove jsh symlinks and restore backups'
-    'brew:Homebrew wrapper'
-    'completions:Generate shell completion script'
-  )
-
-  _arguments -C \
-    '1: :->command' \
-    '*:: :->args'
-
-  case $state in
-    command)
-      _describe -t commands 'jsh command' commands
-      ;;
-    args)
-      case $line[1] in
-        init)
-          _arguments \
-            '(-y --non-interactive)'{-y,--non-interactive}'[Use defaults]' \
-            '--shell[Pre-select shell]:shell:(zsh bash skip)' \
-            '--minimal[Lightweight setup]' \
-            '--full[Full setup with plugins]' \
-            '--setup[Also run install + configure]' \
-            '--no-install[Skip package installation]' \
-            '--skip-brew[Skip Homebrew]' \
-            '--dry-run[Preview changes]'
-          ;;
-        dotfiles)
-          _arguments \
-            '(-s --status)'{-s,--status}'[Show symlink status]' \
-            '(-d --remove)'{-d,--remove}'[Remove symlinks]'
-          ;;
-        install)
-          # Could add package completion here
-          ;;
-        uninstall)
-          # Could add installed package completion here
-          ;;
-        completions)
-          _arguments \
-            '(-i --install)'{-i,--install}'[Install to shell config]'
-          ;;
-      esac
-      ;;
-  esac
-}
-
-_jsh
-EOF
+  # Generate completions using printf to avoid heredoc indentation issues with bashly
+  printf '%s\n' '#compdef jsh' '' \
+  '_jsh() {' \
+  '  local -a commands' \
+  '  commands=(' \
+  "    'init:Set up shell environment'" \
+  "    'install:Install packages'" \
+  "    'uninstall:Uninstall a package and remove from config'" \
+  "    'upgrade:Upgrade all packages'" \
+  "    'configure:Apply dotfiles, OS settings, and app configs'" \
+  "    'dotfiles:Manage dotfile symlinks'" \
+  "    'clean:Remove caches, temp files, old Homebrew versions'" \
+  "    'status:Show brew packages, services, symlinks, git status'" \
+  "    'doctor:Check for missing tools, broken symlinks, repo issues'" \
+  "    'deinit:Remove jsh symlinks and restore backups'" \
+  "    'brew:Homebrew wrapper'" \
+  "    'completions:Generate shell completion script'" \
+  '  )' \
+  '' \
+  '  _arguments -C \' \
+  "    '1: :->command' \\" \
+  "    '*:: :->args'" \
+  '' \
+  '  case $state in' \
+  '    command)' \
+  "      _describe -t commands 'jsh command' commands" \
+  '      ;;' \
+  '    args)' \
+  '      case $line[1] in' \
+  '        init)' \
+  '          _arguments \' \
+  "            '(-y --non-interactive)'{-y,--non-interactive}'[Use defaults]' \\" \
+  "            '--shell[Pre-select shell]:shell:(zsh bash skip)' \\" \
+  "            '--minimal[Lightweight setup]' \\" \
+  "            '--full[Full setup with plugins]' \\" \
+  "            '--setup[Also run install + configure]' \\" \
+  "            '--no-install[Skip package installation]' \\" \
+  "            '--skip-brew[Skip Homebrew]' \\" \
+  "            '--dry-run[Preview changes]'" \
+  '          ;;' \
+  '        dotfiles)' \
+  '          _arguments \' \
+  "            '(-s --status)'{-s,--status}'[Show symlink status]' \\" \
+  "            '(-d --remove)'{-d,--remove}'[Remove symlinks]'" \
+  '          ;;' \
+  '        install)' \
+  '          # Could add package completion here' \
+  '          ;;' \
+  '        uninstall)' \
+  '          # Could add installed package completion here' \
+  '          ;;' \
+  '        completions)' \
+  '          _arguments \' \
+  "            '(-i --install)'{-i,--install}'[Install to shell config]'" \
+  '          ;;' \
+  '      esac' \
+  '      ;;' \
+  '  esac' \
+  '}' \
+  '' \
+  '_jsh'
 
 }
 
@@ -3405,6 +6713,22 @@ jsh_install_parse_requirements() {
         shift
         ;;
 
+      # :flag.case
+      --no-progress)
+
+        # :flag.case_no_arg
+        args['--no-progress']=1
+        shift
+        ;;
+
+      # :flag.case
+      --quiet | -q)
+
+        # :flag.case_no_arg
+        args['--quiet']=1
+        shift
+        ;;
+
       -?*)
         printf "invalid option: %s\n" "$key" >&2
         exit 1
@@ -3517,6 +6841,21 @@ jsh_upgrade_parse_requirements() {
   while [[ $# -gt 0 ]]; do
     key="$1"
     case "$key" in
+      # :flag.case
+      --no-progress)
+
+        # :flag.case_no_arg
+        args['--no-progress']=1
+        shift
+        ;;
+
+      # :flag.case
+      --quiet | -q)
+
+        # :flag.case_no_arg
+        args['--quiet']=1
+        shift
+        ;;
 
       -?*)
         printf "invalid option: %s\n" "$key" >&2
