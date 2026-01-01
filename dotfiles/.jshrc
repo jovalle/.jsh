@@ -1,5 +1,33 @@
 # .jshrc - Shell Agnostic Configuration
 
+# Exit early for non-interactive shells to save startup time
+[[ $- != *i* ]] && return
+
+# ============================================================================
+# GRACEFUL DEGRADATION PATTERNS
+# ============================================================================
+#
+# jsh supports multiple environments with varying tool availability:
+# - macos-personal: Full tool access
+# - macos-corporate: Restricted, may lack admin rights
+# - truenas: Read-only system, minimal tools
+# - ssh-remote: Minimal environment
+# - linux-generic: Variable tool availability
+#
+# This config uses these patterns for graceful degradation:
+#
+# 1. SILENT SKIP: Features that silently skip when unavailable
+#    `command -v tool > /dev/null 2>&1 && alias x=tool`
+#
+# 2. DEBUG LOGGING: Features that log skip to debug (JSH_DEBUG=1)
+#    `_jsh_try_eval "tool" "$(tool init bash)"`
+#
+# 3. HELPFUL ERROR: Functions that explain what's missing
+#    `require_dependency "jq"` (shows environment-specific install guidance)
+#
+# Set JSH_DEBUG=1 to see what's being skipped during startup.
+# ============================================================================
+
 # ============================================================================
 # 1. ESSENTIAL EXPORTS
 # ============================================================================
@@ -27,21 +55,30 @@ export PYTHONDONTWRITEBYTECODE=1    # No .pyc files on import
 
 # Shell environment
 # Default locale - use C.UTF-8 as fallback if en_US.UTF-8 unavailable
-if locale -a 2> /dev/null | grep -qE "^en_US\.UTF-8$|^en_US\.utf8$"; then
-  export LANG=en_US.UTF-8
-elif locale -a 2> /dev/null | grep -qE "^C\.UTF-8$|^C\.utf8$"; then
-  export LANG=C.UTF-8
-else
-  export LANG=C
-fi
-# Set LC_ALL only if a valid UTF-8 locale is available
-if locale -a 2> /dev/null | grep -qE "^en_US\.UTF-8$|^en_US\.utf8$"; then
-  export LC_ALL=en_US.UTF-8
-elif locale -a 2> /dev/null | grep -qE "^C\.UTF-8$|^C\.utf8$"; then
-  export LC_ALL=C.UTF-8
-else
-  unset LC_ALL # Prevent invalid locale errors
-fi
+_detect_locale() {
+  local cache_file="${HOME}/.cache/jsh/locale"
+  if [[ -f "${cache_file}" ]] && [[ -n "$(cat "${cache_file}" 2>/dev/null)" ]]; then
+    cat "${cache_file}"
+    return
+  fi
+
+  local locale_result
+  if locale -a 2>/dev/null | grep -qE "^en_US\.UTF-8$|^en_US\.utf8$"; then
+    locale_result="en_US.UTF-8"
+  elif locale -a 2>/dev/null | grep -qE "^C\.UTF-8$|^C\.utf8$"; then
+    locale_result="C.UTF-8"
+  else
+    locale_result="C"
+  fi
+
+  mkdir -p "$(dirname "${cache_file}")"
+  echo "${locale_result}" > "${cache_file}"
+  echo "${locale_result}"
+}
+
+export LANG=$(_detect_locale)
+export LC_ALL="${LANG}"
+unset -f _detect_locale
 export XDG_CONFIG_HOME="${HOME}/.config" # Where apps should store config files
 
 # Terminal optimizations
@@ -61,41 +98,86 @@ else
 fi
 
 # ============================================================================
+# 1b. ENVIRONMENT DETECTION
+# ============================================================================
+
+# Detect runtime environment type for graceful degradation
+# JSH_ENV will be one of: macos-personal, macos-corporate, truenas, ssh-remote, linux-generic
+if [[ -f "${JSH}/src/lib/environment.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${JSH}/src/lib/environment.sh"
+  get_jsh_env > /dev/null  # Populate JSH_ENV (suppress output)
+fi
+
+# ============================================================================
+# 1c. GRACEFUL DEGRADATION
+# ============================================================================
+
+# Load graceful degradation helpers for safe feature loading
+if [[ -f "${JSH}/src/lib/graceful.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${JSH}/src/lib/graceful.sh"
+fi
+
+# ============================================================================
 # 2. PATH SETUP
 # ============================================================================
 
 # Paths - ORDER MATTERS (priority: local > jsh > system)
 # Note: Array syntax is bash/zsh compatible
-local_paths=(
-  "${HOME}/.local/bin"
-  "${JSH}"     # jsh CLI script at repo root
-  "${JSH}/bin" # Additional utilities
-  "${GEM_HOME}/bin"
-  "${HOME}/.cargo/bin"
-  "${JSH}/.fzf/bin"
-  "${HOME}/go/bin"
-  "${HOME}/.linuxbrew/bin"
-  "${HOME}/linuxbrew/.linuxbrew/bin"
-  "/home/linuxbrew/.linuxbrew/bin"
-  "/opt/homebrew/bin"
-  "/opt/homebrew/opt/ruby/bin"
-)
+_build_path_prefix() {
+  local cache_file="${HOME}/.cache/jsh/path_prefix"
+  local cache_mtime_file="${cache_file}.mtime"
+  local current_mtime=$(date +%s)
 
-local_prefix=""
-for p in "${local_paths[@]}"; do
-  if [[ -d "${p}" ]]; then
-    if [[ -z "${local_prefix}" ]]; then
-      local_prefix="${p}"
-    else
-      local_prefix="${local_prefix}:${p}"
+  # Cache valid for 1 hour (3600 seconds)
+  if [[ -f "${cache_file}" ]] && [[ -f "${cache_mtime_file}" ]]; then
+    local cached_mtime=$(cat "${cache_mtime_file}")
+    if (( current_mtime - cached_mtime < 3600 )); then
+      cat "${cache_file}"
+      return
     fi
   fi
-done
 
+  # Rebuild path
+  local local_paths=(
+    "${HOME}/.local/bin"
+    "${JSH}"     # jsh CLI script at repo root
+    "${JSH}/bin" # Additional utilities
+    "${GEM_HOME}/bin"
+    "${HOME}/.cargo/bin"
+    "${JSH}/.fzf/bin"
+    "${HOME}/go/bin"
+    "${HOME}/.linuxbrew/bin"
+    "${HOME}/linuxbrew/.linuxbrew/bin"
+    "/home/linuxbrew/.linuxbrew/bin"
+    "/opt/homebrew/bin"
+    "/opt/homebrew/opt/ruby/bin"
+  )
+
+  local local_prefix=""
+  for p in "${local_paths[@]}"; do
+    if [[ -d "${p}" ]]; then
+      if [[ -z "${local_prefix}" ]]; then
+        local_prefix="${p}"
+      else
+        local_prefix="${local_prefix}:${p}"
+      fi
+    fi
+  done
+
+  mkdir -p "$(dirname "${cache_file}")"
+  echo "${local_prefix}" > "${cache_file}"
+  echo "${current_mtime}" > "${cache_mtime_file}"
+  echo "${local_prefix}"
+}
+
+local_prefix=$(_build_path_prefix)
 if [[ -n "${local_prefix}" ]]; then
   export PATH="${local_prefix}:${PATH}"
 fi
-unset local_paths local_prefix
+unset local_prefix
+unset -f _build_path_prefix
 
 # ============================================================================
 # 2b. HOMEBREW ENVIRONMENT SETUP
@@ -108,6 +190,19 @@ _init_brew_env() {
   # Skip for root - root should use 'jsh brew' for delegation
   [[ "${EUID:-$(id -u)}" -eq 0 ]] && return 0
 
+  local cache_file="${HOME}/.cache/jsh/brew_shellenv"
+  local cache_mtime_file="${cache_file}.mtime"
+  local current_mtime=$(date +%s)
+
+  # Cache valid for 24 hours (86400 seconds)
+  if [[ -f "${cache_file}" ]] && [[ -f "${cache_mtime_file}" ]]; then
+    local cached_mtime=$(cat "${cache_mtime_file}")
+    if (( current_mtime - cached_mtime < 86400 )); then
+      source "${cache_file}"
+      return 0
+    fi
+  fi
+
   local brew_candidates=(
     "/home/linuxbrew/.linuxbrew/bin/brew"
     "/opt/homebrew/bin/brew"
@@ -117,7 +212,10 @@ _init_brew_env() {
 
   for brew_bin in "${brew_candidates[@]}"; do
     if [[ -x "${brew_bin}" ]]; then
-      eval "$("${brew_bin}" shellenv 2> /dev/null)"
+      mkdir -p "$(dirname "${cache_file}")"
+      "${brew_bin}" shellenv > "${cache_file}" 2>/dev/null
+      echo "${current_mtime}" > "${cache_mtime_file}"
+      source "${cache_file}"
       return 0
     fi
   done
@@ -419,15 +517,25 @@ zsh-minimal() {
 gu() {
   local profile_file="${JSH}/configs/git/profiles.json"
 
-  # Check if we're in a git repository
-  if ! git rev-parse --git-dir > /dev/null 2>&1; then
-    error "Not in a git repository"
+  # Check dependencies with environment-aware guidance
+  if ! command -v jq > /dev/null 2>&1; then
+    if [[ -f "${JSH}/src/lib/dependencies.sh" ]]; then
+      source "${JSH}/src/lib/dependencies.sh"
+      require_dependency "jq"
+    else
+      error "jq is required. Install with: brew install jq (macOS) or apt install jq (Linux)"
+    fi
     return 1
   fi
 
-  # Check if jq is installed
-  if ! command -v jq > /dev/null 2>&1; then
-    error "jq is required but not installed. Install with: brew install jq"
+  if ! command -v git > /dev/null 2>&1; then
+    error "git is required but not installed"
+    return 1
+  fi
+
+  # Check if we're in a git repository
+  if ! git rev-parse --git-dir > /dev/null 2>&1; then
+    error "Not in a git repository"
     return 1
   fi
 
@@ -513,11 +621,17 @@ dedup_path() {
 }
 dedup_path
 
-# Check for outdated Homebrew packages
-if command -v brew > /dev/null 2>&1; then
-  if command -v jsh > /dev/null 2>&1; then
-    jsh brew check --quiet
+# Check for outdated Homebrew packages (graceful if unavailable)
+if command -v brew > /dev/null 2>&1 && command -v jsh > /dev/null 2>&1; then
+  # Use timeout to prevent hung startup if brew is slow
+  if declare -f _jsh_with_timeout &>/dev/null; then
+    _jsh_with_timeout 3 jsh brew check --quiet 2>/dev/null || true
+  else
+    # Fallback if graceful.sh not loaded
+    jsh brew check --quiet 2>/dev/null || true
   fi
+else
+  _jsh_debug "startup" "Skipping brew check (brew or jsh unavailable)"
 fi
 
 # Navigation: Search path for cd
@@ -541,26 +655,24 @@ fi
 # Usage: _jsh_load_completions <shell_name>
 _jsh_load_completions() {
   local shell="$1"
+  _jsh_debug "completions" "Loading completions for ${shell}"
 
-  # Common completions for all shells
-  command -v direnv > /dev/null 2>&1 && eval "$(direnv hook "${shell}")"
-  command -v docker > /dev/null 2>&1 && eval "$(docker completion "${shell}")"
-  command -v task > /dev/null 2>&1 && source <(task --completion "${shell}")
-  command -v zoxide > /dev/null 2>&1 && eval "$(zoxide init "${shell}")"
+  # Common completions for all shells (using graceful degradation)
+  _jsh_try_eval "direnv" "$(direnv hook "${shell}")"
+  _jsh_try_eval "docker" "$(docker completion "${shell}")"
+  _jsh_try_completion "task" "eval" "task --completion ${shell}" "${shell}"
+  _jsh_try_eval "zoxide" "$(zoxide init "${shell}")"
 
-  # shellcheck disable=SC1090
-  command -v kubectl > /dev/null 2>&1 && source <(kubectl completion "${shell}")
-  # shellcheck disable=SC1090
-  command -v uc > /dev/null 2>&1 && source <(uc completion "${shell}")
+  _jsh_try_completion "kubectl" "eval" "kubectl completion ${shell}" "${shell}"
+  _jsh_try_completion "uc" "eval" "uc completion ${shell}" "${shell}"
 
   # Shell-specific variations
   case "${shell}" in
     bash)
-      command -v fzf > /dev/null 2>&1 && eval "$(fzf --bash)"
+      _jsh_try_eval "fzf" "$(fzf --bash)"
       ;;
     zsh)
-      # shellcheck disable=SC1090
-      command -v fzf > /dev/null 2>&1 && source <(command fzf --zsh)
+      _jsh_try_completion "fzf" "eval" "fzf --zsh" "${shell}"
       ;;
     *)
       warn "Unknown shell: ${shell}"
@@ -570,6 +682,7 @@ _jsh_load_completions() {
 
   # Configure atuin with fzf integration for reverse search
   if command -v atuin > /dev/null 2>&1; then
+    _jsh_debug "completions" "Loading atuin integration"
     # Disable default atuin up-arrow binding to use fzf instead
     export ATUIN_NOBIND="true"
     eval "$(atuin init "${shell}")"
@@ -627,7 +740,7 @@ _jsh_load_completions() {
           zsh)
             # shellcheck disable=SC2034
             BUFFER="${selected}"
-            # shellc${eck disa}ble=SC2034
+            # shellcheck disable=SC2034
             CURSOR=${#BUFFER}
             ;;
         esac
@@ -635,6 +748,10 @@ _jsh_load_completions() {
     }
   fi
 }
+
+# Load project navigation functions (project/projects commands)
+# shellcheck disable=SC1091
+[[ -f "${JSH}/src/lib/projects.sh" ]] && source "${JSH}/src/lib/projects.sh"
 
 # Load local customizations
 # shellcheck disable=SC1090
