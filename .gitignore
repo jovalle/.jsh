@@ -1,8 +1,47 @@
-# Git & Prettier Ignore File
-# This file is used by both Git (.gitignore) and Prettier (.prettierignore symlink)
-# https://git-scm.com/docs/gitignore
-# https://prettier.io/docs/en/ignore.html
-
+__pycache__
+._*
+.apdisk
+.AppleDB
+.AppleDesktop
+.AppleDouble
+.bash_history
+.brewcheck
+.com.apple.timemachine.donotpresent
+.config/syncthing
+.DocumentRevisions-V100
+.DS_Store
+.env
+.envrc
+.fseventsd
+.fzf
+.history
+.idea
+.jsh_local
+.kube
+.LSOverride
+.mounts.json
+.npm
+.oh-my-zsh
+.planning/
+.sops
+.Spotlight-V100
+.ssh
+.stfolder
+.stow-local-ignore
+.talos
+.task/
+.TemporaryItems
+.Trash
+.Trashes
+.vault
+.vim/bundle/*
+.vim/plugged/*
+.VolumeIcon.icns
+.vscode/argv.json
+.vscode/cli/
+.vscode/extensions/
+.zsh_history
+.zsh_history.*
 *.cache*
 *.chatmode.md
 *.db
@@ -17,9 +56,13 @@
 *.sublime-project
 *.sublime-workspace
 *.sync-conflict-*
-*.tmPreferences.cache
 *.tmlanguage.cache
 *.tmp
+*.tmPreferences.cache
+*[cC][lL][aA][uU][dD][eE]*
+*[gG][eE][mM][iI][nN][iI]*
+*[qQ][wW][eE][nN]*
+*\ copy*
 *Package\ Control.ca-bundle
 *Package\ Control.ca-certs/
 *Package\ Control.ca-list
@@ -28,57 +71,11 @@
 *Package\ Control.merged-ca-bundle
 *Package\ Control.system-ca-bundle
 *Package\ Control.user-ca-bundle
-*[cC][lL][aA][uU][dD][eE]*
-*[gG][eE][mM][iI][nN][iI]*
-*[qQ][wW][eE][nN]*
-*\ copy*
-.AppleDB
-.AppleDesktop
-.AppleDouble
-.DS_Store
-.DocumentRevisions-V100
-.LSOverride
-.Spotlight-V100
-.TemporaryItems
-.Trash
-.Trashes
-.VolumeIcon.icns
-._*
-.apdisk
-.bash_history
-.brewcheck
-.com.apple.timemachine.donotpresent
-.config/syncthing
-.env
-.envrc
-.fseventsd
-.fzf
-.history
-.idea
-.jsh_local
-.kube
-.mounts.json
-.npm
-.oh-my-zsh
-.sops
-.ssh
-.stfolder
-.stow-local-ignore
-.talos
-.task/
-.vault
-.vim/bundle/*
-.vim/plugged/*
-.vscode/argv.json
-.vscode/cli/
-.vscode/extensions/
-.zsh_history
-.zsh_history.*
+# Git & Prettier Ignore File
+# https://git-scm.com/docs/gitignore
+# https://prettier.io/docs/en/ignore.html
+# This file is used by both Git (.gitignore) and Prettier (.prettierignore symlink)
 AppSupport
-GitHub.sublime-settings
-Network\ Trash\ Folder
-Temporary\ Items
-__pycache__
 bh_unicode_properties.cache
 bun.lockb
 dotfiles/.config/argocd
@@ -94,6 +91,8 @@ dotfiles/.config/systemd
 dotfiles/.config/thefuck
 dotfiles/.config/wireshark
 dotfiles/.config/xnviewmp
+GitHub.sublime-settings
+Network\ Trash\ Folder
 node_modules
 node_modules/
 oscrypto-ca-bundle.crt
@@ -101,3 +100,4 @@ package-lock.json
 package.json
 profiles.json
 sftp-config.json
+Temporary\ Items
