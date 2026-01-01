@@ -2,9 +2,6 @@ name: jsh
 help: Dotfiles and environment management utility
 version: 0.1.0
 
-x_lib_dirs:
-  - lib
-
 environment_variables:
   - name: JSH_ROOT
     help: Path to jsh repository root
@@ -62,6 +59,11 @@ commands:
         help: Install via yum (CentOS/RHEL)
       - long: --zypper
         help: Install via zypper (openSUSE)
+      - long: --no-progress
+        help: Disable TUI progress display
+      - long: --quiet
+        short: -q
+        help: Minimal output
 
   - name: uninstall
     help: Uninstall a package and remove from config
@@ -73,6 +75,12 @@ commands:
   - name: upgrade
     alias: update
     help: Upgrade all packages (brew, zinit, system)
+    flags:
+      - long: --no-progress
+        help: Disable TUI progress display
+      - long: --quiet
+        short: -q
+        help: Minimal output
 
   - name: configure
     help: Apply dotfiles, OS settings, and app configs
