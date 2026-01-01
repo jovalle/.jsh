@@ -827,3 +827,224 @@ get_user_shell() {
   fi
   echo "${user_shell}"
 }
+
+# ============================================================================
+# Upgrade Helpers (for TUI integration)
+# ============================================================================
+
+# Get list of outdated packages
+# Returns: newline-separated list of package names
+brew_get_outdated() {
+  run_brew outdated --quiet 2>/dev/null || true
+}
+
+# Get count of outdated packages
+# Returns: integer count
+brew_get_outdated_count() {
+  local outdated
+  outdated=$(brew_get_outdated)
+  if [[ -z "$outdated" ]]; then
+    echo 0
+  else
+    echo "$outdated" | wc -l | tr -d ' '
+  fi
+}
+
+# Run brew update with progress callback
+# Arguments:
+#   $1 - callback function name (receives: stage, message)
+brew_update_with_progress() {
+  local callback="${1:-}"
+
+  [[ -n "$callback" ]] && "$callback" "start" "Updating Homebrew"
+
+  if run_brew update 2>&1 | while IFS= read -r line; do
+    # Parse update output for progress info
+    if [[ "$line" == *"Fetching"* ]]; then
+      local repo="${line#*Fetching }"
+      [[ -n "$callback" ]] && "$callback" "item" "Fetching $repo"
+    elif [[ "$line" == *"Updated"* ]]; then
+      [[ -n "$callback" ]] && "$callback" "item" "$line"
+    fi
+  done; then
+    [[ -n "$callback" ]] && "$callback" "done" "Update complete"
+    return 0
+  else
+    [[ -n "$callback" ]] && "$callback" "fail" "Update failed"
+    return 1
+  fi
+}
+
+# Run brew upgrade with TUI progress
+# This streams brew upgrade output and updates TUI progress for each package
+brew_upgrade_with_tui() {
+  local root_dir
+  root_dir="$(get_root_dir)"
+
+  # Source TUI if available and not already loaded
+  # (Don't re-source - it resets state variables like _TUI_ENABLED)
+  if ! declare -f tui_progress_start &>/dev/null; then
+    if [[ -f "$root_dir/src/lib/tui.sh" ]]; then
+      # shellcheck source=src/lib/tui.sh
+      source "$root_dir/src/lib/tui.sh"
+    fi
+  fi
+
+  # Check if TUI functions exist
+  if ! declare -f tui_progress_start &>/dev/null; then
+    # Fallback to simple execution
+    log "Upgrading Homebrew packages..."
+    run_brew update && run_brew upgrade
+    return $?
+  fi
+
+  # Phase 1: Update
+  tui_progress_start "Updating Homebrew" 0
+  local update_output
+  update_output=$(run_brew update 2>&1) || {
+    tui_progress_fail "Update failed"
+    tui_error "$update_output"
+    return 1
+  }
+  # Show relevant update messages
+  while IFS= read -r line; do
+    if [[ "$line" == *"Fetching"* ]] || [[ "$line" == *"Updated"* ]]; then
+      tui_log "${line:0:60}"
+    fi
+  done <<< "$update_output"
+  tui_progress_complete "Homebrew updated"
+
+  # Phase 2: Get outdated packages
+  local outdated outdated_count
+  outdated=$(brew_get_outdated)
+  # Count non-empty lines, trim whitespace
+  if [[ -z "$outdated" ]] || [[ "$outdated" == $'\n' ]]; then
+    outdated_count=0
+  else
+    outdated_count=$(echo "$outdated" | grep -c . 2>/dev/null || echo 0)
+    # Trim any whitespace/newlines from count
+    outdated_count="${outdated_count//[$'\n\r\t ']}"
+    outdated_count="${outdated_count:-0}"
+  fi
+
+  if [[ "$outdated_count" -eq 0 ]]; then
+    tui_log "All packages are up to date"
+    return 0
+  fi
+
+  # Phase 3: Upgrade with progress
+  tui_progress_start "Upgrading packages" "$outdated_count"
+
+  local current=0
+  local current_pkg=""
+  local failed_packages=()
+  local link_errors=()
+  local upgrade_output_file="${TMPDIR:-/tmp}/brew_upgrade_$$"
+
+  # Create the file before starting background process to avoid race condition
+  : > "$upgrade_output_file"
+
+  # Run upgrade and capture output to temp file for processing
+  run_brew upgrade >> "$upgrade_output_file" 2>&1 &
+  local brew_pid=$!
+
+  # Process output in real-time
+  local last_line=0
+  while kill -0 "$brew_pid" 2>/dev/null; do
+    # Read new lines from output file (use process substitution to avoid subshell)
+    local current_line=0
+    while IFS= read -r line; do
+      ((current_line++)) || true
+      # Skip lines we've already processed
+      [[ "$current_line" -le "$last_line" ]] && continue
+
+      # Detect package being upgraded (brew uses ==> prefix)
+      if [[ "$line" =~ ^==\>\ Upgrading\ ([a-zA-Z0-9@._-]+) ]] || \
+         [[ "$line" =~ ^Upgrading\ ([a-zA-Z0-9@._-]+) ]]; then
+        current_pkg="${BASH_REMATCH[1]}"
+        ((current++)) || true
+        tui_progress_update "$current" "$current_pkg"
+      elif [[ "$line" =~ ^==\>\ Pouring\ ([a-zA-Z0-9@._-]+) ]]; then
+        current_pkg="${BASH_REMATCH[1]}"
+        tui_progress_update "$current" "pouring $current_pkg"
+      elif [[ "$line" =~ ^==\>\ Linking\ ([a-zA-Z0-9@._-]+) ]]; then
+        tui_progress_update "$current" "linking ${BASH_REMATCH[1]}"
+      fi
+    done < "$upgrade_output_file" 2>/dev/null
+    last_line="$current_line"
+    sleep 0.1
+  done
+
+  # Process any remaining output after brew finishes
+  while IFS= read -r line; do
+    ((last_line++)) || true
+    if [[ "$line" =~ ^==\>\ Upgrading\ ([a-zA-Z0-9@._-]+) ]] || \
+       [[ "$line" =~ ^Upgrading\ ([a-zA-Z0-9@._-]+) ]]; then
+      current_pkg="${BASH_REMATCH[1]}"
+      ((current++)) || true
+      tui_progress_update "$current" "$current_pkg"
+    fi
+  done < <(tail -n +"$((last_line + 1))" "$upgrade_output_file" 2>/dev/null)
+
+  # Wait for brew to finish and get exit code
+  wait "$brew_pid"
+  local exit_code=$?
+
+  # Process final output for errors
+  if [[ -f "$upgrade_output_file" ]]; then
+    local in_error_block=false
+    local error_pkg=""
+
+    while IFS= read -r line; do
+      # Track current package context
+      if [[ "$line" =~ ^==\>\ Upgrading\ ([a-zA-Z0-9@._-]+) ]] || \
+         [[ "$line" =~ ^Upgrading\ ([a-zA-Z0-9@._-]+) ]]; then
+        error_pkg="${BASH_REMATCH[1]}"
+      fi
+
+      # Detect brew link errors
+      if [[ "$line" == *"brew link"* ]] || [[ "$line" == *"The \`brew link\`"* ]]; then
+        if [[ -n "$error_pkg" ]]; then
+          link_errors+=("$error_pkg: $line")
+        else
+          link_errors+=("$line")
+        fi
+      fi
+
+      # Detect general errors
+      if [[ "$line" == "Error:"* ]] || [[ "$line" == *"Error:"* ]]; then
+        if [[ -n "$error_pkg" ]]; then
+          failed_packages+=("$error_pkg")
+        fi
+        tui_error "$line"
+      fi
+    done < "$upgrade_output_file"
+
+    rm -f "$upgrade_output_file"
+  fi
+
+  if [[ $exit_code -eq 0 ]] && [[ ${#link_errors[@]} -eq 0 ]]; then
+    tui_progress_complete "Upgraded $outdated_count package(s)"
+    return 0
+  else
+    # Report specific failures
+    if [[ ${#link_errors[@]} -gt 0 ]]; then
+      tui_progress_fail "The \`brew link\` step did not complete successfully"
+      for err in "${link_errors[@]}"; do
+        tui_error "$err"
+      done
+    fi
+
+    if [[ ${#failed_packages[@]} -gt 0 ]]; then
+      local unique_failed
+      unique_failed=$(printf '%s\n' "${failed_packages[@]}" | sort -u | tr '\n' ', ' | sed 's/,$//')
+      tui_error "Failed packages: $unique_failed"
+    fi
+
+    if [[ ${#link_errors[@]} -eq 0 ]] && [[ ${#failed_packages[@]} -eq 0 ]]; then
+      tui_progress_fail "Some packages failed to upgrade (exit code: $exit_code)"
+    fi
+
+    return 1
+  fi
+}
