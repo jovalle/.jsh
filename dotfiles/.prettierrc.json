@@ -15,7 +15,7 @@
   "embeddedLanguageFormatting": "auto",
   "overrides": [
     {
-      "files": ["*.yaml", "*.yml"],
+      "files": ["*.yaml", "*.yml", "*.yaml.template", "*.yml.template"],
       "options": {
         "printWidth": 120,
         "singleQuote": false
