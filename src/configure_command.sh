@@ -8,13 +8,13 @@ header "Configuring environment"
 # Configure brew links
 if check_brew; then
   log "Configuring Brew Links..."
-  brew link --overwrite --force mpv tlrc 2>/dev/null || true
+  brew link --overwrite --force mpv tlrc || warn "Failed to link brew packages"
 fi
 
 if is_macos; then
   log "Configuring macOS..."
-  bash "$root_dir/scripts/macos/configure-settings.sh" 2>/dev/null || true
-  bash "$root_dir/scripts/macos/configure-dock.sh" 2>/dev/null || true
+  bash "$root_dir/scripts/macos/configure-settings.sh" || warn "Failed to configure macOS settings"
+  bash "$root_dir/scripts/macos/configure-dock.sh" || warn "Failed to configure dock"
 
   # VSCode
   if [[ -d "/Applications/Visual Studio Code.app" ]]; then
@@ -26,7 +26,7 @@ if is_macos; then
   fi
 elif is_linux; then
   log "Configuring Linux..."
-  bash "$root_dir/scripts/linux/configure-sudoers.sh" 2>/dev/null || true
+  bash "$root_dir/scripts/linux/configure-sudoers.sh" || warn "Failed to configure sudoers"
 fi
 
 success "Configuration complete"

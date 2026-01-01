@@ -126,7 +126,7 @@ if [[ "$install_packages" == "true" ]]; then
         pkg="$tool"
         [[ "$tool" == "timeout" ]] && pkg="coreutils"
         if [[ "$dry_run" == "false" ]]; then
-          brew install "$pkg" 2>/dev/null || true
+          brew install "$pkg" || warn "Failed to install $tool"
         fi
       fi
     done
@@ -190,12 +190,36 @@ if [[ "$install_packages" == "true" && "$dry_run" == "false" && "$target_shell" 
     else
       log "Installing zinit..."
       mkdir -p "${zinit_home%/*}"
-      git clone https://github.com/zdharma-continuum/zinit.git "${zinit_home}" 2>/dev/null || true
+      git clone https://github.com/zdharma-continuum/zinit.git "${zinit_home}" || warn "Failed to install zinit"
     fi
   fi
 fi
 
-# 8. Run setup if requested
+# 8. TPM (Tmux Plugin Manager) installation
+if [[ "$install_packages" == "true" && "$dry_run" == "false" ]]; then
+  tpm_home="${HOME}/.tmux/plugins/tpm"
+
+  if [[ "$setup_type" == "full" && ! -d "${tpm_home}" ]]; then
+    if [[ "$interactive" == "true" ]]; then
+      echo ""
+      info "TPM enables tmux plugins for session restore, vim navigation, etc."
+      echo ""
+
+      if confirm "Install tmux plugin manager?"; then
+        log "Installing TPM..."
+        mkdir -p "${tpm_home%/*}"
+        git clone https://github.com/tmux-plugins/tpm.git "${tpm_home}" || warn "Failed to install TPM"
+        info "Run prefix + I in tmux to install plugins"
+      fi
+    else
+      log "Installing TPM..."
+      mkdir -p "${tpm_home%/*}"
+      git clone https://github.com/tmux-plugins/tpm.git "${tpm_home}" || warn "Failed to install TPM"
+    fi
+  fi
+fi
+
+# 9. Run setup if requested
 if [[ "$run_setup" == "true" && "$dry_run" == "false" ]]; then
   header "Running full setup"
   "$0" install
