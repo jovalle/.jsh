@@ -1,0 +1,185 @@
+#!/usr/bin/env bash
+# jssh - SSH with jsh config injection
+# Part of jsh: https://github.com/jovalle/jsh
+#
+# Usage: jssh [ssh_options] user@host
+#
+# Connects to remote host via SSH and injects minimal jsh configuration.
+# Your aliases, colors, and core functions will be available on the remote.
+
+# shellcheck source=../src/lib/ssh.sh
+# shellcheck source=../src/lib/graceful.sh
+
+set -euo pipefail
+
+VERSION="0.1.0"
+JSH_ROOT="${JSH:-${HOME}/.jsh}"
+
+# Source the SSH library
+if [[ -f "${JSH_ROOT}/src/lib/ssh.sh" ]]; then
+  source "${JSH_ROOT}/src/lib/ssh.sh"
+else
+  echo "Error: jsh SSH library not found at ${JSH_ROOT}/src/lib/ssh.sh" >&2
+  exit 1
+fi
+
+# Also source graceful.sh for debug support
+if [[ -f "${JSH_ROOT}/src/lib/graceful.sh" ]]; then
+  source "${JSH_ROOT}/src/lib/graceful.sh"
+fi
+
+usage() {
+  cat <<EOF
+jssh - SSH with jsh config injection
+
+USAGE:
+    jssh [options] [user@]hostname
+
+OPTIONS:
+    -h, --help      Show this help message
+    -v, --version   Show version
+    --debug         Enable debug output
+
+    All other options are passed through to ssh.
+
+EXAMPLES:
+    jssh user@server.com
+    jssh -p 2222 user@server.com
+    jssh -i ~/.ssh/mykey user@server.com
+
+DESCRIPTION:
+    jssh wraps ssh and injects minimal jsh configuration into the remote
+    session. Your essential aliases, color functions, and core utilities
+    will be available without installing anything on the remote host.
+
+    The injected config is stored in a temporary directory that is
+    automatically cleaned up when the session ends.
+
+REQUIREMENTS:
+    Local:  bash, tar, base64
+    Remote: bash, tar, base64 (standard on most systems)
+EOF
+}
+
+main() {
+  local debug=0
+  local ssh_args=()
+
+  # Parse arguments
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      -v|--version)
+        echo "jssh version ${VERSION}"
+        exit 0
+        ;;
+      --debug)
+        debug=1
+        export JSH_DEBUG=1
+        shift
+        ;;
+      *)
+        # Accumulate all other args for ssh
+        ssh_args+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  # Must have at least a host
+  if [[ ${#ssh_args[@]} -eq 0 ]]; then
+    echo "Error: No host specified" >&2
+    usage >&2
+    exit 1
+  fi
+
+  # Check dependencies
+  if ! _jsh_ssh_check_deps; then
+    exit 1
+  fi
+
+  # Bundle config
+  local payload
+  if ! payload=$(_jsh_ssh_bundle); then
+    echo "Error: Failed to bundle jsh config" >&2
+    exit 1
+  fi
+
+  [[ ${debug} -eq 1 ]] && echo "[jssh] Payload size: $(echo -n "${payload}" | wc -c | tr -d ' ') bytes" >&2
+
+  # Extract host from ssh_args (last argument typically)
+  # Find the host - it's the argument that looks like [user@]hostname
+  local host=""
+  local other_args=()
+
+  for arg in "${ssh_args[@]}"; do
+    # Skip options and their values
+    if [[ "${arg}" =~ ^- ]]; then
+      other_args+=("${arg}")
+    elif [[ -z "${host}" && ! "${arg}" =~ ^- ]]; then
+      # First non-option argument is likely the host
+      # Check if previous was an option expecting a value
+      if [[ ${#other_args[@]} -gt 0 ]]; then
+        local last_opt="${other_args[-1]}"
+        # Options that take arguments
+        if [[ "${last_opt}" =~ ^-(p|i|l|F|J|o|c|m|O|w|W|b|D|L|R|e|S|Q)$ ]]; then
+          other_args+=("${arg}")
+          continue
+        fi
+      fi
+      host="${arg}"
+    else
+      other_args+=("${arg}")
+    fi
+  done
+
+  if [[ -z "${host}" ]]; then
+    echo "Error: Could not determine host from arguments" >&2
+    exit 1
+  fi
+
+  [[ ${debug} -eq 1 ]] && echo "[jssh] Host: ${host}, Other args: ${other_args[*]:-}" >&2
+
+  # Construct remote command
+  # This command:
+  # 1. Creates temp directory for jsh config
+  # 2. Decodes and extracts the payload
+  # 3. Sets up cleanup trap on exit
+  # 4. Starts bash with our config as rcfile
+  #
+  # Note: Single quotes are intentional - variables expand on remote, not local
+  # shellcheck disable=SC2016
+  local remote_script='
+JSHHOME=$(mktemp -d)
+export JSHHOME
+trap "rm -rf \"$JSHHOME\"" EXIT
+echo "$JSH_PAYLOAD" | base64 -d | tar xzf - -C "$JSHHOME" 2>/dev/null
+bash --rcfile "$JSHHOME/.jshrc.ssh"
+'
+
+  # Build and execute the SSH command
+  # Use -t for interactive TTY
+  local ssh_cmd=("ssh" "-t")
+
+  # Add any additional SSH arguments
+  if [[ ${#other_args[@]} -gt 0 ]]; then
+    ssh_cmd+=("${other_args[@]}")
+  fi
+
+  # Add host
+  ssh_cmd+=("${host}")
+
+  # Add remote command with payload
+  # The payload is exported as JSH_PAYLOAD, then bash executes our setup script
+  ssh_cmd+=("export JSH_PAYLOAD=\"${payload}\"; bash -c '${remote_script}'")
+
+  [[ ${debug} -eq 1 ]] && echo "[jssh] Executing: ${ssh_cmd[*]}" >&2
+
+  # Execute SSH
+  exec "${ssh_cmd[@]}"
+}
+
+main "$@"

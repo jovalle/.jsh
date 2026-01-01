@@ -1,0 +1,178 @@
+# .jshrc.ssh - Minimal jsh config for SSH sessions
+# This file is bundled and injected by jssh command
+# Keep this file small (<20KB when tarred)
+#
+# Included: color helpers, navigation aliases, safety aliases, core functions
+# Excluded: homebrew, completions, heavy functions, path building
+
+# ============================================================================
+# Environment Markers
+# ============================================================================
+
+export JSH_ENV="ssh-remote"
+export JSHHOME="${JSHHOME:-${HOME}/.jsh-remote}"
+
+# Cleanup trap (backup - primary trap is in outer shell)
+[[ -n "$JSHHOME" && -d "$JSHHOME" ]] && trap 'rm -rf "$JSHHOME" 2>/dev/null' EXIT
+
+# Clear any inherited PROMPT_COMMAND that might cause issues
+unset PROMPT_COMMAND
+
+# ============================================================================
+# Color Helpers (inline, no tput dependency check needed)
+# ============================================================================
+
+error() { echo -e "\033[31m$*\033[0m"; }   # Red
+warn() { echo -e "\033[33m$*\033[0m"; }    # Yellow
+success() { echo -e "\033[32m$*\033[0m"; } # Green
+info() { echo -e "\033[34m$*\033[0m"; }    # Blue
+
+# ============================================================================
+# Essential Exports
+# ============================================================================
+
+export CLICOLORS=1
+export EDITOR="${EDITOR:-vim}"
+export VISUAL="${VISUAL:-vim}"
+
+# ============================================================================
+# Navigation Aliases
+# ============================================================================
+
+alias ..='cd ../'
+alias .2='cd ../../'
+alias .3='cd ../../../'
+alias .4='cd ../../../../'
+alias .5='cd ../../../../../'
+alias .6='cd ../../../../../../'
+
+# ============================================================================
+# File Operations (with safety)
+# ============================================================================
+
+alias cp='cp -iv'
+alias mv='mv -iv'
+alias rm='rm -i'
+alias mkdir='mkdir -pv'
+
+# Disk usage helpers
+alias dud='du -d 1 -h'
+alias duf='du -sh *'
+
+# ============================================================================
+# Listing Commands (with color detection)
+# ============================================================================
+
+if command ls --color -d . >/dev/null 2>&1; then
+  alias ls='ls --color=auto -a'
+elif command ls -G -d . >/dev/null 2>&1; then
+  alias ls='ls -G -a'
+else
+  alias ls='ls -a'
+fi
+
+alias l='ls -l'
+alias ll='ls -la'
+alias lll='ls -laFh'
+
+# Grep with color
+alias grep='grep --color=auto'
+
+# ============================================================================
+# Terminal Aliases
+# ============================================================================
+
+alias c='clear'
+alias e='exit'
+alias h='history'
+alias path='echo -e ${PATH//:/\\n}'
+
+# ============================================================================
+# Process Helpers
+# ============================================================================
+
+alias psg='ps aux | grep -i'
+alias psl='ps aux | less'
+
+# ============================================================================
+# Permissions
+# ============================================================================
+
+alias 644='chmod 644'
+alias 755='chmod 755'
+alias mx='chmod a+x'
+
+# ============================================================================
+# Core Functions
+# ============================================================================
+
+# Extract various archive formats
+extract() {
+  if [[ ! -f "$1" ]]; then
+    error "'$1' is not a valid file"
+    return 1
+  fi
+  case "$1" in
+    *.tar.bz2) tar xjf "$1" ;;
+    *.tar.gz) tar xzf "$1" ;;
+    *.bz2) bunzip2 "$1" ;;
+    *.rar) unrar e "$1" ;;
+    *.gz) gunzip "$1" ;;
+    *.tar) tar xf "$1" ;;
+    *.tbz2) tar xjf "$1" ;;
+    *.tgz) tar xzf "$1" ;;
+    *.zip) unzip "$1" ;;
+    *.Z) uncompress "$1" ;;
+    *.7z) 7z x "$1" ;;
+    *)
+      error "'$1' cannot be extracted"
+      return 1
+      ;;
+  esac
+}
+
+# Find file by name
+ff() { find . -name "$@"; }
+
+# Find file starting with pattern
+ffs() { find . -name "$*"'*'; }
+
+# Find file ending with pattern
+ffe() { find . -name '*'"$*"; }
+
+# Disk usage sorted
+duh() {
+  if [[ "$(uname)" == "Darwin" ]]; then
+    du -hd 1 "${1:-.}" | sort -h
+  else
+    du -h --max-depth=1 "${1:-.}" | sort -h
+  fi
+}
+
+# Run command quietly
+quiet() {
+  if [[ $# -eq 0 ]]; then
+    return
+  else
+    "$@" >/dev/null 2>&1
+  fi
+}
+
+# ============================================================================
+# Minimal Prompt
+# ============================================================================
+
+# Simple prompt showing user@host:directory
+# Green for regular user, red for root
+if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+  PS1='\[\033[31m\][\u@\h:\w]\$\[\033[0m\] '
+else
+  PS1='\[\033[32m\][\u@\h:\w]\$\[\033[0m\] '
+fi
+
+# ============================================================================
+# Remote Session Indicator
+# ============================================================================
+
+# Show a subtle indicator that jsh config is active (only in interactive shells)
+[[ $- == *i* ]] && info "[jsh-remote] Config loaded from \$JSHHOME"
