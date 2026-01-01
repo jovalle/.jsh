@@ -33,9 +33,26 @@ Custom tools and wrappers located in `./bin/` are automatically added to `PATH`:
 | :--------- | :------------------------------------------------------------------------------------ |
 | `gitx`     | Bulk git command runner. Update or run commands across multiple repositories at once. |
 | `httpstat` | Visual curl statistics tool for debugging HTTP requests.                              |
+| `jssh`     | SSH with jsh config injection. Your shell config on any remote server.                |
 | `kubectx`  | Fast way to switch between Kubernetes contexts.                                       |
 | `kubens`   | Fast way to switch between Kubernetes namespaces.                                     |
 | `colours`  | Simple script to test terminal color capabilities.                                    |
+
+### SSH Session Portability
+
+Use `jssh` to SSH into remote servers with your jsh configuration automatically available:
+
+```bash
+jssh user@server.com           # Connect with jsh config
+jssh -p 2222 user@server.com   # Pass SSH options through
+```
+
+Your essential aliases, color functions, and core utilities will be available on the remote host without permanent installation. The config is injected into a temporary directory and cleaned up automatically when you disconnect.
+
+Requirements:
+
+- Local: bash, tar, base64
+- Remote: bash, tar, base64 (standard on most Unix systems)
 
 ## 📚 Core Elements
 
@@ -149,6 +166,7 @@ jsh install <package> --zypper   # Install via zypper (openSUSE)
 │   ├── colours                     # Terminal color test script
 │   ├── gitx                        # Bulk git command runner
 │   ├── httpstat                    # Visual curl statistics
+│   ├── jssh                        # SSH with jsh config injection
 │   ├── kubectx                     # Kubernetes context switcher
 │   └── kubens                      # Kubernetes namespace switcher
 ├── configs/                        # Package manifests and app configs
@@ -222,4 +240,26 @@ make install-tools     # Install development tools (shfmt, shellcheck, etc.)
 make fmt               # Format all code (shell, Python, YAML, JSON, Markdown)
 make lint              # Lint all code
 make build             # Regenerate jsh from bashly sources
+make test              # Run automated test suite
 ```
+
+### Testing
+
+This project uses [bats](https://github.com/bats-core/bats-core) for automated testing.
+
+**Run all tests:**
+
+```bash
+bats test/
+```
+
+**Run specific test suites:**
+
+```bash
+bats test/unit/              # Unit tests (89 tests)
+bats test/integration/       # Integration tests (74 tests)
+```
+
+**Total test coverage:** 163 automated tests across unit and integration suites.
+
+See [docs/TEST_SUITE.md](docs/TEST_SUITE.md) for complete testing documentation, including performance profiling and manual testing guidance.
