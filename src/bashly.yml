@@ -94,6 +94,9 @@ commands:
       - long: --remove
         short: -d
         help: Remove dotfile symlinks
+      - long: --non-interactive
+        short: -y
+        help: Use defaults (auto-backup conflicts)
 
   - name: clean
     alias: cleanup
@@ -132,3 +135,58 @@ commands:
       - long: --install
         short: -i
         help: Install completions to shell config
+
+  - name: tools
+    help: Discover and manage optional development tools
+    args:
+      - name: action
+        help: "Action: list (default), check, install, recommend"
+        default: list
+    flags:
+      - long: --missing
+        short: -m
+        help: Show only missing tools
+      - long: --category
+        short: -c
+        arg: category
+        help: Filter by category (shell, editor, dev, k8s, git)
+
+  - name: sync
+    help: Sync jsh changes with remote repository
+    flags:
+      - long: --pull
+        short: -p
+        help: Pull changes only (don't push)
+      - long: --push
+        short: -P
+        help: Push changes only (don't pull)
+      - long: --stash
+        short: -s
+        help: Stash local changes before syncing
+      - long: --force
+        short: -f
+        help: Force sync (may overwrite changes)
+
+  - name: profile
+    alias: env
+    help: Show current environment profile and configuration
+    flags:
+      - long: --verbose
+        short: -v
+        help: Show detailed configuration
+      - long: --json
+        help: Output as JSON
+
+  - name: plugins
+    help: Manage shell, vim, and tmux plugins
+    args:
+      - name: action
+        help: "Action: list (default), install, update, check"
+        default: list
+    flags:
+      - long: --vim
+        help: Manage vim plugins only
+      - long: --tmux
+        help: Manage tmux plugins only
+      - long: --shell
+        help: Manage shell plugins only (zinit)
