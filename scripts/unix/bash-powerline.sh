@@ -20,13 +20,11 @@ __powerline() {
   SYMBOL_GIT_PULL=${SYMBOL_GIT_PULL:-↓}
   SYMBOL_PROMPT_CHAR=${SYMBOL_PROMPT_CHAR:-❯}
 
-  if [[ -z "$PS_SYMBOL" ]]; then
-    case "$(uname)" in
-      Darwin) PS_SYMBOL='' ;;
-      Linux) PS_SYMBOL='' ;;
-      *) PS_SYMBOL='$' ;;
-    esac
-  fi
+  # Only set PS_SYMBOL for unknown systems (Darwin/Linux use clean prompt)
+  case "$(uname)" in
+    Darwin | Linux) unset PS_SYMBOL ;;
+    *) PS_SYMBOL="${PS_SYMBOL:-$}" ;;
+  esac
 
   __git_info() {
     [[ $POWERLINE_GIT = 0 ]] && return # disabled
@@ -89,7 +87,7 @@ __powerline() {
       git="$COLOR_GIT$(__git_info)$COLOR_RESET"
     fi
 
-    PS1="$PS_SYMBOL $user_host $cwd$git $symbol"
+    PS1="${PS_SYMBOL:+$PS_SYMBOL }$user_host $cwd$git $symbol"
   }
 
   PROMPT_COMMAND="ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
