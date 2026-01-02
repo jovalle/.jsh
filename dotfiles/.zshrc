@@ -151,25 +151,22 @@ if [[ -z "$P9K_VERSION" ]] || [[ -n "${ZSH_MINIMAL}" ]]; then
     zstyle ':vcs_info:git:*' formats ' %b'
     zstyle ':vcs_info:git:*' actionformats ' %b|%a'
 
-    # Set PS_SYMBOL based on OS (matching bash-powerline)
-    if [[ -z "$PS_SYMBOL" ]]; then
-      case "$(uname)" in
-          Darwin)   PS_SYMBOL='';;  # Apple logo
-          Linux)    PS_SYMBOL='';;  # Linux penguin
-          *)        PS_SYMBOL='$';;  # Generic prompt
-      esac
-    fi
+    # Only set PS_SYMBOL for unknown systems (Darwin/Linux use clean prompt)
+    case "$(uname)" in
+        Darwin | Linux) unset PS_SYMBOL ;;
+        *) PS_SYMBOL="${PS_SYMBOL:-$}" ;;
+    esac
 
     precmd() {
         vcs_info
     }
 
-    # Prompt matching bash-powerline: PS_SYMBOL user@host dir <git> prompt_char
+    # Prompt: user@host dir <git> prompt_char
     # %F{178}: gold color (matching bash COLOR_USER_HOST)
     # %F{blue}: directory color
     # %F{cyan}: git color
     # %(?,%F{green},%F{red}): green ❯ on success, red ❯ on failure
-    PROMPT='$PS_SYMBOL %F{178}%n@%m%f %F{blue}%~%f%F{cyan}${vcs_info_msg_0_}%f %(?,%F{green},%F{red})❯%f '
+    PROMPT='${PS_SYMBOL:+$PS_SYMBOL }%F{178}%n@%m%f %F{blue}%~%f%F{cyan}${vcs_info_msg_0_}%f %(?,%F{green},%F{red})❯%f '
 fi
 
 # Load p10k config if available

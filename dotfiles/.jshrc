@@ -36,7 +36,14 @@
 export CLICOLORS=1         # Colorize output
 export EDITOR=vim          # Default CLI editor
 export VISUAL=vim          # Default full-screen editor
-export TERM=xterm-256color # Terminal type for 256 colors
+
+# Terminal type for 256 colors
+# Don't override TERM inside tmux (it sets tmux-256color which enables features)
+# Also preserve screen-256color for screen sessions
+if [[ -z "${TMUX}" && "${TERM}" != "tmux-256color" && "${TERM}" != "screen-256color" ]]; then
+  export TERM=xterm-256color
+fi
+
 # SH variable might differ, but let's try to detect
 export SH=${SHELL##*/}
 
@@ -657,28 +664,47 @@ _jsh_load_completions() {
   local shell="$1"
   _jsh_debug "completions" "Loading completions for ${shell}"
 
-  # Common completions for all shells (using graceful degradation)
-  _jsh_try_eval "direnv" "$(direnv hook "${shell}")"
-  _jsh_try_eval "docker" "$(docker completion "${shell}")"
-  _jsh_try_completion "task" "eval" "task --completion ${shell}" "${shell}"
-  _jsh_try_eval "zoxide" "$(zoxide init "${shell}")"
+  # Helper to try loading a tool and track if missing
+  _try_load() {
+    local cmd="$1"
+    shift
+    if ! command -v "$cmd" > /dev/null 2>&1; then
+      _jsh_track_missing "$cmd" "completion"
+      return 1
+    fi
+    "$@"
+  }
 
-  _jsh_try_completion "kubectl" "eval" "kubectl completion ${shell}" "${shell}"
-  _jsh_try_completion "uc" "eval" "uc completion ${shell}" "${shell}"
+  # Common completions for all shells (using graceful degradation)
+  _try_load "direnv" _jsh_try_eval "direnv" "$(direnv hook "${shell}" 2>/dev/null)"
+  _try_load "docker" _jsh_try_eval "docker" "$(docker completion "${shell}" 2>/dev/null)"
+  _try_load "task" _jsh_try_completion "task" "eval" "task --completion ${shell}" "${shell}"
+  _try_load "zoxide" _jsh_try_eval "zoxide" "$(zoxide init "${shell}" 2>/dev/null)"
+  _try_load "kubectl" _jsh_try_completion "kubectl" "eval" "kubectl completion ${shell}" "${shell}"
+  _try_load "uc" _jsh_try_completion "uc" "eval" "uc completion ${shell}" "${shell}"
 
   # Shell-specific variations
   case "${shell}" in
     bash)
-      _jsh_try_eval "fzf" "$(fzf --bash)"
+      _try_load "fzf" _jsh_try_eval "fzf" "$(fzf --bash 2>/dev/null)"
       ;;
     zsh)
-      _jsh_try_completion "fzf" "eval" "fzf --zsh" "${shell}"
+      _try_load "fzf" _jsh_try_completion "fzf" "eval" "fzf --zsh" "${shell}"
       ;;
     *)
       warn "Unknown shell: ${shell}"
       return 1
       ;;
   esac
+
+  # Cleanup helper
+  unset -f _try_load
+
+  # Report missing tools (only on first shell startup, not subshells)
+  if [[ -z "${JSH_COMPLETIONS_LOADED:-}" ]]; then
+    export JSH_COMPLETIONS_LOADED=1
+    _jsh_report_missing
+  fi
 
   # Configure atuin with fzf integration for reverse search
   if command -v atuin > /dev/null 2>&1; then
