@@ -59,7 +59,7 @@ broken_count=0
 
 for link in "$HOME"/.* "$HOME"/*; do
   [[ ! -L "$link" ]] && continue
-  target=$(readlink "$link" 2>/dev/null || true)
+  target=$(readlink "$link" 2> /dev/null || true)
   [[ -z "$target" ]] && continue
 
   case "$target" in

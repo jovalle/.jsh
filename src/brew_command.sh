@@ -16,7 +16,7 @@ case "${subcmd}" in
   check)
     brew_check "${flags[@]}" "${extra_args[@]}"
     ;;
-  help|--help|-h)
+  help | --help | -h)
     echo -e "${BOLD}${CYAN}jsh brew${RESET} - Homebrew wrapper"
     echo ""
     echo "Subcommands:"

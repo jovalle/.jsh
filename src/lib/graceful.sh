@@ -13,7 +13,7 @@
 #   _jsh_with_timeout 2 "slow_command"           # Run with timeout
 
 # Get the directory containing this script
-_JSH_GRACEFUL_DIR="${_JSH_GRACEFUL_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)}"
+_JSH_GRACEFUL_DIR="${_JSH_GRACEFUL_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)}"
 
 # ============================================================================
 # Debug Logging
@@ -80,7 +80,7 @@ _jsh_try_eval() {
   local expr="$2"
 
   # Check if command exists using command -v (fast, builtin)
-  if ! command -v "$cmd" &>/dev/null; then
+  if ! command -v "$cmd" &> /dev/null; then
     _jsh_debug "skip eval: command not found: $cmd"
     return 1
   fi
@@ -115,7 +115,7 @@ _jsh_try_completion() {
   local shell="${4:-${SH:-bash}}"
 
   # Check if command exists
-  if ! command -v "$cmd" &>/dev/null; then
+  if ! command -v "$cmd" &> /dev/null; then
     _jsh_debug "skip completion: command not found: $cmd"
     return 1
   fi
@@ -129,8 +129,8 @@ _jsh_try_completion() {
 
       # Try to eval the completion command
       local completion_output
-      if completion_output=$(eval "$completion_arg" 2>/dev/null); then
-        if eval "$completion_output" 2>/dev/null; then
+      if completion_output=$(eval "$completion_arg" 2> /dev/null); then
+        if eval "$completion_output" 2> /dev/null; then
           _jsh_debug "completion loaded (eval): $cmd"
           return 0
         fi
@@ -181,7 +181,7 @@ _jsh_with_timeout() {
   fi
 
   # Use timeout command if available (GNU coreutils)
-  if command -v timeout &>/dev/null; then
+  if command -v timeout &> /dev/null; then
     timeout "$timeout_secs" "$@"
     local exit_status=$?
     if [[ $exit_status -eq 124 ]]; then
@@ -191,7 +191,7 @@ _jsh_with_timeout() {
   fi
 
   # Use gtimeout (Homebrew coreutils on macOS)
-  if command -v gtimeout &>/dev/null; then
+  if command -v gtimeout &> /dev/null; then
     gtimeout "$timeout_secs" "$@"
     local exit_status=$?
     if [[ $exit_status -eq 124 ]]; then
@@ -235,21 +235,20 @@ _jsh_track_missing() {
 _jsh_report_missing() {
   [[ ${#_JSH_MISSING_DEPS[@]} -eq 0 ]] && return 0
 
-  local env="${JSH_ENV:-linux-generic}"
   local pkg_manager=""
   local install_cmd=""
 
   # Detect package manager
-  if command -v brew &>/dev/null; then
+  if command -v brew &> /dev/null; then
     pkg_manager="brew"
     install_cmd="brew install"
-  elif command -v apt &>/dev/null; then
+  elif command -v apt &> /dev/null; then
     pkg_manager="apt"
     install_cmd="sudo apt install"
-  elif command -v dnf &>/dev/null; then
+  elif command -v dnf &> /dev/null; then
     pkg_manager="dnf"
     install_cmd="sudo dnf install"
-  elif command -v pacman &>/dev/null; then
+  elif command -v pacman &> /dev/null; then
     pkg_manager="pacman"
     install_cmd="sudo pacman -S"
   fi
@@ -268,7 +267,7 @@ _jsh_report_missing() {
   fi
 
   # Suggest jsh tools if available
-  if command -v jsh &>/dev/null; then
+  if command -v jsh &> /dev/null; then
     echo -e "\033[34mℹ️  Or run:\033[0m jsh tools install"
   fi
   echo ""
@@ -284,7 +283,7 @@ _jsh_report_missing() {
 # Ensure has_dependency is available (for scripts that need it)
 # This is lazy-loaded to avoid sourcing dependencies.sh unnecessarily
 _jsh_ensure_has_dependency() {
-  if ! declare -f has_dependency &>/dev/null; then
+  if ! declare -f has_dependency &> /dev/null; then
     if [[ -f "${_JSH_GRACEFUL_DIR}/dependencies.sh" ]]; then
       # shellcheck source=dependencies.sh
       source "${_JSH_GRACEFUL_DIR}/dependencies.sh"

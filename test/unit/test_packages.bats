@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# shellcheck disable=SC2154
 # Unit tests for src/lib/packages.sh
 
 setup() {
@@ -60,7 +61,9 @@ teardown() {
   [[ "$status" -eq 0 ]]
 
   # Verify sorting
-  local packages=($(jq -r '.[]' "$json_file"))
+  local packages
+  # shellcheck disable=SC2207
+  packages=($(jq -r '.[]' "$json_file"))
   [[ "${packages[0]}" == "aaa" ]]
   [[ "${packages[1]}" == "mmm" ]]
   [[ "${packages[2]}" == "zzz" ]]
@@ -75,7 +78,8 @@ teardown() {
   [[ "$output" =~ "already in" ]]
 
   # Verify no duplicate
-  local count=$(jq -r '.[]' "$json_file" | grep -c "pkg1")
+  local count
+  count=$(jq -r '.[]' "$json_file" | grep -c "pkg1")
   [[ "$count" -eq 1 ]]
 }
 
@@ -259,9 +263,9 @@ EOF
 EOF
 
   run build_cargo_install_args "$json_file" 0
-  [[ "$output" =~ "--git https://github.com/example/repo" ]]
-  [[ "$output" =~ "--branch main" ]]
-  [[ "$output" =~ "--tag v1.0" ]]
+  [[ "$output" =~ --git\ https://github.com/example/repo ]]
+  [[ "$output" =~ --branch\ main ]]
+  [[ "$output" =~ --tag\ v1\.0 ]]
 }
 
 @test "build_cargo_install_args: includes locked flag" {
@@ -341,7 +345,8 @@ EOF
   [[ "$status" -eq 0 ]]
   [[ "$output" =~ "already in config" ]]
 
-  local count=$(jq 'length' "$json_file")
+  local count
+  count=$(jq 'length' "$json_file")
   [[ "$count" -eq 1 ]]
 }
 

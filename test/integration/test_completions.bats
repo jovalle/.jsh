@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# shellcheck disable=SC2154
 # Integration tests for jsh completions command
 
 setup() {
@@ -126,7 +127,8 @@ teardown() {
   [[ "$status" -eq 0 ]]
   [[ -n "$output" ]]
   # Should have reasonable length
-  local line_count=$(echo "$output" | wc -l)
+  local line_count
+  line_count=$(echo "$output" | wc -l)
   [[ "$line_count" -gt 5 ]]
 }
 
@@ -154,8 +156,10 @@ teardown() {
 }
 
 @test "integration: multiple calls produce same output" {
-  local output1=$("${JSH_ROOT}/jsh" completions)
-  local output2=$("${JSH_ROOT}/jsh" completions)
+  local output1
+  output1=$("${JSH_ROOT}/jsh" completions)
+  local output2
+  output2=$("${JSH_ROOT}/jsh" completions)
 
   [[ "$output1" == "$output2" ]]
 }

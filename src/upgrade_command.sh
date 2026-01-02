@@ -8,18 +8,18 @@ root_dir="$(get_root_dir)"
 
 # Check flags (bashly populates ${args[--flag]})
 use_tui=true
-if [[ -n "${args[--no-progress]:-}" ]] || [[ -n "${args[--quiet]:-}" ]]; then
+if [[ -n "${args[--no - progress]:-}" ]] || [[ -n "${args[--quiet]:-}" ]]; then
   use_tui=false
 fi
 
 # Initialize TUI if available and enabled
-if [[ "$use_tui" == "true" ]] && declare -f tui_init &>/dev/null; then
+if [[ "$use_tui" == "true" ]] && declare -f tui_init &> /dev/null; then
   tui_init || use_tui=false
 fi
 
 # Helper function for TUI-aware logging
 _upgrade_log() {
-  if [[ "$use_tui" == "true" ]] && declare -f tui_log &>/dev/null; then
+  if [[ "$use_tui" == "true" ]] && declare -f tui_log &> /dev/null; then
     tui_log "$@"
   else
     log "$@"
@@ -27,7 +27,7 @@ _upgrade_log() {
 }
 
 _upgrade_success() {
-  if [[ "$use_tui" == "true" ]] && declare -f tui_success &>/dev/null; then
+  if [[ "$use_tui" == "true" ]] && declare -f tui_success &> /dev/null; then
     tui_success "$@"
   else
     success "$@"
@@ -36,7 +36,7 @@ _upgrade_success() {
 
 # Update zinit if present
 if command -v zsh &> /dev/null; then
-  if [[ "$use_tui" == "true" ]] && declare -f tui_run_animated &>/dev/null; then
+  if [[ "$use_tui" == "true" ]] && declare -f tui_run_animated &> /dev/null; then
     tui_progress_start "Updating zinit" 0
     tui_progress_update 0 "cleaning"
     tui_run_animated "zsh -c 'source ~/.zshrc && zinit delete --clean' 2>/dev/null" || true
@@ -57,7 +57,7 @@ fi
 # Update TPM and tmux plugins if present
 tpm_home="${HOME}/.tmux/plugins/tpm"
 if [[ -d "$tpm_home" ]]; then
-  if [[ "$use_tui" == "true" ]] && declare -f tui_run_animated &>/dev/null; then
+  if [[ "$use_tui" == "true" ]] && declare -f tui_run_animated &> /dev/null; then
     tui_progress_start "Updating TPM" 0
     tui_progress_update 0 "pulling latest"
     tui_run_animated "git -C '$tpm_home' pull" || true
@@ -68,13 +68,13 @@ if [[ -d "$tpm_home" ]]; then
     log "Updating TPM..."
     git -C "$tpm_home" pull || true
     log "Updating tmux plugins..."
-    "$tpm_home/bin/update_plugins" all 2>/dev/null || true
+    "$tpm_home/bin/update_plugins" all 2> /dev/null || true
   fi
 fi
 
 if is_macos; then
   if command -v brew &> /dev/null; then
-    if [[ "$use_tui" == "true" ]] && declare -f brew_upgrade_with_tui &>/dev/null; then
+    if [[ "$use_tui" == "true" ]] && declare -f brew_upgrade_with_tui &> /dev/null; then
       brew_upgrade_with_tui
     else
       log "Upgrading Homebrew packages..."
@@ -82,7 +82,7 @@ if is_macos; then
     fi
   fi
   if command -v mas &> /dev/null; then
-    if [[ "$use_tui" == "true" ]] && declare -f tui_run_animated &>/dev/null; then
+    if [[ "$use_tui" == "true" ]] && declare -f tui_run_animated &> /dev/null; then
       tui_progress_start "Upgrading Mac App Store" 0
       tui_run_animated "mas upgrade"
       tui_progress_complete "App Store updated"
@@ -92,7 +92,7 @@ if is_macos; then
     fi
   fi
 elif is_linux; then
-  if [[ "$use_tui" == "true" ]] && declare -f tui_run_animated &>/dev/null; then
+  if [[ "$use_tui" == "true" ]] && declare -f tui_run_animated &> /dev/null; then
     tui_progress_start "Upgrading system packages" 0
     tui_run_animated "upgrade_packages"
     tui_progress_complete "System packages updated"
@@ -101,7 +101,7 @@ elif is_linux; then
     upgrade_packages
   fi
   if command -v brew &> /dev/null; then
-    if [[ "$use_tui" == "true" ]] && declare -f brew_upgrade_with_tui &>/dev/null; then
+    if [[ "$use_tui" == "true" ]] && declare -f brew_upgrade_with_tui &> /dev/null; then
       brew_upgrade_with_tui
     else
       log "Upgrading Homebrew packages..."
@@ -120,10 +120,10 @@ fi
 
 if [[ ${#npm_packages[@]} -gt 0 ]]; then
   # Prefer bun if available, fall back to npm
-  if command -v bun &>/dev/null; then
+  if command -v bun &> /dev/null; then
     pkg_cmd="bun"
     pkg_install="bun install -g"
-  elif command -v npm &>/dev/null; then
+  elif command -v npm &> /dev/null; then
     pkg_cmd="npm"
     pkg_install="npm install -g"
   else
@@ -131,7 +131,7 @@ if [[ ${#npm_packages[@]} -gt 0 ]]; then
   fi
 
   if [[ -n "$pkg_cmd" ]]; then
-    if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+    if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &> /dev/null; then
       tui_progress_start "Upgrading $pkg_cmd packages" "${#npm_packages[@]}"
       for pkg in "${npm_packages[@]}"; do
         tui_progress_next "$pkg"
@@ -148,15 +148,15 @@ if [[ ${#npm_packages[@]} -gt 0 ]]; then
 fi
 
 # Upgrade cargo packages from config
-if command -v cargo &>/dev/null && [[ -f "$root_dir/configs/cargo.json" ]]; then
+if command -v cargo &> /dev/null && [[ -f "$root_dir/configs/cargo.json" ]]; then
   # Count cargo packages
   cargo_count=0
-  if command -v jq &>/dev/null; then
-    cargo_count=$(jq 'length' "$root_dir/configs/cargo.json" 2>/dev/null || echo 0)
+  if command -v jq &> /dev/null; then
+    cargo_count=$(jq 'length' "$root_dir/configs/cargo.json" 2> /dev/null || echo 0)
   fi
 
   if [[ "$cargo_count" -gt 0 ]]; then
-    if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+    if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &> /dev/null; then
       tui_progress_start "Upgrading cargo packages" "$cargo_count"
 
       while IFS= read -r pkg_json; do
@@ -174,7 +174,7 @@ if command -v cargo &>/dev/null && [[ -f "$root_dir/configs/cargo.json" ]]; then
 
           eval "$install_cmd" || warn "Failed to upgrade $pkg_name"
         fi
-      done < <(jq -c '.[]' "$root_dir/configs/cargo.json" 2>/dev/null)
+      done < <(jq -c '.[]' "$root_dir/configs/cargo.json" 2> /dev/null)
 
       tui_progress_complete "Cargo packages updated"
     else
@@ -191,13 +191,13 @@ if command -v cargo &>/dev/null && [[ -f "$root_dir/configs/cargo.json" ]]; then
 
           eval "$install_cmd" || warn "Failed to upgrade from $git_url"
         fi
-      done < <(jq -c '.[]' "$root_dir/configs/cargo.json" 2>/dev/null)
+      done < <(jq -c '.[]' "$root_dir/configs/cargo.json" 2> /dev/null)
     fi
   fi
 fi
 
 # Cleanup TUI
-if [[ "$use_tui" == "true" ]] && declare -f tui_cleanup &>/dev/null; then
+if [[ "$use_tui" == "true" ]] && declare -f tui_cleanup &> /dev/null; then
   tui_cleanup
 fi
 

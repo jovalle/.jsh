@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# shellcheck disable=SC2154
 # Unit tests for src/lib/profiler.sh
 
 setup() {
@@ -71,9 +72,11 @@ teardown() {
 }
 
 @test "get_time_ms: returns different values when called twice" {
-  local time1=$(get_time_ms)
+  local time1
+  time1=$(get_time_ms)
   sleep 0.01
-  local time2=$(get_time_ms)
+  local time2
+  time2=$(get_time_ms)
 
   [[ "${time1}" -lt "${time2}" ]]
 }
@@ -315,7 +318,8 @@ teardown() {
   [[ "${status}" -eq 0 ]]
   [[ "${output}" =~ "Profile saved" ]]
   # Check that a file was created with timestamp pattern
-  local count=$(find "${HOME}/.cache/jsh/profile" -name "*.json" | wc -l)
+  local count
+  count=$(find "${HOME}/.cache/jsh/profile" -name "*.json" | wc -l)
   [[ "${count}" -ge 1 ]]
 }
 

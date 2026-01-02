@@ -17,7 +17,7 @@
 #   report_missing_dependencies
 
 # Get the directory containing this script (resolve to absolute path)
-_JSH_DEPS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+_JSH_DEPS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 
 # Source environment detection if JSH_ENV not already set
 if [[ -z "${JSH_ENV:-}" ]]; then
@@ -35,7 +35,7 @@ if [[ -z "${JSH_ENV:-}" ]]; then
 fi
 
 # Source colors for cmd_exists if not already available
-if ! declare -f cmd_exists &>/dev/null; then
+if ! declare -f cmd_exists &> /dev/null; then
   if [[ -f "${_JSH_DEPS_DIR}/colors.sh" ]]; then
     # shellcheck source=colors.sh
     source "${_JSH_DEPS_DIR}/colors.sh"
@@ -107,7 +107,7 @@ check_dependency() {
   check_cmd="${dep_data%%|*}"
 
   # Evaluate the check command
-  if eval "$check_cmd" &>/dev/null; then
+  if eval "$check_cmd" &> /dev/null; then
     return 0
   else
     return 1
@@ -197,7 +197,7 @@ _get_guidance() {
     ssh-remote)
       guidance="$(echo "$dep_data" | cut -d'|' -f6)"
       ;;
-    linux-generic|*)
+    linux-generic | *)
       guidance="$(echo "$dep_data" | cut -d'|' -f7)"
       ;;
   esac
@@ -283,7 +283,7 @@ require_dependency() {
     local guidance
     guidance="$(_get_guidance "$name")"
     # Use error function if available, otherwise echo and return 1
-    if declare -f error &>/dev/null; then
+    if declare -f error &> /dev/null; then
       error "Required dependency missing: $name. $guidance"
     else
       echo "Error: Required dependency missing: $name. $guidance" >&2

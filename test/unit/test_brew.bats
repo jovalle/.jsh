@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# shellcheck disable=SC2154
 # Unit tests for src/lib/brew.sh
 
 setup() {
@@ -66,7 +67,8 @@ teardown() {
     skip "brew not installed"
   fi
 
-  local brew_path=$(command -v brew)
+  local brew_path
+  brew_path=$(command -v brew)
   run apply_brew_shellenv "${brew_path}"
   [[ "${status}" -eq 0 ]]
 }
@@ -76,7 +78,8 @@ teardown() {
 # ============================================================================
 
 @test "user_exists: returns 0 for current user" {
-  local current_user=$(whoami)
+  local current_user
+  current_user=$(whoami)
   run user_exists "${current_user}"
   [[ "${status}" -eq 0 ]]
 }
@@ -275,7 +278,8 @@ teardown() {
 # ============================================================================
 
 @test "user_in_admin_group: checks admin group membership" {
-  local current_user=$(whoami)
+  local current_user
+  current_user=$(whoami)
 
   # This will vary by system, so just ensure it doesn't crash
   run user_in_admin_group "${current_user}"

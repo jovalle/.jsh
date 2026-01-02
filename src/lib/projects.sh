@@ -60,6 +60,7 @@ _projects_expand_path() {
   # If pattern contains *, expand it
   if [[ "$pattern" == *"*"* ]]; then
     # Use eval for portable glob expansion (works in both bash and zsh)
+    # shellcheck disable=SC2034  # expanded is used within eval
     local expanded
     eval "for expanded in $pattern; do [[ -d \"\$expanded\" ]] && printf '%s\n' \"\$expanded\"; done" 2>/dev/null
   else
@@ -318,9 +319,10 @@ project() {
 
     # Case-insensitive match (also match without leading dot)
     local basename_nodot="${basename#.}"
-    local name_lower="$(_projects_lowercase "$name")"
-    local basename_lower="$(_projects_lowercase "$basename")"
-    local basename_nodot_lower="$(_projects_lowercase "$basename_nodot")"
+    local name_lower basename_lower basename_nodot_lower
+    name_lower="$(_projects_lowercase "$name")"
+    basename_lower="$(_projects_lowercase "$basename")"
+    basename_nodot_lower="$(_projects_lowercase "$basename_nodot")"
 
     if [[ "$basename_lower" == "$name_lower" ]] || [[ "$basename_nodot_lower" == "$name_lower" ]]; then
       matches+=("$dir")
@@ -425,11 +427,10 @@ projects() {
 
   # Determine if we can use TUI mode (interactive terminal)
   local use_tui=false
-  local term_height term_width
+  local term_width
 
   if [[ -t 1 ]] && [[ -z "${JSH_NO_TUI:-}" ]]; then
     use_tui=true
-    term_height=$(tput lines 2>/dev/null || printf '%s' 24)
     term_width=$(tput cols 2>/dev/null || printf '%s' 80)
   else
     term_width=80
@@ -473,8 +474,9 @@ projects() {
   for dir in "${all_dirs[@]}"; do
     ((current++))
 
-    local display_name="$(_projects_display_name "$dir")"
-    local truncated_name="$(_projects_truncate_path "$display_name" "$max_path_len")"
+    local display_name truncated_name
+    display_name="$(_projects_display_name "$dir")"
+    truncated_name="$(_projects_truncate_path "$display_name" "$max_path_len")"
 
     # Update progress at bottom of screen
     if [[ "$use_tui" == true ]]; then
@@ -483,10 +485,11 @@ projects() {
     fi
 
     # Get git status with colors
-    local git_status="$(_projects_git_status "$dir" "color")"
+    local git_status padded_name
+    git_status="$(_projects_git_status "$dir" "color")"
 
     # Format the result with colored path
-    local padded_name="$(printf "%-${max_path_len}s" "$truncated_name")"
+    padded_name="$(printf "%-${max_path_len}s" "$truncated_name")"
 
     if [[ -n "$git_status" ]]; then
       results+=("${CYAN}${padded_name}${RESET}  ${git_status}")
@@ -566,13 +569,14 @@ if [[ -n "${BASH_VERSION:-}" ]]; then
   complete -F _project_completions p
 fi
 
-# Register completion for zsh
+# Register completion for zsh (contains zsh-specific syntax, excluded from shfmt)
 if [[ -n "${ZSH_VERSION:-}" ]]; then
   # Zsh completion
   _project_zsh_completions() {
     local projects=()
     local dir
     local -a words
+    # shellcheck disable=SC2206,SC2296  # Zsh-specific syntax
     words=(${(s: :)BUFFER})
 
     # Check if completing after -r/--remote flag

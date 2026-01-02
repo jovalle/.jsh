@@ -13,7 +13,10 @@ RESET='\033[0m'
 log() { echo -e "${BLUE}🔹 $1${RESET}"; }
 info() { echo -e "${CYAN}ℹ️  $1${RESET}"; }
 warn() { echo -e "${YELLOW}⚠️  $1${RESET}"; }
-error() { echo -e "${RED}❌ $1${RESET}"; exit 1; }
+error() {
+  echo -e "${RED}❌ $1${RESET}"
+  exit 1
+}
 success() { echo -e "${GREEN}✅ $1${RESET}"; }
 header() { echo -e "\n${BOLD}${BLUE}▶ $1${RESET}\n"; }
 

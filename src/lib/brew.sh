@@ -56,9 +56,9 @@ user_in_admin_group() {
     dseditgroup -o checkmember -m "${username}" admin &> /dev/null
   else
     if getent group sudo &> /dev/null; then
-      id -nG "${username}" 2>/dev/null | grep -qw sudo
+      id -nG "${username}" 2> /dev/null | grep -qw sudo
     elif getent group wheel &> /dev/null; then
-      id -nG "${username}" 2>/dev/null | grep -qw wheel
+      id -nG "${username}" 2> /dev/null | grep -qw wheel
     else
       return 1
     fi
@@ -154,12 +154,12 @@ create_brew_user() {
     if ! user_in_admin_group "${username}"; then
       info "Adding '${username}' to admin/sudo group..." >&2
       if is_macos; then
-        sudo dseditgroup -o edit -a "${username}" -t user admin 2>/dev/null || true
+        sudo dseditgroup -o edit -a "${username}" -t user admin 2> /dev/null || true
       else
         if getent group sudo &> /dev/null; then
-          sudo usermod -aG sudo "${username}" 2>/dev/null || true
+          sudo usermod -aG sudo "${username}" 2> /dev/null || true
         elif getent group wheel &> /dev/null; then
-          sudo usermod -aG wheel "${username}" 2>/dev/null || true
+          sudo usermod -aG wheel "${username}" 2> /dev/null || true
         fi
       fi
     fi
@@ -206,7 +206,7 @@ create_brew_user() {
     fi
 
     # Add to admin group (idempotent)
-    sudo dseditgroup -o edit -a "${username}" -t user admin 2>/dev/null || true
+    sudo dseditgroup -o edit -a "${username}" -t user admin 2> /dev/null || true
   else
     # Linux user creation
     if command -v useradd &> /dev/null; then
@@ -229,9 +229,9 @@ create_brew_user() {
 
     # Add to sudo/wheel group (idempotent)
     if getent group sudo &> /dev/null; then
-      sudo usermod -aG sudo "${username}" 2>/dev/null || true
+      sudo usermod -aG sudo "${username}" 2> /dev/null || true
     elif getent group wheel &> /dev/null; then
-      sudo usermod -aG wheel "${username}" 2>/dev/null || true
+      sudo usermod -aG wheel "${username}" 2> /dev/null || true
     fi
   fi
 
@@ -294,9 +294,9 @@ confirm() {
 fix_hostname_resolution() {
   if is_linux; then
     local hostname
-    hostname=$(cat /etc/hostname 2>/dev/null || hostname)
+    hostname=$(cat /etc/hostname 2> /dev/null || hostname)
 
-    if [[ -n "${hostname}" ]] && ! grep -q "127.0.0.1.*${hostname}" /etc/hosts 2>/dev/null; then
+    if [[ -n "${hostname}" ]] && ! grep -q "127.0.0.1.*${hostname}" /etc/hosts 2> /dev/null; then
       info "Fixing hostname resolution in /etc/hosts..."
       # Add hostname to the first 127.0.0.1 line if not already present
       if grep -q "^127.0.0.1" /etc/hosts; then
@@ -332,12 +332,12 @@ brew_setup() {
       if ! user_in_admin_group "${BREW_USER}"; then
         info "Ensuring '${BREW_USER}' has admin/sudo access..."
         if is_macos; then
-          sudo dseditgroup -o edit -a "${BREW_USER}" -t user admin 2>/dev/null || true
+          sudo dseditgroup -o edit -a "${BREW_USER}" -t user admin 2> /dev/null || true
         else
           if getent group sudo &> /dev/null; then
-            sudo usermod -aG sudo "${BREW_USER}" 2>/dev/null || true
+            sudo usermod -aG sudo "${BREW_USER}" 2> /dev/null || true
           elif getent group wheel &> /dev/null; then
-            sudo usermod -aG wheel "${BREW_USER}" 2>/dev/null || true
+            sudo usermod -aG wheel "${BREW_USER}" 2> /dev/null || true
           fi
         fi
       fi
@@ -389,7 +389,7 @@ brew_setup() {
         info "Creating /home/linuxbrew directory..."
         mkdir -p /home/linuxbrew/.linuxbrew
         chown -R "${BREW_USER}:${BREW_USER}" /home/linuxbrew
-      elif [[ ! -w "/home/linuxbrew/.linuxbrew" ]] || [[ "$(stat -c '%U' /home/linuxbrew 2>/dev/null)" != "${BREW_USER}" ]]; then
+      elif [[ ! -w "/home/linuxbrew/.linuxbrew" ]] || [[ "$(stat -c '%U' /home/linuxbrew 2> /dev/null)" != "${BREW_USER}" ]]; then
         info "Fixing ownership of /home/linuxbrew..."
         chown -R "${BREW_USER}:${BREW_USER}" /home/linuxbrew
       fi
@@ -474,7 +474,7 @@ extract_packages_from_json() {
     echo ""
     return
   fi
-  jq -r '.packages[]? // empty' "${file}" 2>/dev/null | sort -u
+  jq -r '.packages[]? // empty' "${file}" 2> /dev/null | sort -u
 }
 
 # Check if a package is available in Homebrew API
@@ -835,7 +835,7 @@ get_user_shell() {
 # Get list of outdated packages
 # Returns: newline-separated list of package names
 brew_get_outdated() {
-  run_brew outdated --quiet 2>/dev/null || true
+  run_brew outdated --quiet 2> /dev/null || true
 }
 
 # Get count of outdated packages
@@ -883,7 +883,7 @@ brew_upgrade_with_tui() {
 
   # Source TUI if available and not already loaded
   # (Don't re-source - it resets state variables like _TUI_ENABLED)
-  if ! declare -f tui_progress_start &>/dev/null; then
+  if ! declare -f tui_progress_start &> /dev/null; then
     if [[ -f "$root_dir/src/lib/tui.sh" ]]; then
       # shellcheck source=src/lib/tui.sh
       source "$root_dir/src/lib/tui.sh"
@@ -891,7 +891,7 @@ brew_upgrade_with_tui() {
   fi
 
   # Check if TUI functions exist
-  if ! declare -f tui_progress_start &>/dev/null; then
+  if ! declare -f tui_progress_start &> /dev/null; then
     # Fallback to simple execution
     log "Upgrading Homebrew packages..."
     run_brew update && run_brew upgrade
@@ -921,9 +921,9 @@ brew_upgrade_with_tui() {
   if [[ -z "$outdated" ]] || [[ "$outdated" == $'\n' ]]; then
     outdated_count=0
   else
-    outdated_count=$(echo "$outdated" | grep -c . 2>/dev/null || echo 0)
+    outdated_count=$(echo "$outdated" | grep -c . 2> /dev/null || echo 0)
     # Trim any whitespace/newlines from count
-    outdated_count="${outdated_count//[$'\n\r\t ']}"
+    outdated_count="${outdated_count//[$'\n\r\t ']/}"
     outdated_count="${outdated_count:-0}"
   fi
 
@@ -950,7 +950,7 @@ brew_upgrade_with_tui() {
 
   # Process output in real-time
   local last_line=0
-  while kill -0 "$brew_pid" 2>/dev/null; do
+  while kill -0 "$brew_pid" 2> /dev/null; do
     # Read new lines from output file (use process substitution to avoid subshell)
     local current_line=0
     while IFS= read -r line; do
@@ -959,8 +959,8 @@ brew_upgrade_with_tui() {
       [[ "$current_line" -le "$last_line" ]] && continue
 
       # Detect package being upgraded (brew uses ==> prefix)
-      if [[ "$line" =~ ^==\>\ Upgrading\ ([a-zA-Z0-9@._-]+) ]] || \
-         [[ "$line" =~ ^Upgrading\ ([a-zA-Z0-9@._-]+) ]]; then
+      if [[ "$line" =~ ^==\>\ Upgrading\ ([a-zA-Z0-9@._-]+) ]] ||
+        [[ "$line" =~ ^Upgrading\ ([a-zA-Z0-9@._-]+) ]]; then
         current_pkg="${BASH_REMATCH[1]}"
         ((current++)) || true
         tui_progress_update "$current" "$current_pkg"
@@ -970,7 +970,7 @@ brew_upgrade_with_tui() {
       elif [[ "$line" =~ ^==\>\ Linking\ ([a-zA-Z0-9@._-]+) ]]; then
         tui_progress_update "$current" "linking ${BASH_REMATCH[1]}"
       fi
-    done < "$upgrade_output_file" 2>/dev/null
+    done < "$upgrade_output_file" 2> /dev/null
     last_line="$current_line"
     sleep 0.1
   done
@@ -978,13 +978,13 @@ brew_upgrade_with_tui() {
   # Process any remaining output after brew finishes
   while IFS= read -r line; do
     ((last_line++)) || true
-    if [[ "$line" =~ ^==\>\ Upgrading\ ([a-zA-Z0-9@._-]+) ]] || \
-       [[ "$line" =~ ^Upgrading\ ([a-zA-Z0-9@._-]+) ]]; then
+    if [[ "$line" =~ ^==\>\ Upgrading\ ([a-zA-Z0-9@._-]+) ]] ||
+      [[ "$line" =~ ^Upgrading\ ([a-zA-Z0-9@._-]+) ]]; then
       current_pkg="${BASH_REMATCH[1]}"
       ((current++)) || true
       tui_progress_update "$current" "$current_pkg"
     fi
-  done < <(tail -n +"$((last_line + 1))" "$upgrade_output_file" 2>/dev/null)
+  done < <(tail -n +"$((last_line + 1))" "$upgrade_output_file" 2> /dev/null)
 
   # Wait for brew to finish and get exit code
   wait "$brew_pid"
@@ -992,13 +992,12 @@ brew_upgrade_with_tui() {
 
   # Process final output for errors
   if [[ -f "$upgrade_output_file" ]]; then
-    local in_error_block=false
     local error_pkg=""
 
     while IFS= read -r line; do
       # Track current package context
-      if [[ "$line" =~ ^==\>\ Upgrading\ ([a-zA-Z0-9@._-]+) ]] || \
-         [[ "$line" =~ ^Upgrading\ ([a-zA-Z0-9@._-]+) ]]; then
+      if [[ "$line" =~ ^==\>\ Upgrading\ ([a-zA-Z0-9@._-]+) ]] ||
+        [[ "$line" =~ ^Upgrading\ ([a-zA-Z0-9@._-]+) ]]; then
         error_pkg="${BASH_REMATCH[1]}"
       fi
 
