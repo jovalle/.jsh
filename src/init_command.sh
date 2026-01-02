@@ -9,14 +9,14 @@ target_shell=""
 setup_type=""
 run_setup=false
 
-[[ "${args[--non-interactive]}" ]] && interactive=false
+[[ "${args[--non - interactive]}" ]] && interactive=false
 [[ "${args[--shell]}" ]] && target_shell="${args[--shell]}"
 [[ "${args[--minimal]}" ]] && setup_type="minimal"
 [[ "${args[--full]}" ]] && setup_type="full"
 [[ "${args[--setup]}" ]] && run_setup=true
-[[ "${args[--no-install]}" ]] && install_packages=false
-[[ "${args[--skip-brew]}" ]] && skip_brew=true
-[[ "${args[--dry-run]}" ]] && dry_run=true
+[[ "${args[--no - install]}" ]] && install_packages=false
+[[ "${args[--skip - brew]}" ]] && skip_brew=true
+[[ "${args[--dry - run]}" ]] && dry_run=true
 
 header "Initializing jsh environment"
 
@@ -37,7 +37,7 @@ if [[ "$interactive" == "true" ]]; then
     echo ""
 
     case "$shell_choice" in
-      1|"") target_shell="zsh" ;;
+      1 | "") target_shell="zsh" ;;
       2) target_shell="bash" ;;
       3) target_shell="skip" ;;
       *) target_shell="zsh" ;;
@@ -55,7 +55,7 @@ if [[ "$interactive" == "true" ]]; then
 
     case "$setup_choice" in
       1) setup_type="minimal" ;;
-      2|"") setup_type="full" ;;
+      2 | "") setup_type="full" ;;
       *) setup_type="full" ;;
     esac
   fi
@@ -92,7 +92,7 @@ if [[ -f "$root_dir/.gitmodules" ]]; then
     # Check if .git directory is writable (handles read-only mounts)
     if [[ -d "$root_dir/.git" ]] && [[ ! -w "$root_dir/.git" ]]; then
       warn "Git directory is read-only, skipping submodule initialization"
-    elif ! git -C "$root_dir" submodule update --init --recursive 2>/dev/null; then
+    elif ! git -C "$root_dir" submodule update --init --recursive 2> /dev/null; then
       warn "Could not initialize submodules (read-only filesystem?)"
     fi
   fi

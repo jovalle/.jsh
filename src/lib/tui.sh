@@ -25,26 +25,26 @@
 # State Variables
 # =============================================================================
 
-_TUI_ENABLED=""           # Whether TUI mode is active
-_TUI_SCROLLING_TOP=1      # Top line of scrolling region
-_TUI_SCROLLING_BOTTOM=0   # Bottom line of scrolling region
-_TUI_STATUS_LINE=0        # Line number for status bar
-_TUI_TERM_HEIGHT=0        # Terminal height
-_TUI_TERM_WIDTH=0         # Terminal width
+_TUI_ENABLED=""         # Whether TUI mode is active
+_TUI_SCROLLING_TOP=1    # Top line of scrolling region
+_TUI_SCROLLING_BOTTOM=0 # Bottom line of scrolling region
+_TUI_STATUS_LINE=0      # Line number for status bar
+_TUI_TERM_HEIGHT=0      # Terminal height
+_TUI_TERM_WIDTH=0       # Terminal width
 
 # Progress state
-_TUI_OPERATION=""         # Current operation name
-_TUI_CURRENT=0            # Current item number
-_TUI_TOTAL=0              # Total items (0 = indeterminate/spinner)
-_TUI_CURRENT_ITEM=""      # Name of current item being processed
-_TUI_START_TIME=0         # Epoch timestamp when operation started
+_TUI_OPERATION=""    # Current operation name
+_TUI_CURRENT=0       # Current item number
+_TUI_TOTAL=0         # Total items (0 = indeterminate/spinner)
+_TUI_CURRENT_ITEM="" # Name of current item being processed
+_TUI_START_TIME=0    # Epoch timestamp when operation started
 
 # Spinner state
-_TUI_SPINNER_IDX=0        # Current spinner frame index
+_TUI_SPINNER_IDX=0 # Current spinner frame index
 
 # Background animation state
-_TUI_ANIM_PID=""          # PID of background animation process
-_TUI_ANIM_FIFO=""         # FIFO for state communication
+_TUI_ANIM_PID=""  # PID of background animation process
+_TUI_ANIM_FIFO="" # FIFO for state communication
 
 # =============================================================================
 # Terminal Control Sequences
@@ -89,30 +89,30 @@ tui_is_supported() {
   fi
 
   # Check for tput availability
-  if ! command -v tput &>/dev/null; then
+  if ! command -v tput &> /dev/null; then
     _TUI_SUPPORTED=0
     return 1
   fi
 
   # Check required tput capabilities
-  if ! tput lines &>/dev/null || ! tput cols &>/dev/null; then
+  if ! tput lines &> /dev/null || ! tput cols &> /dev/null; then
     _TUI_SUPPORTED=0
     return 1
   fi
 
   # Check for scrolling region support (csr capability)
   # Note: Not all terminals support this, fall back to simpler approach if not
-  if ! tput csr 0 10 &>/dev/null 2>&1; then
+  if ! tput csr 0 10 &> /dev/null 2>&1; then
     # Try ANSI escape directly
-    if ! printf '\033[1;10r' &>/dev/null 2>&1; then
+    if ! printf '\033[1;10r' &> /dev/null 2>&1; then
       _TUI_SUPPORTED=0
       return 1
     fi
     # Reset scrolling region
-    printf '\033[r' >/dev/null 2>&1
+    printf '\033[r' > /dev/null 2>&1
   else
     # Reset scrolling region
-    tput csr 0 "$(tput lines)" >/dev/null 2>&1
+    tput csr 0 "$(tput lines)" > /dev/null 2>&1
   fi
 
   _TUI_SUPPORTED=1
@@ -138,17 +138,17 @@ tui_init() {
   fi
 
   # Set up terminal control sequences
-  _TUI_HIDE_CURSOR=$(tput civis 2>/dev/null || printf '\033[?25l')
-  _TUI_SHOW_CURSOR=$(tput cnorm 2>/dev/null || printf '\033[?25h')
+  _TUI_HIDE_CURSOR=$(tput civis 2> /dev/null || printf '\033[?25l')
+  _TUI_SHOW_CURSOR=$(tput cnorm 2> /dev/null || printf '\033[?25h')
 
   # Get terminal dimensions
   local size_output
-  if size_output=$(stty size 2>/dev/null) && [[ -n "$size_output" ]]; then
+  if size_output=$(stty size 2> /dev/null) && [[ -n "$size_output" ]]; then
     _TUI_TERM_HEIGHT="${size_output%% *}"
     _TUI_TERM_WIDTH="${size_output##* }"
   else
-    _TUI_TERM_HEIGHT=$(tput lines 2>/dev/null || echo 24)
-    _TUI_TERM_WIDTH=$(tput cols 2>/dev/null || echo 80)
+    _TUI_TERM_HEIGHT=$(tput lines 2> /dev/null || echo 24)
+    _TUI_TERM_WIDTH=$(tput cols 2> /dev/null || echo 80)
   fi
 
   # Ensure we have valid numbers
@@ -206,7 +206,7 @@ tui_cleanup() {
     # Get current cursor row before resetting (this is where content ended)
     # Use escape sequence to query, with fallback
     local cursor_row=""
-    if read -rs -t0.1 -d'R' -p $'\033[6n' cursor_pos 2>/dev/null; then
+    if read -rs -t0.1 -d'R' -p $'\033[6n' cursor_pos 2> /dev/null; then
       cursor_row="${cursor_pos#*[}"
       cursor_row="${cursor_row%;*}"
     fi
@@ -256,7 +256,7 @@ _tui_progress_bar() {
 
   if [[ $total -eq 0 ]]; then
     # Empty bar for indeterminate
-    printf '%*s' "$width" | tr ' ' '░'
+    printf '%*s' "$width" "" | tr ' ' '░'
     return
   fi
 
@@ -274,10 +274,10 @@ _tui_progress_bar() {
 
   local bar=""
   if [[ $filled -gt 0 ]]; then
-    bar+=$(printf '%*s' "$filled" | tr ' ' '█')
+    bar+=$(printf '%*s' "$filled" "" | tr ' ' '█')
   fi
   if [[ $empty -gt 0 ]]; then
-    bar+=$(printf '%*s' "$empty" | tr ' ' '░')
+    bar+=$(printf '%*s' "$empty" "" | tr ' ' '░')
   fi
 
   printf '%s' "$bar"
@@ -305,7 +305,7 @@ _tui_spinner_advance() {
 # to keep the spinner animated and timer updated
 _tui_anim_start() {
   [[ -z "$_TUI_ENABLED" ]] && return 0
-  [[ -n "$_TUI_ANIM_PID" ]] && return 0  # Already running
+  [[ -n "$_TUI_ANIM_PID" ]] && return 0 # Already running
 
   # Create state file for communication (faster than FIFO for reads)
   _TUI_ANIM_FIFO="${TMPDIR:-/tmp}/tui_state_$$"
@@ -318,7 +318,7 @@ _tui_anim_start() {
     local spinner_chars='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
     local spinner_len=${#spinner_chars}
     local idx=0
-    local interval=0.1  # 100ms refresh rate
+    local interval=0.1 # 100ms refresh rate
 
     while true; do
       # Check if state file still exists (signals shutdown)
@@ -328,11 +328,14 @@ _tui_anim_start() {
       local operation="" total=0 current=0 item="" start_time=0 term_width=80 status_line=1 scroll_bottom=1
       if [[ -f "$_TUI_ANIM_FIFO" ]]; then
         # shellcheck disable=SC1090
-        source "$_TUI_ANIM_FIFO" 2>/dev/null || true
+        source "$_TUI_ANIM_FIFO" 2> /dev/null || true
       fi
 
       # Skip if no operation
-      [[ -z "$operation" ]] && { sleep "$interval"; continue; }
+      [[ -z "$operation" ]] && {
+        sleep "$interval"
+        continue
+      }
 
       # Build status line
       local spinner="${spinner_chars:$((idx % spinner_len)):1}"
@@ -349,18 +352,18 @@ _tui_anim_start() {
 
         # Format elapsed time
         if [[ $elapsed_secs -ge 60 ]]; then
-          elapsed="$(( elapsed_secs / 60 ))m$(( elapsed_secs % 60 ))s"
+          elapsed="$((elapsed_secs / 60))m$((elapsed_secs % 60))s"
         else
           elapsed="${elapsed_secs}s"
         fi
 
         # Calculate ETA if we have progress
         if [[ "$total" -gt 0 ]] && [[ "$current" -gt 0 ]]; then
-          local avg_per_item=$(( elapsed_secs * 100 / current ))  # centiseconds
-          local remaining_items=$(( total - current ))
-          local eta_secs=$(( remaining_items * avg_per_item / 100 ))
+          local avg_per_item=$((elapsed_secs * 100 / current)) # centiseconds
+          local remaining_items=$((total - current))
+          local eta_secs=$((remaining_items * avg_per_item / 100))
           if [[ $eta_secs -ge 60 ]]; then
-            eta="~$(( eta_secs / 60 ))m$(( eta_secs % 60 ))s remaining"
+            eta="~$((eta_secs / 60))m$((eta_secs % 60))s remaining"
           elif [[ $eta_secs -gt 0 ]]; then
             eta="~${eta_secs}s remaining"
           fi
@@ -375,14 +378,14 @@ _tui_anim_start() {
       if [[ "$total" -gt 0 ]]; then
         # Determinate progress bar
         local bar_width=20
-        local filled=$(( current * bar_width / total ))
+        local filled=$((current * bar_width / total))
         [[ $filled -gt $bar_width ]] && filled=$bar_width
         [[ $filled -lt 0 ]] && filled=0
-        local empty=$(( bar_width - filled ))
+        local empty=$((bar_width - filled))
 
         local bar=""
-        [[ $filled -gt 0 ]] && bar+=$(printf '%*s' "$filled" | tr ' ' '█')
-        [[ $empty -gt 0 ]] && bar+=$(printf '%*s' "$empty" | tr ' ' '░')
+        [[ $filled -gt 0 ]] && bar+=$(printf '%*s' "$filled" "" | tr ' ' '█')
+        [[ $empty -gt 0 ]] && bar+=$(printf '%*s' "$empty" "" | tr ' ' '░')
         status+="[${bar}] ${current}/${total}"
       else
         # Indeterminate spinner
@@ -402,10 +405,10 @@ _tui_anim_start() {
       fi
 
       # Draw status bar - position cursor to scroll_bottom after to avoid race with main process
-      printf '\033[%d;1H' "$status_line"       # Move to status line
-      printf '\033[2K'                         # Clear line
-      printf '%b' "$status"                    # Print status
-      printf '\033[%d;1H' "$scroll_bottom"     # Return to scroll region bottom
+      printf '\033[%d;1H' "$status_line"   # Move to status line
+      printf '\033[2K'                     # Clear line
+      printf '%b' "$status"                # Print status
+      printf '\033[%d;1H' "$scroll_bottom" # Return to scroll region bottom
 
       sleep "$interval"
     done
@@ -419,7 +422,7 @@ _tui_anim_start() {
 _tui_anim_write_state() {
   [[ -z "$_TUI_ANIM_FIFO" ]] && return 0
 
-  cat > "$_TUI_ANIM_FIFO" <<EOF
+  cat > "$_TUI_ANIM_FIFO" << EOF
 operation="$_TUI_OPERATION"
 total=$_TUI_TOTAL
 current=$_TUI_CURRENT
@@ -438,8 +441,8 @@ _tui_anim_stop() {
     [[ -n "$_TUI_ANIM_FIFO" ]] && rm -f "$_TUI_ANIM_FIFO"
 
     # Kill the process if still running
-    kill "$_TUI_ANIM_PID" 2>/dev/null || true
-    wait "$_TUI_ANIM_PID" 2>/dev/null || true
+    kill "$_TUI_ANIM_PID" 2> /dev/null || true
+    wait "$_TUI_ANIM_PID" 2> /dev/null || true
 
     [[ -n "${JSH_DEBUG_TUI:-}" ]] && echo "[tui:debug] Animation stopped" >&2
     _TUI_ANIM_PID=""
@@ -478,7 +481,7 @@ _tui_draw_status_bar() {
       now=$(date +%s)
       elapsed_secs=$((now - _TUI_START_TIME))
       if [[ $elapsed_secs -ge 60 ]]; then
-        elapsed="$(( elapsed_secs / 60 ))m$(( elapsed_secs % 60 ))s"
+        elapsed="$((elapsed_secs / 60))m$((elapsed_secs % 60))s"
       else
         elapsed="${elapsed_secs}s"
       fi
@@ -526,10 +529,10 @@ _tui_clear_status_area() {
     return 0
   fi
 
-  printf '\0337'  # Save cursor (ESC 7)
-  printf '\033[%d;1H' "$_TUI_STATUS_LINE"  # Move to status line
-  printf '\033[2K'  # Clear line
-  printf '\0338'  # Restore cursor (ESC 8)
+  printf '\0337'                          # Save cursor (ESC 7)
+  printf '\033[%d;1H' "$_TUI_STATUS_LINE" # Move to status line
+  printf '\033[2K'                        # Clear line
+  printf '\0338'                          # Restore cursor (ESC 8)
 }
 
 # Render the status bar (alias for _tui_draw_status_bar)
@@ -563,8 +566,10 @@ tui_run_animated() {
 
   # Start command in background, capture output
   : > "$output_file"
-  ( eval "$cmd" > "$output_file" 2>&1; echo $? > "$pid_file" ) &
-  local bg_pid=$!
+  (
+    eval "$cmd" > "$output_file" 2>&1
+    echo $? > "$pid_file"
+  ) &
 
   # Poll for output while command runs
   while true; do
@@ -572,7 +577,7 @@ tui_run_animated() {
     if [[ -f "$pid_file" ]]; then
       # Process any remaining output
       local line
-      tail -n +$((lines_read + 1)) "$output_file" 2>/dev/null | while IFS= read -r line; do
+      tail -n +$((lines_read + 1)) "$output_file" 2> /dev/null | while IFS= read -r line; do
         [[ -n "$line" ]] && echo -e "${BLUE}[*]${RESET} $line"
       done
       break
@@ -580,7 +585,7 @@ tui_run_animated() {
 
     # Read new lines from output file
     local new_lines
-    new_lines=$(tail -n +$((lines_read + 1)) "$output_file" 2>/dev/null)
+    new_lines=$(tail -n +$((lines_read + 1)) "$output_file" 2> /dev/null)
     if [[ -n "$new_lines" ]]; then
       local line
       while IFS= read -r line; do

@@ -26,12 +26,12 @@ profile_init() {
   _PROFILE_ENABLED=1
 
   # Clean up any previous profile run
-  rm -rf "${_PROFILE_DIR}" 2>/dev/null
+  rm -rf "${_PROFILE_DIR}" 2> /dev/null
   mkdir -p "${_PROFILE_DIR}"
 
   _PROFILE_TOTAL_START=$(get_time_ms)
   echo "${_PROFILE_TOTAL_START}" > "${_PROFILE_DIR}/_total_start"
-  : > "${_PROFILE_DIR}/_order"  # Create empty order file
+  : > "${_PROFILE_DIR}/_order" # Create empty order file
 }
 
 # Get current time in milliseconds
@@ -57,7 +57,7 @@ profile_start() {
   echo "${description}" > "${_PROFILE_DIR}/${section_name}.desc"
 
   # Track order of sections
-  if ! grep -qx "${section_name}" "${_PROFILE_DIR}/_order" 2>/dev/null; then
+  if ! grep -qx "${section_name}" "${_PROFILE_DIR}/_order" 2> /dev/null; then
     echo "${section_name}" >> "${_PROFILE_DIR}/_order"
   fi
 }
@@ -99,7 +99,7 @@ profile_report() {
 
   local total_end total_start total_duration
   total_end=$(get_time_ms)
-  total_start=$(cat "${_PROFILE_DIR}/_total_start" 2>/dev/null || echo "$total_end")
+  total_start=$(cat "${_PROFILE_DIR}/_total_start" 2> /dev/null || echo "$total_end")
   total_duration=$((total_end - total_start))
 
   # Output format
@@ -132,7 +132,7 @@ profile_report() {
       [[ "$section" == *"_total" ]] && continue
 
       duration=$(profile_duration "$section")
-      description=$(cat "${_PROFILE_DIR}/${section}.desc" 2>/dev/null || echo "$section")
+      description=$(cat "${_PROFILE_DIR}/${section}.desc" 2> /dev/null || echo "$section")
       percentage=0
 
       if [[ "$total_duration" -gt 0 ]]; then
@@ -179,7 +179,7 @@ profile_report() {
     count=0
     echo "$sorted_output" | sort -t'|' -k1 -rn | head -5 | while IFS='|' read -r dur sec; do
       [[ -z "$sec" ]] && continue
-      description=$(cat "${_PROFILE_DIR}/${sec}.desc" 2>/dev/null || echo "$sec")
+      description=$(cat "${_PROFILE_DIR}/${sec}.desc" 2> /dev/null || echo "$sec")
       printf "%2d. %-40s %6d ms\n" $((count + 1)) "$description" "$dur"
       count=$((count + 1))
     done
@@ -188,8 +188,9 @@ profile_report() {
 
 # Generate JSON format report
 profile_report_json() {
-  local total_end=$(get_time_ms)
-  local total_duration=$((total_end - _PROFILE_TOTAL_START))
+  local total_end total_duration
+  total_end=$(get_time_ms)
+  total_duration=$((total_end - _PROFILE_TOTAL_START))
   local output_file="${JSH_PROFILE_OUTPUT:-}"
 
   local json="{\n"
@@ -197,11 +198,12 @@ profile_report_json() {
   json+="  \"total_duration_ms\": $total_duration,\n"
   json+="  \"sections\": [\n"
 
-  local first=1
-  for section in "${_PROFILE_ORDER[@]}"; do
-    local duration=$(profile_duration "$section")
-    local description="${_PROFILE_DESCRIPTIONS[$section]}"
-    local percentage=0
+  local first=1 section duration description percentage
+  while IFS= read -r section || [[ -n "$section" ]]; do
+    [[ -z "$section" ]] && continue
+    duration=$(profile_duration "$section")
+    description=$(cat "${_PROFILE_DIR}/${section}.desc" 2> /dev/null || echo "$section")
+    percentage=0
 
     if [[ "$total_duration" -gt 0 ]]; then
       percentage=$((duration * 100 / total_duration))
@@ -218,7 +220,7 @@ profile_report_json() {
     json+="      \"duration_ms\": $duration,\n"
     json+="      \"percentage\": $percentage\n"
     json+="    }"
-  done
+  done < "${_PROFILE_DIR}/_order"
 
   json+="\n  ]\n"
   json+="}\n"
@@ -288,6 +290,6 @@ profile_command() {
 # Export functions for use in shell configs
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
   # Being sourced
-  export -f profile_init profile_start profile_end profile_report 2>/dev/null || true
-  export -f profile_save profile_compare profile_command 2>/dev/null || true
+  export -f profile_init profile_start profile_end profile_report 2> /dev/null || true
+  export -f profile_save profile_compare profile_command 2> /dev/null || true
 fi

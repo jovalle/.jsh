@@ -15,10 +15,10 @@
 #   _jsh_ssh_inject_command host [ssh_args...]  # Echoes full SSH command
 
 # Get the directory containing this script
-_JSH_SSH_DIR="${_JSH_SSH_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)}"
+_JSH_SSH_DIR="${_JSH_SSH_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)}"
 
 # Load graceful.sh for _jsh_debug if not already loaded
-if ! declare -f _jsh_debug &>/dev/null; then
+if ! declare -f _jsh_debug &> /dev/null; then
   if [[ -f "${_JSH_SSH_DIR}/graceful.sh" ]]; then
     # shellcheck source=graceful.sh
     source "${_JSH_SSH_DIR}/graceful.sh"
@@ -37,11 +37,11 @@ fi
 _jsh_ssh_check_deps() {
   local missing=()
 
-  if ! command -v tar &>/dev/null; then
+  if ! command -v tar &> /dev/null; then
     missing+=("tar")
   fi
 
-  if ! command -v base64 &>/dev/null; then
+  if ! command -v base64 &> /dev/null; then
     missing+=("base64")
   fi
 
@@ -103,7 +103,7 @@ _jsh_ssh_bundle() {
   # Create tarball and encode
   # Use gzip for smaller payload, base64 for safe transmission
   local payload
-  payload=$(tar -czf - -C "$(dirname "${config_path}")" "$(basename "${config_path}")" 2>/dev/null | base64)
+  payload=$(tar -czf - -C "$(dirname "${config_path}")" "$(basename "${config_path}")" 2> /dev/null | base64)
 
   if [[ -z "${payload}" ]]; then
     echo "Error: Failed to create bundle" >&2

@@ -14,7 +14,7 @@ if is_macos; then
   casks_file="$root_dir/configs/macos/casks.json"
   if [[ -f "$casks_file" ]] && jq -e --arg pkg "$package" 'index($pkg) != null' "$casks_file" > /dev/null 2>&1; then
     log "Uninstalling cask: $package"
-    brew_cmd uninstall --cask "$package" 2>/dev/null || warn "Failed to uninstall cask"
+    brew_cmd uninstall --cask "$package" 2> /dev/null || warn "Failed to uninstall cask"
     remove_package_from_json "$casks_file" "$package"
     found=true
   fi
@@ -23,7 +23,7 @@ if is_macos; then
   formulae_file="$root_dir/configs/macos/formulae.json"
   if [[ -f "$formulae_file" ]] && jq -e --arg pkg "$package" 'index($pkg) != null' "$formulae_file" > /dev/null 2>&1; then
     log "Uninstalling formula: $package"
-    brew_cmd uninstall "$package" 2>/dev/null || warn "Failed to uninstall formula"
+    brew_cmd uninstall "$package" 2> /dev/null || warn "Failed to uninstall formula"
     remove_package_from_json "$formulae_file" "$package"
     found=true
   fi
@@ -31,9 +31,9 @@ if is_macos; then
   # If not found in config, try to uninstall anyway
   if [[ "$found" == "false" ]]; then
     log "Package not in config files, attempting uninstall..."
-    if brew_cmd uninstall --cask "$package" 2>/dev/null; then
+    if brew_cmd uninstall --cask "$package" 2> /dev/null; then
       success "Uninstalled cask: $package"
-    elif brew_cmd uninstall "$package" 2>/dev/null; then
+    elif brew_cmd uninstall "$package" 2> /dev/null; then
       success "Uninstalled formula: $package"
     else
       error "Package '$package' not found or failed to uninstall"
@@ -45,7 +45,7 @@ elif is_linux; then
   formulae_file="$root_dir/configs/linux/formulae.json"
   if [[ -f "$formulae_file" ]] && jq -e --arg pkg "$package" 'index($pkg) != null' "$formulae_file" > /dev/null 2>&1; then
     log "Uninstalling brew formula: $package"
-    brew_cmd uninstall "$package" 2>/dev/null || warn "Failed to uninstall via brew"
+    brew_cmd uninstall "$package" 2> /dev/null || warn "Failed to uninstall via brew"
     remove_package_from_json "$formulae_file" "$package"
     found=true
   fi
@@ -64,9 +64,9 @@ elif is_linux; then
     if [[ -f "$config_file" ]] && jq -e --arg pkg "$package" 'index($pkg) != null' "$config_file" > /dev/null 2>&1; then
       log "Found in $pm config, uninstalling..."
       case "$pm" in
-        apt) sudo apt-get remove -y "$package" 2>/dev/null || warn "apt remove failed" ;;
-        dnf) sudo dnf remove -y "$package" 2>/dev/null || warn "dnf remove failed" ;;
-        pacman) sudo pacman -Rs --noconfirm "$package" 2>/dev/null || warn "pacman remove failed" ;;
+        apt) sudo apt-get remove -y "$package" 2> /dev/null || warn "apt remove failed" ;;
+        dnf) sudo dnf remove -y "$package" 2> /dev/null || warn "dnf remove failed" ;;
+        pacman) sudo pacman -Rs --noconfirm "$package" 2> /dev/null || warn "pacman remove failed" ;;
       esac
       remove_package_from_json "$config_file" "$package"
       found=true
@@ -76,13 +76,13 @@ elif is_linux; then
   # If not found in config, try to uninstall anyway
   if [[ "$found" == "false" ]]; then
     log "Package not in config files, attempting uninstall..."
-    if command -v brew &> /dev/null && brew_cmd uninstall "$package" 2>/dev/null; then
+    if command -v brew &> /dev/null && brew_cmd uninstall "$package" 2> /dev/null; then
       success "Uninstalled via brew: $package"
-    elif command -v apt-get &> /dev/null && sudo apt-get remove -y "$package" 2>/dev/null; then
+    elif command -v apt-get &> /dev/null && sudo apt-get remove -y "$package" 2> /dev/null; then
       success "Uninstalled via apt: $package"
-    elif command -v dnf &> /dev/null && sudo dnf remove -y "$package" 2>/dev/null; then
+    elif command -v dnf &> /dev/null && sudo dnf remove -y "$package" 2> /dev/null; then
       success "Uninstalled via dnf: $package"
-    elif command -v pacman &> /dev/null && sudo pacman -Rs --noconfirm "$package" 2>/dev/null; then
+    elif command -v pacman &> /dev/null && sudo pacman -Rs --noconfirm "$package" 2> /dev/null; then
       success "Uninstalled via pacman: $package"
     else
       error "Package '$package' not found or failed to uninstall"

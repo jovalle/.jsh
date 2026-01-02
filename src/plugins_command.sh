@@ -53,15 +53,16 @@ list_plugins() {
       # List installed plugins
       local plugins_dir="${ZINIT_HOME%/*}/plugins"
       if [[ -d "$plugins_dir" ]]; then
-        local count=$(find "$plugins_dir" -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
-        ((count--))  # Subtract 1 for parent dir
+        local count
+        count=$(find "$plugins_dir" -maxdepth 1 -type d 2> /dev/null | wc -l | tr -d ' ')
+        ((count--)) # Subtract 1 for parent dir
         echo "    Plugins installed: $count"
 
         # List some plugins
-        local i=0
+        local i=0 plugin_name
         for plugin_dir in "$plugins_dir"/*; do
           [[ -d "$plugin_dir" ]] || continue
-          local plugin_name=$(basename "$plugin_dir")
+          plugin_name=$(basename "$plugin_dir")
           echo "    - $plugin_name"
           ((i++))
           [[ $i -ge 10 ]] && echo "    ... and more" && break
@@ -83,13 +84,15 @@ list_plugins() {
       # List installed plugins
       local plugins_dir="${HOME}/.tmux/plugins"
       if [[ -d "$plugins_dir" ]]; then
-        local count=$(find "$plugins_dir" -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
-        ((count--))  # Subtract 1 for parent dir
+        local count
+        count=$(find "$plugins_dir" -maxdepth 1 -type d 2> /dev/null | wc -l | tr -d ' ')
+        ((count--)) # Subtract 1 for parent dir
         echo "    Plugins installed: $count"
 
+        local plugin_name
         for plugin_dir in "$plugins_dir"/*; do
           [[ -d "$plugin_dir" ]] || continue
-          local plugin_name=$(basename "$plugin_dir")
+          plugin_name=$(basename "$plugin_dir")
           echo "    - $plugin_name"
         done
       fi
@@ -108,14 +111,15 @@ list_plugins() {
 
       # List installed plugins
       if [[ -d "$VIM_PLUGGED" ]]; then
-        local count=$(find "$VIM_PLUGGED" -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
-        ((count--))  # Subtract 1 for parent dir
+        local count
+        count=$(find "$VIM_PLUGGED" -maxdepth 1 -type d 2> /dev/null | wc -l | tr -d ' ')
+        ((count--)) # Subtract 1 for parent dir
         echo "    Plugins installed: $count"
 
-        local i=0
+        local i=0 plugin_name
         for plugin_dir in "$VIM_PLUGGED"/*; do
           [[ -d "$plugin_dir" ]] || continue
-          local plugin_name=$(basename "$plugin_dir")
+          plugin_name=$(basename "$plugin_dir")
           echo "    - $plugin_name"
           ((i++))
           [[ $i -ge 15 ]] && echo "    ... and more" && break
@@ -188,8 +192,8 @@ install_plugins() {
       info "vim-plug already installed"
       # Install vim plugins
       log "Installing vim plugins..."
-      if command -v vim &>/dev/null; then
-        vim +PlugInstall +qall 2>/dev/null
+      if command -v vim &> /dev/null; then
+        vim +PlugInstall +qall 2> /dev/null
         success "Vim plugins installed"
       fi
     fi
@@ -206,9 +210,9 @@ update_plugins() {
   # Update Zinit and plugins
   if should_manage_shell && [[ -d "$ZINIT_HOME" ]]; then
     log "Updating Zinit..."
-    if command -v zsh &>/dev/null; then
-      zsh -c 'source ~/.zshrc && zinit self-update' 2>/dev/null || true
-      zsh -c 'source ~/.zshrc && zinit update --all' 2>/dev/null || true
+    if command -v zsh &> /dev/null; then
+      zsh -c 'source ~/.zshrc && zinit self-update' 2> /dev/null || true
+      zsh -c 'source ~/.zshrc && zinit update --all' 2> /dev/null || true
       success "Zinit plugins updated"
     else
       warn "zsh not found, skipping Zinit update"
@@ -221,7 +225,7 @@ update_plugins() {
     log "Updating TPM..."
     git_pull_https "$TPM_HOME"
     if [[ -x "${TPM_HOME}/bin/update_plugins" ]]; then
-      "${TPM_HOME}/bin/update_plugins" all 2>/dev/null
+      "${TPM_HOME}/bin/update_plugins" all 2> /dev/null
       success "Tmux plugins updated"
     fi
     echo ""
@@ -231,8 +235,8 @@ update_plugins() {
   if should_manage_vim && [[ -f "$VIM_PLUG" ]]; then
     log "Updating vim plugins..."
     # Update vim-plug itself
-    if command -v vim &>/dev/null; then
-      vim +PlugUpgrade +PlugUpdate +qall 2>/dev/null
+    if command -v vim &> /dev/null; then
+      vim +PlugUpgrade +PlugUpdate +qall 2> /dev/null
       success "Vim plugins updated"
     fi
     echo ""
@@ -262,7 +266,8 @@ check_plugins() {
       # Check for broken plugin symlinks
       local plugins_dir="${ZINIT_HOME%/*}/plugins"
       if [[ -d "$plugins_dir" ]]; then
-        local broken=$(find "$plugins_dir" -type l ! -exec test -e {} \; -print 2>/dev/null | wc -l | tr -d ' ')
+        local broken
+        broken=$(find "$plugins_dir" -type l ! -exec test -e {} \; -print 2> /dev/null | wc -l | tr -d ' ')
         if [[ "$broken" -gt 0 ]]; then
           echo -e "  ${YELLOW}⚠${RESET} $broken broken plugin symlink(s)"
           ((issues++))
@@ -288,7 +293,7 @@ check_plugins() {
       fi
 
       # Check tmux.conf for TPM initialization
-      if grep -q "run.*tpm/tpm" ~/.tmux.conf 2>/dev/null; then
+      if grep -q "run.*tpm/tpm" ~/.tmux.conf 2> /dev/null; then
         echo -e "  ${GREEN}✓${RESET} TPM configured in tmux.conf"
       else
         echo -e "  ${YELLOW}⚠${RESET} TPM not configured in tmux.conf"
@@ -307,7 +312,8 @@ check_plugins() {
 
       # Check for plugin directory
       if [[ -d "$VIM_PLUGGED" ]]; then
-        local broken=$(find "$VIM_PLUGGED" -maxdepth 1 -type d -empty 2>/dev/null | wc -l | tr -d ' ')
+        local broken
+        broken=$(find "$VIM_PLUGGED" -maxdepth 1 -type d -empty 2> /dev/null | wc -l | tr -d ' ')
         if [[ "$broken" -gt 0 ]]; then
           echo -e "  ${YELLOW}⚠${RESET} $broken empty plugin directories"
         else
@@ -318,7 +324,7 @@ check_plugins() {
       fi
 
       # Check vimrc for vim-plug initialization
-      if grep -q "plug#begin" ~/.vimrc 2>/dev/null; then
+      if grep -q "plug#begin" ~/.vimrc 2> /dev/null; then
         echo -e "  ${GREEN}✓${RESET} vim-plug configured in vimrc"
       else
         echo -e "  ${YELLOW}⚠${RESET} vim-plug not configured in vimrc"

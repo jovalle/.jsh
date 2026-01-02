@@ -26,7 +26,7 @@ fi
 cd "${root_dir}" || exit 1
 
 # Check for remote
-remote_url=$(git remote get-url origin 2>/dev/null || echo "")
+remote_url=$(git remote get-url origin 2> /dev/null || echo "")
 if [[ -z "$remote_url" ]]; then
   error "No remote 'origin' configured"
   info "Add a remote with: git remote add origin <url>"
@@ -37,16 +37,16 @@ info "Remote: $remote_url"
 echo ""
 
 # Get current branch
-current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+current_branch=$(git rev-parse --abbrev-ref HEAD 2> /dev/null || echo "main")
 info "Branch: $current_branch"
 
 # Check for uncommitted changes
 has_changes=false
-if ! git diff --quiet HEAD 2>/dev/null; then
+if ! git diff --quiet HEAD 2> /dev/null; then
   has_changes=true
 fi
 
-if ! git diff --cached --quiet 2>/dev/null; then
+if ! git diff --cached --quiet 2> /dev/null; then
   has_changes=true
 fi
 
@@ -75,7 +75,7 @@ fi
 
 # Fetch latest from remote
 log "Fetching from remote..."
-if ! git fetch origin "$current_branch" 2>/dev/null; then
+if ! git fetch origin "$current_branch" 2> /dev/null; then
   warn "Could not fetch from remote (offline or no access)"
 fi
 
@@ -85,8 +85,8 @@ if [[ -z "$push_only" ]]; then
   log "Pulling changes..."
 
   # Check if we need to pull
-  local_hash=$(git rev-parse HEAD 2>/dev/null)
-  remote_hash=$(git rev-parse "origin/$current_branch" 2>/dev/null || echo "")
+  local_hash=$(git rev-parse HEAD 2> /dev/null)
+  remote_hash=$(git rev-parse "origin/$current_branch" 2> /dev/null || echo "")
 
   if [[ -z "$remote_hash" ]]; then
     info "No remote branch found, skipping pull"
@@ -94,7 +94,7 @@ if [[ -z "$push_only" ]]; then
     info "Already up to date"
   else
     # Count commits behind
-    commits_behind=$(git rev-list --count "HEAD..origin/$current_branch" 2>/dev/null || echo 0)
+    commits_behind=$(git rev-list --count "HEAD..origin/$current_branch" 2> /dev/null || echo 0)
 
     if [[ "$commits_behind" -gt 0 ]]; then
       info "Pulling $commits_behind commit(s)..."
@@ -121,7 +121,7 @@ if [[ -z "$pull_only" ]]; then
   log "Pushing changes..."
 
   # Check if we have commits to push
-  commits_ahead=$(git rev-list --count "origin/$current_branch..HEAD" 2>/dev/null || echo 0)
+  commits_ahead=$(git rev-list --count "origin/$current_branch..HEAD" 2> /dev/null || echo 0)
 
   if [[ "$commits_ahead" -eq 0 ]]; then
     info "Nothing to push"
@@ -157,7 +157,7 @@ if [[ -f "${root_dir}/.gitmodules" ]]; then
   # Check if .git directory is writable (handles read-only mounts)
   if [[ -d "${root_dir}/.git" ]] && [[ ! -w "${root_dir}/.git" ]]; then
     warn "Git directory is read-only, skipping submodule update"
-  elif git submodule update --init --recursive 2>/dev/null; then
+  elif git submodule update --init --recursive 2> /dev/null; then
     success "Submodules updated"
   else
     warn "Could not update submodules (read-only filesystem?)"

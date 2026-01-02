@@ -5,7 +5,8 @@ export JSH_ROOT="${JSH_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # Helper to create temporary test directory
 setup_test_dir() {
-  export TEST_DIR="$(mktemp -d)"
+  TEST_DIR="$(mktemp -d)"
+  export TEST_DIR
   export TEST_HOME="$TEST_DIR/home"
   mkdir -p "$TEST_HOME"
 }
@@ -20,7 +21,8 @@ teardown_test_dir() {
 # Helper to create a temporary JSON file with content
 create_temp_json() {
   local content="$1"
-  local temp_file="$(mktemp)"
+  local temp_file
+  temp_file="$(mktemp)"
   echo "$content" > "$temp_file"
   echo "$temp_file"
 }

@@ -59,7 +59,7 @@ if [[ -d "${root_dir}/.git" ]]; then
     echo -e "  ${GREEN}✓${RESET} Git repository is valid"
 
     # Check for uncommitted changes
-    if git diff --quiet HEAD 2>/dev/null; then
+    if git diff --quiet HEAD 2> /dev/null; then
       echo -e "  ${GREEN}✓${RESET} Working tree is clean"
     else
       local changes
@@ -69,11 +69,11 @@ if [[ -d "${root_dir}/.git" ]]; then
     fi
 
     # Check remote sync status
-    if git remote get-url origin &>/dev/null; then
-      git fetch origin --quiet 2>/dev/null || true
+    if git remote get-url origin &> /dev/null; then
+      git fetch origin --quiet 2> /dev/null || true
       local ahead behind
-      ahead=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo 0)
-      behind=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+      ahead=$(git rev-list --count origin/main..HEAD 2> /dev/null || echo 0)
+      behind=$(git rev-list --count HEAD..origin/main 2> /dev/null || echo 0)
       if [[ "$ahead" -gt 0 ]]; then
         echo -e "  ${YELLOW}⚠${RESET} $ahead commit(s) ahead of origin"
       fi
@@ -155,7 +155,7 @@ if cmd_exists brew; then
 
   # Check for outdated packages
   local outdated
-  outdated=$(brew outdated --quiet 2>/dev/null | wc -l | tr -d ' ')
+  outdated=$(brew outdated --quiet 2> /dev/null | wc -l | tr -d ' ')
   if [[ "$outdated" -gt 0 ]]; then
     echo -e "  ${YELLOW}⚠${RESET} $outdated outdated package(s) (run 'jsh upgrade' to update)"
   else
@@ -172,7 +172,7 @@ echo -e "  Current shell: $current_shell"
 # Check if shell rc sources jshrc
 case "$current_shell" in
   zsh)
-    if grep -q "\.jshrc" ~/.zshrc 2>/dev/null; then
+    if grep -q "\.jshrc" ~/.zshrc 2> /dev/null; then
       echo -e "  ${GREEN}✓${RESET} .zshrc sources .jshrc"
     else
       echo -e "  ${YELLOW}⚠${RESET} .zshrc does not source .jshrc"
@@ -180,7 +180,7 @@ case "$current_shell" in
     fi
     ;;
   bash)
-    if grep -q "\.jshrc" ~/.bashrc 2>/dev/null; then
+    if grep -q "\.jshrc" ~/.bashrc 2> /dev/null; then
       echo -e "  ${GREEN}✓${RESET} .bashrc sources .jshrc"
     else
       echo -e "  ${YELLOW}⚠${RESET} .bashrc does not source .jshrc"
