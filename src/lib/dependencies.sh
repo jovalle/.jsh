@@ -21,15 +21,29 @@ _JSH_DEPS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # Source environment detection if JSH_ENV not already set
 if [[ -z "${JSH_ENV:-}" ]]; then
-  # shellcheck source=environment.sh
-  source "${_JSH_DEPS_DIR}/environment.sh"
-  get_jsh_env > /dev/null
+  # Try multiple locations for environment.sh (handles both dev and installed contexts)
+  if [[ -f "${_JSH_DEPS_DIR}/environment.sh" ]]; then
+    # shellcheck source=environment.sh
+    source "${_JSH_DEPS_DIR}/environment.sh"
+    get_jsh_env > /dev/null
+  elif [[ -f "${_JSH_DEPS_DIR}/src/lib/environment.sh" ]]; then
+    # shellcheck source=src/lib/environment.sh
+    source "${_JSH_DEPS_DIR}/src/lib/environment.sh"
+    get_jsh_env > /dev/null
+  fi
+  # If neither exists (fresh install), JSH_ENV stays unset - that's okay
 fi
 
 # Source colors for cmd_exists if not already available
 if ! declare -f cmd_exists &>/dev/null; then
-  # shellcheck source=colors.sh
-  source "${_JSH_DEPS_DIR}/colors.sh"
+  if [[ -f "${_JSH_DEPS_DIR}/colors.sh" ]]; then
+    # shellcheck source=colors.sh
+    source "${_JSH_DEPS_DIR}/colors.sh"
+  elif [[ -f "${_JSH_DEPS_DIR}/src/lib/colors.sh" ]]; then
+    # shellcheck source=src/lib/colors.sh
+    source "${_JSH_DEPS_DIR}/src/lib/colors.sh"
+  fi
+  # If neither exists, cmd_exists won't be available - callers should handle this
 fi
 
 # ============================================================================

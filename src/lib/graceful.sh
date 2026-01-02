@@ -206,6 +206,78 @@ _jsh_with_timeout() {
 }
 
 # ============================================================================
+# Missing Dependencies Tracking
+# ============================================================================
+
+# Array to track missing dependencies during completion loading
+declare -ga _JSH_MISSING_DEPS=()
+
+# Track a missing dependency
+# Arguments:
+#   $1 - Command name
+#   $2 - Optional category (e.g., "completion", "tool")
+_jsh_track_missing() {
+  local cmd="$1"
+  local category="${2:-tool}"
+
+  # Add to missing list if not already there
+  local existing
+  for existing in "${_JSH_MISSING_DEPS[@]}"; do
+    [[ "$existing" == "$cmd" ]] && return 0
+  done
+
+  _JSH_MISSING_DEPS+=("$cmd")
+  _jsh_debug "missing" "Tracked missing $category: $cmd"
+}
+
+# Report all tracked missing dependencies with install guidance
+# Should be called at end of completion loading
+_jsh_report_missing() {
+  [[ ${#_JSH_MISSING_DEPS[@]} -eq 0 ]] && return 0
+
+  local env="${JSH_ENV:-linux-generic}"
+  local pkg_manager=""
+  local install_cmd=""
+
+  # Detect package manager
+  if command -v brew &>/dev/null; then
+    pkg_manager="brew"
+    install_cmd="brew install"
+  elif command -v apt &>/dev/null; then
+    pkg_manager="apt"
+    install_cmd="sudo apt install"
+  elif command -v dnf &>/dev/null; then
+    pkg_manager="dnf"
+    install_cmd="sudo dnf install"
+  elif command -v pacman &>/dev/null; then
+    pkg_manager="pacman"
+    install_cmd="sudo pacman -S"
+  fi
+
+  # Print warning
+  echo ""
+  echo -e "\033[33m⚠️  Some optional tools are missing:\033[0m"
+  for cmd in "${_JSH_MISSING_DEPS[@]}"; do
+    echo "   • $cmd"
+  done
+
+  # Suggest installation
+  if [[ -n "$install_cmd" ]]; then
+    echo ""
+    echo -e "\033[34mℹ️  Install with:\033[0m $install_cmd ${_JSH_MISSING_DEPS[*]}"
+  fi
+
+  # Suggest jsh tools if available
+  if command -v jsh &>/dev/null; then
+    echo -e "\033[34mℹ️  Or run:\033[0m jsh tools install"
+  fi
+  echo ""
+
+  # Clear the list
+  _JSH_MISSING_DEPS=()
+}
+
+# ============================================================================
 # Auto-source dependencies if needed (lazy load)
 # ============================================================================
 
