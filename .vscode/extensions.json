@@ -1,28 +1,31 @@
 {
   "recommendations": [
-    // Sort lines, objects, and other content alphabetically
+    "anthropic.claude-code",
     "bennycode.sort-everything",
-    // ESLint integration for JavaScript/TypeScript linting
-    "dbaeumer.vscode-eslint",
-    // Code formatter using Prettier
+    "bierner.github-markdown-preview",
+    "bierner.markdown-checkbox",
+    "bierner.markdown-emoji",
+    "bierner.markdown-footnotes",
+    "bierner.markdown-mermaid",
+    "bierner.markdown-preview-github-styles",
+    "bierner.markdown-yaml-preamble",
     "esbenp.prettier-vscode",
-    // Format shell scripts (bash, sh, zsh)
-    "foxundermoon.shell-format",
-    // Go language support with IntelliSense, debugging, and more
+    "github.copilot",
+    "github.copilot-chat",
     "golang.go",
-    // Kubernetes manifest authoring and cluster management
-    "ms-kubernetes-tools.vscode-kubernetes-tools",
-    // Python formatter using Black
-    "ms-python.black-formatter",
-    // Python language support with IntelliSense, linting, and debugging
+    "ms-python.debugpy",
     "ms-python.python",
-    // Material Design icon theme for file explorer
+    "ms-python.vscode-pylance",
+    "ms-python.vscode-python-envs",
+    "ms-vscode-remote.remote-containers",
+    "ms-vscode-remote.remote-ssh",
+    "ms-vscode-remote.remote-ssh-edit",
+    "ms-vscode-remote.remote-wsl",
+    "ms-vscode-remote.vscode-remote-extensionpack",
+    "ms-vscode.remote-explorer",
+    "ms-vscode.remote-server",
     "pkief.material-icon-theme",
-    // YAML language support with validation and IntelliSense
-    "redhat.vscode-yaml",
-    // Shell script linting using ShellCheck
-    "timonwong.shellcheck",
-    // Vim keybindings and modal editing
+    "pucelle.run-on-save",
     "vscodevim.vim"
   ]
 }

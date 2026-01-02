@@ -8,7 +8,10 @@
     "configFile": ".eslintrc.json"
   },
   "material-icon-theme.folders.associations": {
-    "darwin": "macos"
+    "darwin": "macos",
+    "dotfiles": "config",
+    "shell": "command",
+    "ssh": "desktop"
   },
   "prettier.requireConfig": true,
   "pylint.args": ["--rcfile=.pylintrc"]
