@@ -491,6 +491,37 @@ clean: ## Remove temporary files and caches
 	fi
 	@echo -e "$(GREEN)✓ Cleanup complete$(RESET)"
 
+##@ Docker Testing
+
+# Docker configuration
+DOCKER_IMAGE := jsh-test
+DOCKER_TAG := latest
+JSH_TEST_SHELL ?= zsh
+
+docker-build: ## Build the jsh test container
+	@echo -e "$(CYAN)Building jsh test container...$(RESET)"
+	@docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) -f docker/test.Dockerfile . && \
+		echo -e "$(GREEN)✓ Docker image built: $(DOCKER_IMAGE):$(DOCKER_TAG)$(RESET)"
+
+docker-test: docker-build ## Run interactive jsh test container (use JSH_TEST_SHELL=bash for bash)
+	@echo -e "$(CYAN)Starting jsh test container with $(JSH_TEST_SHELL)...$(RESET)"
+	@docker run --rm -it \
+		-e JSH_TEST_SHELL=$(JSH_TEST_SHELL) \
+		-v "$(CURDIR):/home/testuser/.jsh:ro" \
+		$(DOCKER_IMAGE):$(DOCKER_TAG)
+
+docker-test-bash: ## Run interactive jsh test container with bash
+	@$(MAKE) docker-test JSH_TEST_SHELL=bash
+
+docker-test-zsh: ## Run interactive jsh test container with zsh (default)
+	@$(MAKE) docker-test JSH_TEST_SHELL=zsh
+
+docker-clean: ## Remove jsh test Docker image
+	@echo -e "$(CYAN)Removing jsh test Docker image...$(RESET)"
+	@docker rmi $(DOCKER_IMAGE):$(DOCKER_TAG) 2>/dev/null && \
+		echo -e "$(GREEN)✓ Docker image removed$(RESET)" || \
+		echo -e "$(YELLOW)Image not found or already removed$(RESET)"
+
 ##@ Task Integration
 
 task-%: ## Run any taskfile task (e.g., make task-setup)
