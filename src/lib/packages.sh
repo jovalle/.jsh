@@ -184,6 +184,61 @@ update_package_cache() {
   fi
 }
 
+# Ensure Homebrew is installed
+# Arguments:
+#   $1 - non_interactive: "true" to skip prompts (default: "false")
+# Returns: 0 if brew is available, 1 if installation failed
+ensure_brew() {
+  local non_interactive="${1:-false}"
+
+  # Already installed
+  if command -v brew &> /dev/null; then
+    return 0
+  fi
+
+  log "Homebrew not found, attempting to install..."
+
+  # Set non-interactive mode for Homebrew installer
+  if [[ "$non_interactive" == "true" ]]; then
+    export NONINTERACTIVE=1
+  fi
+
+  # Install Homebrew
+  if is_macos || is_linux; then
+    if ! /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; then
+      warn "Failed to install Homebrew"
+      return 1
+    fi
+
+    # Add brew to PATH for the current session
+    if is_macos; then
+      if [[ -f /opt/homebrew/bin/brew ]]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+      elif [[ -f /usr/local/bin/brew ]]; then
+        eval "$(/usr/local/bin/brew shellenv)"
+      fi
+    elif is_linux; then
+      if [[ -f /home/linuxbrew/.linuxbrew/bin/brew ]]; then
+        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+      elif [[ -f "$HOME/.linuxbrew/bin/brew" ]]; then
+        eval "$("$HOME/.linuxbrew/bin/brew" shellenv)"
+      fi
+    fi
+
+    # Verify installation
+    if command -v brew &> /dev/null; then
+      success "Homebrew installed successfully"
+      return 0
+    else
+      warn "Homebrew installed but not in PATH"
+      return 1
+    fi
+  else
+    warn "Homebrew installation not supported on this platform"
+    return 1
+  fi
+}
+
 # Install a package using the system package manager
 install_package() {
   local package="$1"
