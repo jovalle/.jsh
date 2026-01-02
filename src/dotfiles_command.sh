@@ -1,5 +1,6 @@
 root_dir="$(get_root_dir)"
 dotfiles_dir="$root_dir/dotfiles"
+non_interactive="${args[--non-interactive]:-}"
 
 # Handle flags
 if [[ "${args[--status]}" ]]; then
@@ -97,30 +98,37 @@ for item in "$dotfiles_dir"/.* "$dotfiles_dir"/*; do
       if [[ -e "$config_target" || -L "$config_target" ]]; then
         link_target=$(readlink "$config_target" 2> /dev/null || echo "")
         if [[ "$link_target" != "$config_item" ]]; then
-          # Prompt user for existing file
-          echo ""
-          warn "Conflict: $config_target already exists"
-          if [[ -L "$config_target" ]]; then
-            info "  Current symlink points to: $link_target"
+          if [[ -n "$non_interactive" ]]; then
+            # Auto-backup without prompting
+            mv "$config_target" "${config_target}.backup"
+            ln -sf "$config_item" "$config_target"
+            echo "  ✓ Backed up and linked $config_basename"
+          else
+            # Prompt user for existing file
+            echo ""
+            warn "Conflict: $config_target already exists"
+            if [[ -L "$config_target" ]]; then
+              info "  Current symlink points to: $link_target"
+            fi
+            echo "  [s]kip  [b]ackup and replace  [o]verwrite"
+            read -n 1 -r -p "  Choice: " choice
+            echo ""
+            case "$choice" in
+              b|B)
+                mv "$config_target" "${config_target}.backup"
+                ln -sf "$config_item" "$config_target"
+                echo "  ✓ Backed up and linked $config_basename"
+                ;;
+              o|O)
+                rm -rf "$config_target"
+                ln -sf "$config_item" "$config_target"
+                echo "  ✓ Overwritten $config_basename"
+                ;;
+              *)
+                echo "  ⏭ Skipped $config_basename"
+                ;;
+            esac
           fi
-          echo "  [s]kip  [b]ackup and replace  [o]verwrite"
-          read -n 1 -r -p "  Choice: " choice
-          echo ""
-          case "$choice" in
-            b|B)
-              mv "$config_target" "${config_target}-backup"
-              ln -sf "$config_item" "$config_target"
-              echo "  ✓ Backed up and linked $config_basename"
-              ;;
-            o|O)
-              rm -rf "$config_target"
-              ln -sf "$config_item" "$config_target"
-              echo "  ✓ Overwritten $config_basename"
-              ;;
-            *)
-              echo "  ⏭ Skipped $config_basename"
-              ;;
-          esac
         else
           rm "$config_target"
           ln -sf "$config_item" "$config_target"
@@ -134,29 +142,36 @@ for item in "$dotfiles_dir"/.* "$dotfiles_dir"/*; do
     if [[ -e "$target" || -L "$target" ]]; then
       link_target=$(readlink "$target" 2> /dev/null || echo "")
       if [[ "$link_target" != "$item" ]]; then
-        echo ""
-        warn "Conflict: $target already exists"
-        if [[ -L "$target" ]]; then
-          info "  Current symlink points to: $link_target"
+        if [[ -n "$non_interactive" ]]; then
+          # Auto-backup without prompting
+          mv "$target" "${target}.backup"
+          ln -sf "$item" "$target"
+          echo "  ✓ Backed up and linked $basename_item"
+        else
+          echo ""
+          warn "Conflict: $target already exists"
+          if [[ -L "$target" ]]; then
+            info "  Current symlink points to: $link_target"
+          fi
+          echo "  [s]kip  [b]ackup and replace  [o]verwrite"
+          read -n 1 -r -p "  Choice: " choice
+          echo ""
+          case "$choice" in
+            b|B)
+              mv "$target" "${target}.backup"
+              ln -sf "$item" "$target"
+              echo "  ✓ Backed up and linked $basename_item"
+              ;;
+            o|O)
+              rm -rf "$target"
+              ln -sf "$item" "$target"
+              echo "  ✓ Overwritten $basename_item"
+              ;;
+            *)
+              echo "  ⏭ Skipped $basename_item"
+              ;;
+          esac
         fi
-        echo "  [s]kip  [b]ackup and replace  [o]verwrite"
-        read -n 1 -r -p "  Choice: " choice
-        echo ""
-        case "$choice" in
-          b|B)
-            mv "$target" "${target}-backup"
-            ln -sf "$item" "$target"
-            echo "  ✓ Backed up and linked $basename_item"
-            ;;
-          o|O)
-            rm -rf "$target"
-            ln -sf "$item" "$target"
-            echo "  ✓ Overwritten $basename_item"
-            ;;
-          *)
-            echo "  ⏭ Skipped $basename_item"
-            ;;
-        esac
       else
         rm "$target"
         ln -sf "$item" "$target"
