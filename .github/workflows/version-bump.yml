@@ -34,9 +34,10 @@ jobs:
 
       - name: Determine version bump type
         id: bump_type
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          # Get the last commit message
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          # Use commit message from environment variable (safe from injection)
           echo "Commit message: ${COMMIT_MSG}"
 
           # Extract conventional commit type (everything before first colon or opening paren)
@@ -115,11 +116,12 @@ jobs:
 
       - name: Install bashly
         run: |
-          gem install bashly
+          gem install bashly --user-install
+          echo "$HOME/.local/share/gem/ruby/3.2.0/bin" >> $GITHUB_PATH
 
       - name: Regenerate jsh script
         run: |
-          cd src && bashly generate
+          bashly generate
           echo "Regenerated jsh script with new version"
 
       - name: Commit version bump
@@ -127,7 +129,8 @@ jobs:
           NEW_VERSION="${{ steps.new_version.outputs.version }}"
           BUMP_TYPE="${{ steps.bump_type.outputs.bump }}"
 
-          git add VERSION src/bashly.yml package.json jsh
+          git add VERSION src/bashly.yml jsh
+          [ -f package.json ] && git add package.json || true
 
           # Only commit if there are changes
           if git diff --staged --quiet; then
