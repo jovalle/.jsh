@@ -159,7 +159,9 @@ set splitbelow                 " Open horizontal splits below
 
 " Popup menu appearance (for completion)
 set pumheight=15               " Maximum height of popup menu
-set pumblend=10                " Popup menu transparency (Neovim)
+if has('nvim')
+  set pumblend=10              " Popup menu transparency (Neovim only)
+endif
 
 " Wildmenu - enhanced command-line completion
 set wildmenu                   " Show completion options in command line
