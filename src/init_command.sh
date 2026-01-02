@@ -33,12 +33,11 @@ if [[ "$interactive" == "true" ]]; then
     echo "  2) bash  (traditional)"
     echo "  3) skip  (keep current: $(basename "$SHELL"))"
     echo ""
-    read -n 1 -r -p "Choose your shell (1-3): " shell_choice
-    echo ""
+    read -r -p "Choose your shell (1-3) [1]: " shell_choice
     echo ""
 
     case "$shell_choice" in
-      1) target_shell="zsh" ;;
+      1|"") target_shell="zsh" ;;
       2) target_shell="bash" ;;
       3) target_shell="skip" ;;
       *) target_shell="zsh" ;;
@@ -51,13 +50,12 @@ if [[ "$interactive" == "true" ]]; then
     echo "  1) Minimal  - Core tools only"
     echo "  2) Full     - Themes, plugins, completions"
     echo ""
-    read -n 1 -r -p "Choose setup type (1-2): " setup_choice
-    echo ""
+    read -r -p "Choose setup type (1-2) [2]: " setup_choice
     echo ""
 
     case "$setup_choice" in
       1) setup_type="minimal" ;;
-      2) setup_type="full" ;;
+      2|"") setup_type="full" ;;
       *) setup_type="full" ;;
     esac
   fi
@@ -91,7 +89,12 @@ header "Starting initialization"
 if [[ -f "$root_dir/.gitmodules" ]]; then
   log "Initializing git submodules..."
   if [[ "$dry_run" == "false" ]]; then
-    git -C "$root_dir" submodule update --init --recursive
+    # Check if .git directory is writable (handles read-only mounts)
+    if [[ -d "$root_dir/.git" ]] && [[ ! -w "$root_dir/.git" ]]; then
+      warn "Git directory is read-only, skipping submodule initialization"
+    elif ! git -C "$root_dir" submodule update --init --recursive 2>/dev/null; then
+      warn "Could not initialize submodules (read-only filesystem?)"
+    fi
   fi
 fi
 
@@ -169,7 +172,11 @@ fi
 
 # 6. Link dotfiles
 if [[ "$dry_run" == "false" ]]; then
-  "$0" dotfiles
+  if [[ "$interactive" == "false" ]]; then
+    "$0" dotfiles -y
+  else
+    "$0" dotfiles
+  fi
 fi
 
 # 7. Zinit installation
@@ -185,12 +192,12 @@ if [[ "$install_packages" == "true" && "$dry_run" == "false" && "$target_shell" 
       if confirm "Install zinit and plugins?"; then
         log "Installing zinit..."
         mkdir -p "${zinit_home%/*}"
-        git clone https://github.com/zdharma-continuum/zinit.git "${zinit_home}" || warn "Failed to install zinit"
+        git_clone_https "https://github.com/zdharma-continuum/zinit.git" "${zinit_home}" || warn "Failed to install zinit"
       fi
     else
       log "Installing zinit..."
       mkdir -p "${zinit_home%/*}"
-      git clone https://github.com/zdharma-continuum/zinit.git "${zinit_home}" || warn "Failed to install zinit"
+      git_clone_https "https://github.com/zdharma-continuum/zinit.git" "${zinit_home}" || warn "Failed to install zinit"
     fi
   fi
 fi
@@ -208,13 +215,13 @@ if [[ "$install_packages" == "true" && "$dry_run" == "false" ]]; then
       if confirm "Install tmux plugin manager?"; then
         log "Installing TPM..."
         mkdir -p "${tpm_home%/*}"
-        git clone https://github.com/tmux-plugins/tpm.git "${tpm_home}" || warn "Failed to install TPM"
+        git_clone_https "https://github.com/tmux-plugins/tpm.git" "${tpm_home}" || warn "Failed to install TPM"
         info "Run prefix + I in tmux to install plugins"
       fi
     else
       log "Installing TPM..."
       mkdir -p "${tpm_home%/*}"
-      git clone https://github.com/tmux-plugins/tpm.git "${tpm_home}" || warn "Failed to install TPM"
+      git_clone_https "https://github.com/tmux-plugins/tpm.git" "${tpm_home}" || warn "Failed to install TPM"
     fi
   fi
 fi
