@@ -9340,7 +9340,7 @@ jsh_plugins_parse_requirements() {
 
 # :command.initialize
 initialize() {
-  declare -g version="0.2.1"
+  declare -g version="0.2.2"
   set -e
 
   # src/initialize.sh
