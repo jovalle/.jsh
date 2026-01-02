@@ -22,18 +22,18 @@ package="${args[package]:-}"
 
 # Check flags (bashly populates ${args[--flag]})
 use_tui=true
-if [[ -n "${args[--no-progress]:-}" ]] || [[ -n "${args[--quiet]:-}" ]]; then
+if [[ -n "${args[--no - progress]:-}" ]] || [[ -n "${args[--quiet]:-}" ]]; then
   use_tui=false
 fi
 
 # Initialize TUI if available and enabled
-if [[ "$use_tui" == "true" ]] && declare -f tui_init &>/dev/null; then
+if [[ "$use_tui" == "true" ]] && declare -f tui_init &> /dev/null; then
   tui_init || use_tui=false
 fi
 
 # Helper function for TUI-aware logging
 _install_log() {
-  if [[ "$use_tui" == "true" ]] && declare -f tui_log &>/dev/null; then
+  if [[ "$use_tui" == "true" ]] && declare -f tui_log &> /dev/null; then
     tui_log "$@"
   else
     log "$@"
@@ -41,7 +41,7 @@ _install_log() {
 }
 
 _install_success() {
-  if [[ "$use_tui" == "true" ]] && declare -f tui_success &>/dev/null; then
+  if [[ "$use_tui" == "true" ]] && declare -f tui_success &> /dev/null; then
     tui_success "$@"
   else
     success "$@"
@@ -73,17 +73,17 @@ install_via_package_manager() {
     brew)
       if is_macos; then
         # Try cask first, then formula
-        if brew_cmd install --cask "$pkg" 2>/dev/null; then
+        if brew_cmd install --cask "$pkg" 2> /dev/null; then
           success "Installed cask: $pkg"
           add_package_to_json "$root_dir/configs/macos/casks.json" "$pkg"
           return 0
-        elif brew_cmd install "$pkg" 2>/dev/null; then
+        elif brew_cmd install "$pkg" 2> /dev/null; then
           success "Installed formula: $pkg"
           add_package_to_json "$root_dir/configs/macos/formulae.json" "$pkg"
           return 0
         fi
       else
-        if brew_cmd install "$pkg" 2>/dev/null; then
+        if brew_cmd install "$pkg" 2> /dev/null; then
           success "Installed via brew: $pkg"
           add_package_to_json "$root_dir/configs/linux/formulae.json" "$pkg"
           return 0
@@ -92,7 +92,7 @@ install_via_package_manager() {
       return 1
       ;;
     gem)
-      if command -v gem &>/dev/null; then
+      if command -v gem &> /dev/null; then
         gem install "$pkg" && success "Installed gem: $pkg" && return 0
       else
         error "gem not found. Install Ruby first."
@@ -100,7 +100,7 @@ install_via_package_manager() {
       return 1
       ;;
     bun)
-      if command -v bun &>/dev/null; then
+      if command -v bun &> /dev/null; then
         if bun install -g "$pkg"; then
           success "Installed bun package: $pkg"
           add_package_to_json "$root_dir/configs/npm.json" "$pkg"
@@ -112,7 +112,7 @@ install_via_package_manager() {
       return 1
       ;;
     npm)
-      if command -v npm &>/dev/null; then
+      if command -v npm &> /dev/null; then
         if npm install -g "$pkg"; then
           success "Installed npm package: $pkg"
           add_package_to_json "$root_dir/configs/npm.json" "$pkg"
@@ -124,9 +124,9 @@ install_via_package_manager() {
       return 1
       ;;
     pip)
-      if command -v pip3 &>/dev/null; then
+      if command -v pip3 &> /dev/null; then
         pip3 install --user "$pkg" && success "Installed pip package: $pkg" && return 0
-      elif command -v pip &>/dev/null; then
+      elif command -v pip &> /dev/null; then
         pip install --user "$pkg" && success "Installed pip package: $pkg" && return 0
       else
         error "pip not found. Install Python first."
@@ -134,7 +134,7 @@ install_via_package_manager() {
       return 1
       ;;
     cargo)
-      if command -v cargo &>/dev/null; then
+      if command -v cargo &> /dev/null; then
         cargo install "$pkg" && success "Installed cargo package: $pkg" && return 0
       else
         error "cargo not found. Install Rust first."
@@ -142,7 +142,7 @@ install_via_package_manager() {
       return 1
       ;;
     apt)
-      if command -v apt-get &>/dev/null; then
+      if command -v apt-get &> /dev/null; then
         sudo apt-get install -y "$pkg" && success "Installed apt package: $pkg" && return 0
       else
         error "apt-get not found."
@@ -150,7 +150,7 @@ install_via_package_manager() {
       return 1
       ;;
     dnf)
-      if command -v dnf &>/dev/null; then
+      if command -v dnf &> /dev/null; then
         sudo dnf install -y "$pkg" && success "Installed dnf package: $pkg" && return 0
       else
         error "dnf not found."
@@ -158,7 +158,7 @@ install_via_package_manager() {
       return 1
       ;;
     pacman)
-      if command -v pacman &>/dev/null; then
+      if command -v pacman &> /dev/null; then
         sudo pacman -S --noconfirm "$pkg" && success "Installed pacman package: $pkg" && return 0
       else
         error "pacman not found."
@@ -166,7 +166,7 @@ install_via_package_manager() {
       return 1
       ;;
     yum)
-      if command -v yum &>/dev/null; then
+      if command -v yum &> /dev/null; then
         sudo yum install -y "$pkg" && success "Installed yum package: $pkg" && return 0
       else
         error "yum not found."
@@ -174,7 +174,7 @@ install_via_package_manager() {
       return 1
       ;;
     zypper)
-      if command -v zypper &>/dev/null; then
+      if command -v zypper &> /dev/null; then
         sudo zypper install -y "$pkg" && success "Installed zypper package: $pkg" && return 0
       else
         error "zypper not found."
@@ -215,7 +215,7 @@ if [[ -z "$package" ]]; then
     fi
 
     if [[ ${#packages[@]} -gt 0 ]]; then
-      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &> /dev/null; then
         tui_progress_start "Installing system packages" "${#packages[@]}"
         local i=0
         for pkg in "${packages[@]}"; do
@@ -240,7 +240,7 @@ if [[ -z "$package" ]]; then
     done < <(load_packages_from_json "$root_dir/configs/macos/casks.json")
 
     if [[ ${#casks[@]} -gt 0 ]]; then
-      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &> /dev/null; then
         tui_progress_start "Installing casks" "${#casks[@]}"
         local i=0
         for cask in "${casks[@]}"; do
@@ -272,7 +272,7 @@ if [[ -z "$package" ]]; then
     fi
 
     if [[ ${#formulae[@]} -gt 0 ]]; then
-      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &> /dev/null; then
         tui_progress_start "Installing formulae" "${#formulae[@]}"
         local i=0
         for formula in "${formulae[@]}"; do
@@ -302,7 +302,7 @@ if [[ -z "$package" ]]; then
     fi
 
     if [[ ${#services[@]} -gt 0 ]]; then
-      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &> /dev/null; then
         tui_progress_start "Starting services" "${#services[@]}"
         local i=0
         for svc in "${services[@]}"; do
@@ -330,10 +330,10 @@ if [[ -z "$package" ]]; then
 
   if [[ ${#npm_packages[@]} -gt 0 ]]; then
     # Prefer bun if available, fall back to npm
-    if command -v bun &>/dev/null; then
+    if command -v bun &> /dev/null; then
       pkg_cmd="bun"
       pkg_install="bun install -g"
-    elif command -v npm &>/dev/null; then
+    elif command -v npm &> /dev/null; then
       pkg_cmd="npm"
       pkg_install="npm install -g"
     else
@@ -341,7 +341,7 @@ if [[ -z "$package" ]]; then
     fi
 
     if [[ -n "$pkg_cmd" ]]; then
-      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &> /dev/null; then
         tui_progress_start "Installing $pkg_cmd packages" "${#npm_packages[@]}"
         for pkg in "${npm_packages[@]}"; do
           tui_progress_next "$pkg"
@@ -358,15 +358,15 @@ if [[ -z "$package" ]]; then
   fi
 
   # Install cargo packages from config
-  if command -v cargo &>/dev/null && [[ -f "$root_dir/configs/cargo.json" ]]; then
+  if command -v cargo &> /dev/null && [[ -f "$root_dir/configs/cargo.json" ]]; then
     # Count cargo packages
     local cargo_count=0
-    if command -v jq &>/dev/null; then
-      cargo_count=$(jq 'length' "$root_dir/configs/cargo.json" 2>/dev/null || echo 0)
+    if command -v jq &> /dev/null; then
+      cargo_count=$(jq 'length' "$root_dir/configs/cargo.json" 2> /dev/null || echo 0)
     fi
 
     if [[ "$cargo_count" -gt 0 ]]; then
-      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+      if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &> /dev/null; then
         tui_progress_start "Installing cargo packages" "$cargo_count"
 
         # Parse and install each cargo package
@@ -386,7 +386,7 @@ if [[ -z "$package" ]]; then
 
             eval "$install_cmd" || warn "Failed to install $pkg_name"
           fi
-        done < <(jq -c '.[]' "$root_dir/configs/cargo.json" 2>/dev/null)
+        done < <(jq -c '.[]' "$root_dir/configs/cargo.json" 2> /dev/null)
 
         tui_progress_complete "Cargo packages installed"
       else
@@ -404,13 +404,13 @@ if [[ -z "$package" ]]; then
 
             eval "$install_cmd" || warn "Failed to install from $git_url"
           fi
-        done < <(jq -c '.[]' "$root_dir/configs/cargo.json" 2>/dev/null)
+        done < <(jq -c '.[]' "$root_dir/configs/cargo.json" 2> /dev/null)
       fi
     fi
   fi
 
   # Cleanup TUI
-  if [[ "$use_tui" == "true" ]] && declare -f tui_cleanup &>/dev/null; then
+  if [[ "$use_tui" == "true" ]] && declare -f tui_cleanup &> /dev/null; then
     tui_cleanup
   fi
 
@@ -443,7 +443,7 @@ else
   fi
 
   # Start TUI spinner for single package install
-  if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &>/dev/null; then
+  if [[ "$use_tui" == "true" ]] && declare -f tui_progress_start &> /dev/null; then
     tui_progress_start "Installing $package" 0
     tui_progress_update 0 "$package via $pm"
   fi
@@ -451,13 +451,13 @@ else
   # Install via specified package manager
   if install_via_package_manager "$package" "$pm"; then
     # Package installed successfully - don't search for cross-platform equivalents
-    if [[ "$use_tui" == "true" ]] && declare -f tui_progress_complete &>/dev/null; then
+    if [[ "$use_tui" == "true" ]] && declare -f tui_progress_complete &> /dev/null; then
       tui_progress_complete "Installed $package"
       tui_cleanup
     fi
     _install_success "Installation complete"
   else
-    if [[ "$use_tui" == "true" ]] && declare -f tui_cleanup &>/dev/null; then
+    if [[ "$use_tui" == "true" ]] && declare -f tui_cleanup &> /dev/null; then
       tui_cleanup
     fi
     error "Failed to install '$package' via $pm"

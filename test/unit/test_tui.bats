@@ -1,5 +1,6 @@
 #!/usr/bin/env bats
 # Unit tests for src/lib/tui.sh
+# shellcheck disable=SC2154
 
 setup() {
   load '../test_helper.bash'
@@ -174,7 +175,7 @@ teardown() {
 
   run tui_progress_next "item1"
   [[ "$status" -eq 0 ]]
-  [[ "$output" =~ "[1/5]" ]]
+  [[ "$output" =~ \[1/5\] ]]
   [[ "$output" =~ "item1" ]]
 }
 
@@ -392,7 +393,7 @@ teardown() {
   first=$(_tui_spinner_char)
 
   # Advance through full cycle (10 chars in spinner)
-  for i in {1..10}; do
+  for _ in {1..10}; do
     _tui_spinner_advance
   done
 
@@ -440,7 +441,7 @@ teardown() {
   tui_progress_start "Test" 5
   run tui_progress_next "package@1.0.0/sub-pkg"
   [[ "$status" -eq 0 ]]
-  [[ "$output" =~ "package@1.0.0/sub-pkg" ]]
+  [[ "$output" =~ package@1\.0\.0/sub-pkg ]]
 }
 
 @test "tui_progress_next: handles unicode in item name" {

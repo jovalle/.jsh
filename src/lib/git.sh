@@ -18,26 +18,27 @@ git_clone_https() {
   fi
 
   # First try normal clone (works if HTTPS is properly configured)
-  if git clone "$url" "$dest" 2>/dev/null; then
+  if git clone "$url" "$dest" 2> /dev/null; then
     return 0
   fi
 
   # If that fails, force HTTPS by disabling common SSH rewrites
   # This handles cases where user has url.<base>.insteadOf configured
-  if declare -f log &>/dev/null; then
+  if declare -f log &> /dev/null; then
     log "Retrying with forced HTTPS..."
   fi
 
-  if git -c url."https://github.com/".insteadOf="git@github.com:" \
-         -c url."https://github.com/".insteadOf="ssh://git@github.com/" \
-         -c url."https://gitlab.com/".insteadOf="git@gitlab.com:" \
-         -c url."https://bitbucket.org/".insteadOf="git@bitbucket.org:" \
-         clone "$url" "$dest" 2>/dev/null; then
+  # shellcheck disable=SC2140  # Git config syntax requires this quoting pattern
+  if git -c 'url.https://github.com/.insteadOf=git@github.com:' \
+    -c 'url.https://github.com/.insteadOf=ssh://git@github.com/' \
+    -c 'url.https://gitlab.com/.insteadOf=git@gitlab.com:' \
+    -c 'url.https://bitbucket.org/.insteadOf=git@bitbucket.org:' \
+    clone "$url" "$dest" 2> /dev/null; then
     return 0
   fi
 
   # Final attempt: disable SSH entirely for this operation
-  GIT_SSH_COMMAND="false" git clone "$url" "$dest" 2>/dev/null
+  GIT_SSH_COMMAND="false" git clone "$url" "$dest" 2> /dev/null
 }
 
 # Update a git repository, falling back to HTTPS if SSH fails
@@ -50,13 +51,14 @@ git_pull_https() {
   fi
 
   # First try normal pull
-  if git -C "$repo_path" pull 2>/dev/null; then
+  if git -C "$repo_path" pull 2> /dev/null; then
     return 0
   fi
 
   # Force HTTPS
+  # shellcheck disable=SC2140  # Git config syntax requires this quoting pattern
   git -C "$repo_path" \
-    -c url."https://github.com/".insteadOf="git@github.com:" \
-    -c url."https://github.com/".insteadOf="ssh://git@github.com/" \
-    pull 2>/dev/null
+    -c 'url.https://github.com/.insteadOf=git@github.com:' \
+    -c 'url.https://github.com/.insteadOf=ssh://git@github.com/' \
+    pull 2> /dev/null
 }

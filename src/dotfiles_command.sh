@@ -1,6 +1,6 @@
 root_dir="$(get_root_dir)"
 dotfiles_dir="$root_dir/dotfiles"
-non_interactive="${args[--non-interactive]:-}"
+non_interactive="${args[--non - interactive]:-}"
 
 # Handle flags
 if [[ "${args[--status]}" ]]; then
@@ -20,7 +20,7 @@ if [[ "${args[--status]}" ]]; then
         config_target="$HOME/.config/$config_basename"
 
         if [[ -L "$config_target" ]]; then
-          link_target=$(readlink "$config_target" 2>/dev/null || true)
+          link_target=$(readlink "$config_target" 2> /dev/null || true)
           if [[ "$link_target" == "$config_item" ]]; then
             echo -e "  ${GREEN}✓${RESET} .config/$config_basename"
           else
@@ -35,7 +35,7 @@ if [[ "${args[--status]}" ]]; then
     else
       target="$HOME/$basename_item"
       if [[ -L "$target" ]]; then
-        link_target=$(readlink "$target" 2>/dev/null || true)
+        link_target=$(readlink "$target" 2> /dev/null || true)
         if [[ "$link_target" == "$item" ]]; then
           echo -e "  ${GREEN}✓${RESET} $basename_item"
         else
@@ -55,7 +55,7 @@ if [[ "${args[--remove]}" ]]; then
   # Remove symlinks
   log "Removing jsh-managed symlinks..."
 
-  find ~ -maxdepth 1 -type l -print 2>/dev/null | while read -r link; do
+  find ~ -maxdepth 1 -type l -print 2> /dev/null | while read -r link; do
     target=$(readlink "$link" 2> /dev/null || echo "")
     if [[ "$target" == *"$root_dir/dotfiles"* ]]; then
       echo "🗑️  Removing symlink: $link"
@@ -64,7 +64,7 @@ if [[ "${args[--remove]}" ]]; then
   done
 
   if [[ -d "$HOME/.config" ]]; then
-    find "$HOME/.config" -maxdepth 1 -type l -print 2>/dev/null | while read -r link; do
+    find "$HOME/.config" -maxdepth 1 -type l -print 2> /dev/null | while read -r link; do
       target=$(readlink "$link" 2> /dev/null || echo "")
       if [[ "$target" == *"$root_dir/dotfiles/.config"* ]]; then
         echo "🗑️  Removing symlink: $link"
@@ -114,12 +114,12 @@ for item in "$dotfiles_dir"/.* "$dotfiles_dir"/*; do
             read -n 1 -r -p "  Choice: " choice
             echo ""
             case "$choice" in
-              b|B)
+              b | B)
                 mv "$config_target" "${config_target}.backup"
                 ln -sf "$config_item" "$config_target"
                 echo "  ✓ Backed up and linked $config_basename"
                 ;;
-              o|O)
+              o | O)
                 rm -rf "$config_target"
                 ln -sf "$config_item" "$config_target"
                 echo "  ✓ Overwritten $config_basename"
@@ -157,12 +157,12 @@ for item in "$dotfiles_dir"/.* "$dotfiles_dir"/*; do
           read -n 1 -r -p "  Choice: " choice
           echo ""
           case "$choice" in
-            b|B)
+            b | B)
               mv "$target" "${target}.backup"
               ln -sf "$item" "$target"
               echo "  ✓ Backed up and linked $basename_item"
               ;;
-            o|O)
+            o | O)
               rm -rf "$target"
               ln -sf "$item" "$target"
               echo "  ✓ Overwritten $basename_item"

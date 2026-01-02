@@ -11,7 +11,7 @@
 # Cache configuration
 _JSH_ENV_CACHE_DIR="${HOME}/.cache/jsh"
 _JSH_ENV_CACHE_FILE="${_JSH_ENV_CACHE_DIR}/environment"
-_JSH_ENV_CACHE_TTL=3600  # 1 hour in seconds
+_JSH_ENV_CACHE_TTL=3600 # 1 hour in seconds
 
 # ============================================================================
 # Detection Predicates
@@ -35,7 +35,7 @@ is_truenas() {
 
   # Check /etc/version for TrueNAS or SCALE string
   if [[ -f "/etc/version" ]]; then
-    grep -qiE "(truenas|scale)" "/etc/version" 2>/dev/null && return 0
+    grep -qiE "(truenas|scale)" "/etc/version" 2> /dev/null && return 0
   fi
 
   return 1
@@ -51,13 +51,13 @@ is_macos_corporate() {
   if [[ -d "/var/db/ConfigurationProfiles" ]]; then
     # Check if it's non-empty (has enrolled profiles)
     local profile_count
-    profile_count=$(find "/var/db/ConfigurationProfiles" -maxdepth 2 -type f 2>/dev/null | wc -l | tr -d ' ')
+    profile_count=$(find "/var/db/ConfigurationProfiles" -maxdepth 2 -type f 2> /dev/null | wc -l | tr -d ' ')
     [[ "${profile_count}" -gt 0 ]] && return 0
   fi
 
   # Check for corporate hostname patterns
   local hostname
-  hostname="$(hostname 2>/dev/null || echo '')"
+  hostname="$(hostname 2> /dev/null || echo '')"
   if [[ -n "${hostname}" ]]; then
     # Common corporate patterns: .corp., .internal., -mac suffix
     [[ "${hostname}" == *".corp."* ]] && return 0
@@ -143,10 +143,10 @@ _is_cache_valid() {
 
   # Check TTL
   local cached_mtime current_time
-  cached_mtime=$(cat "${mtime_file}" 2>/dev/null || echo "0")
+  cached_mtime=$(cat "${mtime_file}" 2> /dev/null || echo "0")
   current_time=$(date +%s)
 
-  if (( current_time - cached_mtime >= _JSH_ENV_CACHE_TTL )); then
+  if ((current_time - cached_mtime >= _JSH_ENV_CACHE_TTL)); then
     return 1
   fi
 
@@ -164,7 +164,7 @@ _write_cache() {
 
 # Read cache
 _read_cache() {
-  cat "${_JSH_ENV_CACHE_FILE}" 2>/dev/null
+  cat "${_JSH_ENV_CACHE_FILE}" 2> /dev/null
 }
 
 # Get JSH environment with caching
@@ -191,5 +191,5 @@ refresh_jsh_env() {
 
 # Clear the environment cache
 clear_jsh_env_cache() {
-  rm -f "${_JSH_ENV_CACHE_FILE}" "${_JSH_ENV_CACHE_FILE}.mtime" 2>/dev/null
+  rm -f "${_JSH_ENV_CACHE_FILE}" "${_JSH_ENV_CACHE_FILE}.mtime" 2> /dev/null
 }

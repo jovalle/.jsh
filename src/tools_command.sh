@@ -76,7 +76,7 @@ declare -a TOOLS=(
 # Check if a tool is installed
 check_tool() {
   local check_cmd="$1"
-  eval "$check_cmd" &>/dev/null
+  eval "$check_cmd" &> /dev/null
   return $?
 }
 
@@ -166,7 +166,7 @@ install_tools() {
   local filter_cat="$1"
 
   # Check for Homebrew first
-  if ! command -v brew &>/dev/null; then
+  if ! command -v brew &> /dev/null; then
     echo -e "${RED}Homebrew is not installed${RESET}"
     echo "Install Homebrew first: https://brew.sh"
     echo "Or run: jsh init"
@@ -201,7 +201,7 @@ install_tools() {
     [[ -z "$filter_cat" && -z "${recommended[$name]:-}" ]] && continue
 
     # Skip if already installed
-    eval "$check_cmd" &>/dev/null && continue
+    eval "$check_cmd" &> /dev/null && continue
 
     # Get brew package name
     pkg="${brew_pkg[$name]:-$name}"
@@ -240,7 +240,7 @@ recommend_tools() {
   local env_type=""
   if [[ -f "${root_dir}/src/lib/environment.sh" ]]; then
     source "${root_dir}/src/lib/environment.sh"
-    env_type=$(get_jsh_env 2>/dev/null || echo "unknown")
+    env_type=$(get_jsh_env 2> /dev/null || echo "unknown")
   fi
 
   info "Detected environment: ${env_type:-unknown}"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# shellcheck disable=SC2154
 # Integration tests for TUI progress display
 
 setup() {
@@ -167,9 +168,9 @@ setup() {
   "
   [[ "$status" -eq 0 ]]
   [[ "$output" =~ "Installing packages" ]]
-  [[ "$output" =~ "[1/3]" ]]
-  [[ "$output" =~ "[2/3]" ]]
-  [[ "$output" =~ "[3/3]" ]]
+  [[ "$output" =~ \[1/3\] ]]
+  [[ "$output" =~ \[2/3\] ]]
+  [[ "$output" =~ \[3/3\] ]]
   [[ "$output" =~ "package1" ]]
   [[ "$output" =~ "package2" ]]
   [[ "$output" =~ "package3" ]]

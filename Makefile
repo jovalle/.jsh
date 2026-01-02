@@ -451,7 +451,24 @@ ci: check-syntax lint ## Run CI checks (syntax + lint)
 
 ##@ Build
 
-build: ## Regenerate jsh CLI from bashly sources
+fmt-src: ## Format source files (before build)
+	@echo -e "$(CYAN)Formatting source files...$(RESET)"
+	@if command -v shfmt >/dev/null 2>&1; then \
+		for file in src/*.sh src/lib/*.sh; do \
+			[ -f "$$file" ] || continue; \
+			if shfmt -d "$$file" >/dev/null 2>&1 || shfmt "$$file" >/dev/null 2>&1; then \
+				shfmt -w -i 2 -ci -sr "$$file" 2>/dev/null && \
+				echo -e "$(GRAY)$$file$(RESET) (formatted)"; \
+			else \
+				echo -e "$(GRAY)$$file$(RESET) (skipped - zsh syntax)"; \
+			fi; \
+		done; \
+		echo -e "$(GREEN)✓ Source files formatted$(RESET)"; \
+	else \
+		echo -e "$(YELLOW)shfmt not installed, skipping source formatting$(RESET)"; \
+	fi
+
+build: fmt-src ## Regenerate jsh CLI from bashly sources
 	@echo -e "$(CYAN)Regenerating jsh CLI...$(RESET)"
 	@if ! command -v bashly >/dev/null 2>&1; then \
 		echo -e "$(RED)bashly not installed. Run 'make install-tools' first.$(RESET)"; \

@@ -91,7 +91,7 @@ search_linuxbrew_package() {
   local linux_formulae_file="$root_dir/configs/linux/formulae.json"
 
   local search_results
-  search_results=$(brew search "$package" 2>/dev/null | grep -v "^==" | grep -v "^$" || true)
+  search_results=$(brew search "$package" 2> /dev/null | grep -v "^==" | grep -v "^$" || true)
 
   if [[ -z "$search_results" ]]; then
     log "No linuxbrew equivalent found for '$package'"
@@ -127,7 +127,7 @@ search_linuxbrew_package() {
     read -r -p "Select package number [0-$match_count]: " selection
 
     if [[ "$selection" =~ ^[0-9]+$ ]] && [[ "$selection" -ge 1 ]] && [[ "$selection" -le "$match_count" ]]; then
-      local selected_package="${matches[$((selection-1))]}"
+      local selected_package="${matches[$((selection - 1))]}"
       info "Adding linuxbrew package: $selected_package"
       add_package_to_json "$linux_formulae_file" "$selected_package"
     fi

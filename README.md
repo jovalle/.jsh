@@ -110,20 +110,29 @@ My shell of choice is `zsh` with [zinit](https://github.com/zdharma-continuum/zi
 The `jsh` CLI is your main entry point. Once initialized, it is available in your PATH.
 
 ```bash
-jsh --help            # Show all commands
+# Core Commands
 jsh init              # Set up shell environment (one-time)
-jsh install           # Install packages defined in configs/
-jsh install           # Install specific package(s) and add to config
-jsh uninstall <pkg>   # Uninstall package and remove from config
+jsh install           # Install packages from configs/
 jsh upgrade           # Upgrade all packages (brew, zinit, system)
-jsh configure         # Apply system settings and link dotfiles
 jsh dotfiles          # Manage dotfile symlinks
-jsh status            # Show packages, services, symlinks, git status
+jsh configure         # Apply system settings
+
+# Tool & Plugin Management
+jsh tools             # Discover and manage development tools
+jsh tools install     # Install recommended tools
+jsh plugins           # Manage shell, vim, tmux plugins
+jsh plugins update    # Update all plugins
+
+# Diagnostics & Status
 jsh doctor            # Check for missing tools, broken symlinks
+jsh status            # Show packages, services, symlinks, git status
+jsh profile           # Show current environment profile
+
+# Maintenance
+jsh sync              # Sync jsh changes with remote repository
 jsh clean             # Remove caches, temp files, old brew versions
-jsh deinit            # Remove jsh symlinks and restore backups
 jsh brew <args>       # Homebrew wrapper (handles root delegation)
-jsh completions       # Generate shell completion script
+jsh deinit            # Remove jsh symlinks and restore backups
 ```
 
 ### 🎯 Init Command Options
@@ -263,3 +272,15 @@ bats test/integration/       # Integration tests (74 tests)
 **Total test coverage:** 163 automated tests across unit and integration suites.
 
 See [docs/TEST_SUITE.md](docs/TEST_SUITE.md) for complete testing documentation, including performance profiling and manual testing guidance.
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Make your changes
+4. Run tests: `make test`
+5. Submit a pull request
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.

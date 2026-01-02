@@ -19,8 +19,8 @@ fi
 
 # Detect environment type
 get_env_type() {
-  if declare -f get_jsh_env &>/dev/null; then
-    get_jsh_env 2>/dev/null || echo "unknown"
+  if declare -f get_jsh_env &> /dev/null; then
+    get_jsh_env 2> /dev/null || echo "unknown"
   else
     if is_macos; then
       echo "macos"
@@ -39,7 +39,7 @@ get_shell_info() {
 
   case "$shell_name" in
     zsh)
-      shell_version=$(zsh --version 2>/dev/null | head -1 | awk '{print $2}')
+      shell_version=$(zsh --version 2> /dev/null | head -1 | awk '{print $2}')
       ;;
     bash)
       shell_version=$BASH_VERSION
@@ -54,15 +54,15 @@ get_shell_info() {
 
 # Get package manager info
 get_package_manager() {
-  if command -v brew &>/dev/null; then
+  if command -v brew &> /dev/null; then
     local brew_version
-    brew_version=$(brew --version 2>/dev/null | head -1 | awk '{print $2}')
+    brew_version=$(brew --version 2> /dev/null | head -1 | awk '{print $2}')
     echo "Homebrew $brew_version"
-  elif command -v apt-get &>/dev/null; then
+  elif command -v apt-get &> /dev/null; then
     echo "apt"
-  elif command -v dnf &>/dev/null; then
+  elif command -v dnf &> /dev/null; then
     echo "dnf"
-  elif command -v pacman &>/dev/null; then
+  elif command -v pacman &> /dev/null; then
     echo "pacman"
   else
     echo "unknown"
@@ -72,8 +72,8 @@ get_package_manager() {
 # Count installed packages
 count_packages() {
   local count=0
-  if command -v brew &>/dev/null; then
-    count=$(brew list --formula 2>/dev/null | wc -l | tr -d ' ')
+  if command -v brew &> /dev/null; then
+    count=$(brew list --formula 2> /dev/null | wc -l | tr -d ' ')
   fi
   echo "$count"
 }
@@ -88,7 +88,7 @@ get_plugin_status() {
   local zinit_home="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
   if [[ -d "$zinit_home" ]]; then
     local plugin_count
-    plugin_count=$(find "${zinit_home%/*}" -maxdepth 2 -type d -name "*.git" 2>/dev/null | wc -l | tr -d ' ')
+    plugin_count=$(find "${zinit_home%/*}" -maxdepth 2 -type d -name "*.git" 2> /dev/null | wc -l | tr -d ' ')
     zinit_status="installed ($plugin_count plugins)"
   fi
 
@@ -96,16 +96,16 @@ get_plugin_status() {
   local tpm_home="${HOME}/.tmux/plugins/tpm"
   if [[ -d "$tpm_home" ]]; then
     local plugin_count
-    plugin_count=$(find "${HOME}/.tmux/plugins" -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
-    ((plugin_count--))  # Subtract 1 for the plugins dir itself
+    plugin_count=$(find "${HOME}/.tmux/plugins" -maxdepth 1 -type d 2> /dev/null | wc -l | tr -d ' ')
+    ((plugin_count--)) # Subtract 1 for the plugins dir itself
     tpm_status="installed ($plugin_count plugins)"
   fi
 
   # vim-plug
   if [[ -f "${HOME}/.vim/autoload/plug.vim" ]]; then
     local plugin_count
-    plugin_count=$(find "${HOME}/.vim/plugged" -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
-    ((plugin_count--))  # Subtract 1 for the plugged dir itself
+    plugin_count=$(find "${HOME}/.vim/plugged" -maxdepth 1 -type d 2> /dev/null | wc -l | tr -d ' ')
+    ((plugin_count--)) # Subtract 1 for the plugged dir itself
     vim_plug_status="installed ($plugin_count plugins)"
   fi
 
@@ -125,9 +125,9 @@ get_jsh_version() {
 get_git_info() {
   local branch commit dirty
   if [[ -d "${root_dir}/.git" ]]; then
-    branch=$(git -C "$root_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-    commit=$(git -C "$root_dir" rev-parse --short HEAD 2>/dev/null || echo "unknown")
-    if git -C "$root_dir" diff --quiet HEAD 2>/dev/null; then
+    branch=$(git -C "$root_dir" rev-parse --abbrev-ref HEAD 2> /dev/null || echo "unknown")
+    commit=$(git -C "$root_dir" rev-parse --short HEAD 2> /dev/null || echo "unknown")
+    if git -C "$root_dir" diff --quiet HEAD 2> /dev/null; then
       dirty=""
     else
       dirty=" (modified)"
@@ -217,8 +217,8 @@ if [[ -n "$verbose" ]]; then
   echo -e "${BOLD}Key Tools${RESET}"
   tools=(git vim nvim tmux fzf zoxide brew docker kubectl)
   for tool in "${tools[@]}"; do
-    if command -v "$tool" &>/dev/null; then
-      version=$("$tool" --version 2>/dev/null | head -1 | cut -c1-50)
+    if command -v "$tool" &> /dev/null; then
+      version=$("$tool" --version 2> /dev/null | head -1 | cut -c1-50)
       printf "  ${GREEN}%-20s${RESET} %s\n" "$tool:" "$version"
     else
       printf "  ${RED}%-20s${RESET} %s\n" "$tool:" "not installed"
