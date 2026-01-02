@@ -91,6 +91,7 @@ dotfiles/.config/systemd
 dotfiles/.config/thefuck
 dotfiles/.config/wireshark
 dotfiles/.config/xnviewmp
+dotfiles/.vim/undodir/
 GitHub.sublime-settings
 Network\ Trash\ Folder
 node_modules
