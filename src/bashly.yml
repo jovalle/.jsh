@@ -1,6 +1,6 @@
 name: jsh
 help: Dotfiles and environment management utility
-version: 0.2.3
+version: 0.2.4
 
 environment_variables:
   - name: JSH_ROOT
