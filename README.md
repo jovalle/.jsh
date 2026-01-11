@@ -3,284 +3,261 @@
 
 # jsh
 
-  <p>
-    A collection of files to improve life in the shell
-  </p>
+> Portable, feature-rich shell environment that enhances and standardizes life in the terminal
+
 </div>
 
-## 📖 Overview
+**JSH** is a pure-shell dotfiles system designed to provide a consistent, powerful shell experience across macOS, Linux, and any SSH session. It leverages battle-tested tools (p10k, fzf, neovim) while keeping everything else in pure shell for maximum portability.
 
-A feature-rich and consistent life in the shell, powered by the `jsh` CLI. This is a mono repository for my local environments in both macOS and Linux (+WSL). I sync this project/directory across my devices using [Syncthing](https://syncthing.net/).
+## <img src="https://fonts.gstatic.com/s/e/notoemoji/latest/2728/512.gif" width="24" alt="" /> Features
 
-## 🚀 Capabilities
+- **Instant Prompt** - Powerlevel10k for a beautiful, informative, zero-latency prompt
+- **Fuzzy Everything** - FZF integration for files, history, git, and more
+- **Vi-Mode** - Full vi editing with cursor shape indicators
+- **80+ Aliases** - Tiered system: core always loads, extended aliases for detected tools
+- **50+ Functions** - Productivity boosters (extract, serve, mkcd, etc.)
+- **SSH Portability** - `jssh` carries your environment to any remote host, no installation required
+- **Pure Shell** - No external dependencies for core functionality
+- **Auto-Updates** - GitHub Actions keep lib dependencies current
 
-The core of this repository is the `jsh` utility, a comprehensive command-line interface that manages the entire environment.
+## <img src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f3a1/512.gif" width="24" alt="" /> Philosophy
 
-### 🛠️ Core Features
+1. **Pure shell where possible** - Core functionality works without external tools
+2. **Leverage existing tools** - Don't reinvent p10k, fzf, or neovim
+3. **Portability first** - Works on macOS, Linux, and over SSH
+4. **Graceful degradation** - Missing tools don't break anything
+5. **No magic** - Readable, understandable configuration
 
-- **Cross-Platform Support**: Seamlessly works across **macOS**, **Linux**, and **Windows** (via **WSL**).
-- **Automated Setup**: Single-command initialization (`jsh init --full`) to go from a fresh OS to a fully configured environment.
-- **Dotfile Management**: Deploys configurations for `zsh`, `vim`, `git`, `tmux`, and more using symlinks (inspired by GNU Stow).
-- **Package Management**: Unified interface (`jsh install`) that abstracts `brew`, `apt`, `dnf`, `pacman`, `apk`, and `zypper`.
-- **Application Configuration**: Automates settings for **VS Code** (settings/keybindings) and macOS system defaults.
-- **Diagnostics & Maintenance**: Built-in health checks (`jsh doctor`), cleanup scripts (`jsh clean`), and backup/restore functionality.
-
-### 🍟 Binaries
-
-Custom tools and wrappers located in `./bin/` are automatically added to `PATH`:
-
-| Binary     | Description                                                                           |
-| :--------- | :------------------------------------------------------------------------------------ |
-| `gitx`     | Bulk git command runner. Update or run commands across multiple repositories at once. |
-| `httpstat` | Visual curl statistics tool for debugging HTTP requests.                              |
-| `jssh`     | SSH with jsh config injection. Your shell config on any remote server.                |
-| `kubectx`  | Fast way to switch between Kubernetes contexts.                                       |
-| `kubens`   | Fast way to switch between Kubernetes namespaces.                                     |
-| `colours`  | Simple script to test terminal color capabilities.                                    |
-
-### SSH Session Portability
-
-Use `jssh` to SSH into remote servers with your jsh configuration automatically available:
+## <img src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f680/512.gif" width="24" alt="" /> Installation
 
 ```bash
-jssh user@server.com           # Connect with jsh config
-jssh -p 2222 user@server.com   # Pass SSH options through
+git clone --depth 1 https://github.com/jovalle/jsh ~/.jsh
+~/.jsh/jsh setup
+exec $SHELL
 ```
 
-Your essential aliases, color functions, and core utilities will be available on the remote host without permanent installation. The config is injected into a temporary directory and cleaned up automatically when you disconnect.
+## <img src="https://fonts.gstatic.com/s/e/notoemoji/latest/2705/512.gif" width="24" alt="" /> Requirements
 
-Requirements:
+**Required:**
 
-- Local: bash, tar, base64
-- Remote: bash, tar, base64 (standard on most Unix systems)
+- `git` - For installation and updates
+- `zsh` or `bash` - Shell (zsh recommended)
 
-## 📚 Core Elements
+**Recommended:**
 
-My shell of choice is `zsh` with [zinit](https://github.com/zdharma-continuum/zinit) as the zippy plugin manager.
+- `fzf` - Fuzzy finder (bundled)
+- `fd` - Better find
+- `rg` (ripgrep) - Better grep
+- `bat` - Better cat
+- `eza` - Better ls
+- `nvim` - Neovim
 
-### 🔌 Shell Plugins
+## <img src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f3c1/512.gif" width="24" alt="" /> Portability
 
-| Plugin                                       | Description                        |
-| -------------------------------------------- | ---------------------------------- |
-| `romkatv/powerlevel10k`                      | Fast, customizable prompt theme    |
-| `Aloxaf/fzf-tab`                             | FZF-powered tab completion         |
-| `zsh-users/zsh-completions`                  | Additional completion definitions  |
-| `zsh-users/zsh-autosuggestions`              | Fish-like autosuggestions          |
-| `zdharma-continuum/fast-syntax-highlighting` | Syntax highlighting                |
-| `akarzim/zsh-docker-aliases`                 | Docker command aliases             |
-| `MichaelAquilina/zsh-you-should-use`         | Reminds you of aliases             |
-| `wfxr/forgit`                                | Git commands with fzf              |
-| `lukechilds/zsh-nvm`                         | Lazy-load nvm                      |
-| `mafredri/zsh-async`                         | Async library                      |
-| `supercrabtree/k`                            | Directory listings with git status |
-
-## ⚡ Quick Start
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone https://github.com/jovalle/.jsh.git ~/.jsh
-   ```
-
-2. **Initialize the environment:**
-
-   ```bash
-   ~/.jsh/jsh init --setup
-   ```
-
-   This will:
-
-   - Install Homebrew (on macOS/Linux)
-   - Configure your shell (zsh or bash)
-   - Set up shell plugins and themes
-   - Install packages defined in configs/
-   - Link dotfiles to your home directory
-   - Apply system settings
-
-3. **Or run step-by-step:**
-
-   ```bash
-   jsh init              # Set up shell environment only
-   jsh install           # Install packages from configs/
-   jsh configure         # Apply dotfiles and system settings
-   ```
-
-## 📦 Installation & Usage
-
-The `jsh` CLI is your main entry point. Once initialized, it is available in your PATH.
+Connect to any server with your full shell environment:
 
 ```bash
-# Core Commands
-jsh init              # Set up shell environment (one-time)
-jsh install           # Install packages from configs/
-jsh upgrade           # Upgrade all packages (brew, zinit, system)
-jsh dotfiles          # Manage dotfile symlinks
-jsh configure         # Apply system settings
-
-# Tool & Plugin Management
-jsh tools             # Discover and manage development tools
-jsh tools install     # Install recommended tools
-jsh plugins           # Manage shell, vim, tmux plugins
-jsh plugins update    # Update all plugins
-
-# Diagnostics & Status
-jsh doctor            # Check for missing tools, broken symlinks
-jsh status            # Show packages, services, symlinks, git status
-jsh profile           # Show current environment profile
-
-# Maintenance
-jsh sync              # Sync jsh changes with remote repository
-jsh clean             # Remove caches, temp files, old brew versions
-jsh brew <args>       # Homebrew wrapper (handles root delegation)
-jsh deinit            # Remove jsh symlinks and restore backups
+jssh user@server.example.com
 ```
 
-### 🎯 Init Command Options
+This:
 
-The `init` command supports several flags for customization:
+1. Bundles your shell config into a compressed payload
+2. Transfers it through the SSH connection
+3. Extracts to a temp directory on the remote
+4. Launches your shell with the custom environment
+5. Cleans up automatically when you disconnect
+
+No installation, no traces left behind. Bring your own keyboard to work.
+
+## <img src="https://fonts.gstatic.com/s/e/notoemoji/latest/1fa84/512.gif" width="24" alt="" /> Commands
 
 ```bash
-jsh init --setup              # Initialize + install packages + configure
-jsh init --non-interactive    # Use defaults (zsh + full setup)
-jsh init --shell zsh          # Pre-select shell (zsh, bash, or skip)
-jsh init --minimal            # Lightweight setup without plugins
-jsh init --full               # Full setup with themes, plugins, completions
-jsh init --no-install         # Skip package installation
-jsh init --skip-brew          # Skip Homebrew installation
-jsh init --dry-run            # Preview changes without applying
+# Setup
+jsh bootstrap   # Clone/update repo and setup (for fresh installs)
+jsh setup       # Setup jsh (symlink dotfiles, init submodules)
+jsh teardown    # Remove jsh symlinks and optionally the installation
+jsh update      # Update jsh and submodules (p10k, fzf)
+
+# Packages
+jsh install     # Install packages (brew, apt, npm, cargo, etc.)
+jsh uninstall   # Uninstall packages
+
+# Dotfiles
+jsh adopt       # Adopt files/directories into jsh management
+jsh dotfiles    # Manage dotfile symlinks (link/unlink/restore/status)
+
+# Info
+jsh status      # Show installation status
+jsh doctor      # Check for issues and missing tools
+jsh edit        # Edit jsh configuration files
+jsh local       # Edit local shell customizations (~/.jshrc.local)
+jsh -r          # Reload shell configuration
+
+# SSH
+jssh            # SSH with portable environment (full mode)
+jssh --lite     # SSH with minimal payload (~16MB vs ~150MB)
+jssh --rebuild  # Force payload rebuild
 ```
 
-### 📦 Install Command Options
+## <img src="https://fonts.gstatic.com/s/e/notoemoji/latest/1fae7/512.gif" width="24" alt="" /> Key Bindings
 
-Install packages via specific package managers:
+### Vi Mode (Insert)
+
+| Key        | Action                   |
+| ---------- | ------------------------ |
+| `jj`       | Exit to normal mode      |
+| `Ctrl+A/E` | Beginning/end of line    |
+| `Ctrl+W`   | Delete word              |
+| `Ctrl+L`   | Clear screen             |
+| `Up/Down`  | History search by prefix |
+
+### FZF
+
+| Key      | Action          |
+| -------- | --------------- |
+| `Ctrl+T` | Find files      |
+| `Ctrl+R` | Search history  |
+| `Alt+C`  | cd to directory |
+
+## <img src="https://fonts.gstatic.com/s/e/notoemoji/latest/26a1/512.gif" width="24" alt="" /> Aliases (Highlights)
+
+### Navigation
 
 ```bash
-jsh install <package> --brew     # Install via Homebrew
-jsh install <package> --npm      # Install via npm
-jsh install <package> --pip      # Install via pip
-jsh install <package> --cargo    # Install via cargo (Rust)
-jsh install <package> --gem      # Install via Ruby gem
-jsh install <package> --apt      # Install via apt (Debian/Ubuntu)
-jsh install <package> --dnf      # Install via dnf (Fedora/RHEL)
-jsh install <package> --pacman   # Install via pacman (Arch)
-jsh install <package> --yum      # Install via yum (CentOS/RHEL)
-jsh install <package> --zypper   # Install via zypper (openSUSE)
+..      # cd ..
+...     # cd ../..
+-       # cd - (previous)
 ```
 
-## 📂 Project Structure
+### Git
+
+```bash
+g       # git
+gs      # git status -sb
+gp      # git push
+gpu     # git push -u origin HEAD
+gl      # git log --oneline -20
+gd      # git diff
+gco     # git checkout
+gcb     # git checkout -b
+```
+
+### Docker/K8s (if installed)
+
+```bash
+d       # docker
+dps     # docker ps
+k       # kubectl
+kgp     # kubectl get pods
+kl      # kubectl logs -f
+```
+
+## <img src="https://fonts.gstatic.com/s/e/notoemoji/latest/2699/512.gif" width="24" alt="" /> Functions (Highlights)
+
+```bash
+mkcd dir        # mkdir && cd
+extract file    # Extract any archive
+serve [port]    # Quick HTTP server
+ff pattern      # Find files
+fcd             # FZF cd
+fe              # FZF edit
+genpass [len]   # Generate password
+weather [loc]   # Weather forecast
+cheat topic     # Cheat sheet
+```
+
+## <img src="https://fonts.gstatic.com/s/e/notoemoji/latest/270f_fe0f/512.gif" width="24" alt="" /> Local Overrides
+
+Machine-specific config goes in these files (not tracked in git):
+
+| File | Use Case |
+| ---------------------- | ----------------------------------------------------- |
+| `~/.jsh/local/.jshrc` | Simple env vars and exports (keeps everything in jsh) |
+| `~/.jshrc.local` | Simple overrides (if you prefer `~/` location) |
+| `~/.jsh/local/init.sh` | Complex setups with multiple files |
+
+All three are sourced automatically. Choose based on preference:
+
+- **`local/.jshrc`** - Quick exports like `export EDITOR=code` or `export AWS_PROFILE=dev`
+- **`~/.jshrc.local`** - Same purpose, but lives in home directory instead of jsh
+- **`local/init.sh`** - When you need to organize into multiple files (source others from here)
+
+Shell-specific overrides (rarely needed):
+
+- `~/.zshrc.local` - Zsh-only overrides
+- `~/.bashrc.local` - Bash-only overrides
+
+## <img src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f30e/512.gif" width="24" alt="" /> Structure
 
 ```text
-.jsh/
-├── bin/                            # Custom CLI tools and utilities
-│   ├── colours                     # Terminal color test script
-│   ├── gitx                        # Bulk git command runner
-│   ├── httpstat                    # Visual curl statistics
-│   ├── jssh                        # SSH with jsh config injection
-│   ├── kubectx                     # Kubernetes context switcher
-│   └── kubens                      # Kubernetes namespace switcher
-├── configs/                        # Package manifests and app configs
-│   ├── git/                        # Git profiles and configurations
-│   │   └── profiles.json.example   # Example git profiles
-│   ├── linux/                      # Linux distro configs
-│   │   ├── apk.json                # Alpine packages
-│   │   ├── apt.json                # Debian/Ubuntu packages
-│   │   ├── dnf.json                # Fedora packages
-│   │   ├── formulae.json           # Homebrew formulae (Linux)
-│   │   ├── pacman.json             # Arch packages
-│   │   ├── services.json           # Linux services
-│   │   ├── yum.json                # CentOS/RHEL packages
-│   │   └── zypper.json             # openSUSE packages
-│   ├── macos/                      # macOS-specific configs
-│   │   ├── casks.json              # Homebrew casks
-│   │   ├── formulae.json           # Homebrew formulae
-│   │   └── services.json           # macOS services
-│   ├── vscode/                     # VS Code settings and keybindings
-│   │   ├── keybindings.json        # Keyboard shortcuts
-│   │   └── settings.json           # Editor settings
-│   └── windows/                    # Windows/WSL configs
-│       ├── fonts.json              # Windows fonts
-│       └── winget.json             # Windows package manager
-├── dotfiles/                       # Configuration files (symlinked to ~/)
-│   ├── .bashrc                     # Bash configuration
-│   ├── .commitlintrc.json          # Commit message linting
-│   ├── .config/                    # XDG config directory
-│   ├── .czrc                       # Commitizen configuration
-│   ├── .editorconfig               # Editor configuration
-│   ├── .eslintrc.json              # ESLint configuration
-│   ├── .gitconfig                  # Git global configuration
-│   ├── .inputrc                    # Readline configuration
-│   ├── .jsh_local                  # Local overrides (not tracked)
-│   ├── .jshrc                      # Shell agnostic configuration
-│   ├── .markdownlint.json          # Markdown linting rules
-│   ├── .p10k.zsh                   # Powerlevel10k theme config
-│   ├── .pre-commit-config.yaml     # Pre-commit hooks
-│   ├── .prettierrc.json            # Prettier configuration
-│   ├── .pylintrc                   # Python linting
-│   ├── .shellcheckrc               # ShellCheck configuration
-│   ├── .tmux.conf                  # Tmux configuration
-│   ├── .vim/                       # Vim plugins and config
-│   ├── .vimrc                      # Vim configuration
-│   ├── .yamllint                   # YAML linting
-│   ├── .zsh/                       # Zsh plugins and functions
-│   └── .zshrc                      # Zsh configuration
-├── scripts/                        # Setup and maintenance scripts
-│   ├── linux/                      # Linux system configuration
-│   ├── macos/                      # macOS system configuration
-│   ├── unix/                       # Cross-platform scripts
-│   └── windows/                    # Windows/WSL configuration
-└── src/                            # jsh CLI source code (bashly)
-    ├── bashly.yml                  # CLI command definitions
-    └── lib/                        # Shared shell functions
+~/.jsh/
+├── jsh                    # CLI tool (setup, update, doctor, etc.)
+├── Makefile               # Automation targets
+│
+├── src/                   # Shell configuration (pure shell)
+│   ├── init.sh            # Entry point (source this)
+│   ├── core.sh            # Platform detection, colors, utilities
+│   ├── aliases.sh         # Tiered alias system
+│   ├── functions.sh       # Utility functions
+│   ├── vi-mode.sh         # Vi editing with cursor shapes
+│   ├── git.sh             # Git shortcuts and utilities
+│   ├── prompt.sh          # Prompt configuration
+│   ├── profiles.sh        # Cloud/project profile switching
+│   ├── projects.sh        # Project management
+│   ├── zsh.sh             # Zsh-specific config
+│   ├── bash.sh            # Bash-specific config
+│   ├── completions/       # Shell completions
+│   └── fzf/               # FZF integration scripts
+│
+├── core/                  # Symlink targets (dotfiles)
+│   ├── .zshrc             # Zsh entry point
+│   ├── .bashrc            # Bash entry point
+│   ├── .config/           # XDG config (nvim, etc.)
+│   ├── gitconfig          # Git configuration
+│   ├── gitignore_global   # Global gitignore
+│   ├── inputrc            # Readline (vi mode)
+│   ├── tmux.conf          # Tmux configuration
+│   └── p10k.zsh           # Powerlevel10k theme
+│
+├── lib/                   # Bundled dependencies (submodules)
+│   ├── p10k/              # Powerlevel10k
+│   ├── fzf/               # FZF
+│   ├── zsh-autosuggestions/
+│   ├── zsh-completions/
+│   ├── zsh-syntax-highlighting/
+│   └── zsh-z/             # Directory jumping
+│
+├── bin/                   # Standalone tools
+│   ├── jssh               # SSH with portable environment
+│   └── ...                # Other utilities
+│
+├── config/                # JSH configuration files
+│   ├── dependencies.json  # Tool dependencies
+│   ├── profiles.json      # Cloud profiles
+│   └── projects.json      # Project definitions
+│
+├── scripts/               # Helper scripts
+│   ├── macos/             # macOS-specific scripts
+│   ├── linux/             # Linux-specific scripts
+│   └── windows/           # Windows-specific scripts
+│
+├── local/                 # Machine-specific config (gitignored)
+│   └── .jshrc             # Local overrides
+│
+└── archive/               # Previous implementation (reference)
 ```
 
-## 🔧 Development
+## <img src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f31f/512.gif" width="24" alt="" /> Credits
 
-The `jsh` CLI is built using [bashly](https://bashly.dannyb.co/), a bash CLI framework. To modify commands:
+Built on the shoulders of:
 
-1. **Edit the command definitions:** Modify `src/bashly.yml` or individual command files in `src/`
-2. **Regenerate the CLI:** Run `make build` or `bashly generate`
-3. **Test changes:** The updated `jsh` script is ready to use
+- [Powerlevel10k](https://github.com/romkatv/powerlevel10k) by Roman Perepelitsa
+- [fzf](https://github.com/junegunn/fzf) by Junegunn Choi
+- the [Neovim](https://neovim.io/) community
 
-### Available Make Targets
+Inspired by countless dotfiles repos and the Unix philosophy.
 
-```bash
-make help              # Show all available targets
-make install-tools     # Install development tools (shfmt, shellcheck, etc.)
-make fmt               # Format all code (shell, Python, YAML, JSON, Markdown)
-make lint              # Lint all code
-make build             # Regenerate jsh from bashly sources
-make test              # Run automated test suite
-```
+## <img src="https://fonts.gstatic.com/s/e/notoemoji/latest/2696_fe0f/512.gif" width="24" alt="" /> License
 
-### Testing
-
-This project uses [bats](https://github.com/bats-core/bats-core) for automated testing.
-
-**Run all tests:**
-
-```bash
-bats test/
-```
-
-**Run specific test suites:**
-
-```bash
-bats test/unit/              # Unit tests (89 tests)
-bats test/integration/       # Integration tests (74 tests)
-```
-
-**Total test coverage:** 163 automated tests across unit and integration suites.
-
-See [docs/TEST_SUITE.md](docs/TEST_SUITE.md) for complete testing documentation, including performance profiling and manual testing guidance.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Make your changes
-4. Run tests: `make test`
-5. Submit a pull request
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details.
+[MIT](LICENSE) so you can do whatever you want with this. Fork it, tweak it, use it at work, sell a product built on it, whatever. Just keep the license file around so people know where it came from. No warranties, no strings attached.
