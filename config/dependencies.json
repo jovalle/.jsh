@@ -1,0 +1,58 @@
+{
+  "$schema": "./lib-components.schema.json",
+  "description": "Vendor components managed by jsh - built from submodules or downloaded as binaries",
+  "components": {
+    "fzf": {
+      "type": "build-from-source",
+      "submodule": "lib/fzf",
+      "repo": "junegunn/fzf",
+      "build": "make lib-fzf-build",
+      "platforms": ["linux-amd64", "linux-arm64", "darwin-amd64", "darwin-arm64"],
+      "notes": "Go binary, built from submodule source"
+    },
+    "nvim": {
+      "type": "download-release",
+      "repo": "neovim/neovim",
+      "versionVar": "NVIM_VERSION",
+      "build": "make lib-nvim",
+      "platforms": ["linux-amd64", "linux-arm64", "darwin-amd64", "darwin-arm64"],
+      "notes": "Complex build dependencies - use pre-built releases"
+    },
+    "p10k": {
+      "type": "submodule-only",
+      "submodule": "lib/p10k",
+      "repo": "romkatv/powerlevel10k",
+      "notes": "Zsh theme, no build required"
+    },
+    "zsh-autosuggestions": {
+      "type": "submodule-only",
+      "submodule": "lib/zsh-autosuggestions",
+      "repo": "zsh-users/zsh-autosuggestions",
+      "notes": "Zsh plugin, no build required"
+    },
+    "zsh-syntax-highlighting": {
+      "type": "submodule-only",
+      "submodule": "lib/zsh-syntax-highlighting",
+      "repo": "zsh-users/zsh-syntax-highlighting",
+      "notes": "Zsh plugin, no build required"
+    },
+    "zsh-history-substring-search": {
+      "type": "submodule-only",
+      "submodule": "lib/zsh-history-substring-search",
+      "repo": "zsh-users/zsh-history-substring-search",
+      "notes": "Zsh plugin, no build required"
+    },
+    "zsh-completions": {
+      "type": "submodule-only",
+      "submodule": "lib/zsh-completions",
+      "repo": "zsh-users/zsh-completions",
+      "notes": "Zsh completions, no build required"
+    },
+    "zsh-z": {
+      "type": "submodule-only",
+      "submodule": "lib/zsh-z",
+      "repo": "agkozak/zsh-z",
+      "notes": "Directory jumping plugin, no build required"
+    }
+  }
+}

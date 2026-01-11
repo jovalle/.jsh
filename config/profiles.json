@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "personal": {
+      "name": "Jay Ovalle",
+      "email": "jay.ovalle@gmail.com",
+      "username": "jovalle",
+      "host": "github-jovalle"
+    },
+    "anon": {
+      "name": "Skulltrail",
+      "email": "skulltrail@skulltrail.com",
+      "username": "skulltrail",
+      "host": "github-skulltrail"
+    }
+  }
+}
