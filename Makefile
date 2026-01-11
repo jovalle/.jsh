@@ -375,10 +375,11 @@ shell: ## Debug shell with JSH_DEBUG=1
 install-tools: ## Install development tools (linters, formatters)
 	$(call print_info,Installing development tools...)
 ifeq ($(shell uname), Darwin)
-	@brew install shellcheck shfmt yamllint pre-commit || true
+	@brew install shellcheck shfmt yamllint pre-commit git-lfs || true
+	@git lfs install || true
 	@pip3 install --user pre-commit || true
 else
-	$(call print_warn,Install manually: shellcheck shfmt yamllint pre-commit)
+	$(call print_warn,Install manually: shellcheck shfmt yamllint pre-commit git-lfs)
 endif
 	$(call print_success,Done! Run 'make pre-commit-install' to set up git hooks)
 

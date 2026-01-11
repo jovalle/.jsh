@@ -1,104 +1,106 @@
-__pycache__
-._*
-.apdisk
-.AppleDB
-.AppleDesktop
-.AppleDouble
-.bash_history
-.brewcheck
-.com.apple.timemachine.donotpresent
-.config/syncthing
-.DocumentRevisions-V100
+# JSH Gitignore
+
+# =============================================================================
+# OS Generated
+# =============================================================================
 .DS_Store
-.env
-.envrc
-.fseventsd
-.fzf
-.history
-.idea
-.jsh_local
-.kube
-.LSOverride
-.mounts.json
-.npm
-.oh-my-zsh
-.planning/
-.sops
+.DS_Store?
+._*
 .Spotlight-V100
-.ssh
-.stfolder
-.stow-local-ignore
-.talos
-.task/
-.TemporaryItems
-.Trash
 .Trashes
-.vault
-.vim/bundle/*
-.vim/plugged/*
-.VolumeIcon.icns
-.vscode/argv.json
-.vscode/cli/
-.vscode/extensions/
+Thumbs.db
+Desktop.ini
+
+# =============================================================================
+# Local / Machine-Specific
+# =============================================================================
+# Ignore contents of local/ but track example files
+local/*
+!local/*.example
+*.local
+
+# =============================================================================
+# Cache & Temporary
+# =============================================================================
+*.cache
+*.tmp
+*.log
+.cache/
+
+# =============================================================================
+# Shell History (don't track)
+# =============================================================================
+.bash_history
 .zsh_history
 .zsh_history.*
-*.cache*
-*.chatmode.md
-*.db
-*.gpg
-*.last-run
-*.log
-*.min.js
-*.mk
-*.netrwhist
-*.pem
-*.stTheme.cache
-*.sublime-project
-*.sublime-workspace
+
+# =============================================================================
+# Editor & IDE
+# =============================================================================
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+*~
+*.sublime-*
+tags
+TAGS
+
+# =============================================================================
+# Syncthing
+# =============================================================================
+.stfolder/
+.stignore
 *.sync-conflict-*
-*.tmlanguage.cache
-*.tmp
-*.tmPreferences.cache
-*[cC][lL][aA][uU][dD][eE]*
-*[gG][eE][mM][iI][nN][iI]*
-*[qQ][wW][eE][nN]*
-*\ copy*
-*Package\ Control.ca-bundle
-*Package\ Control.ca-certs/
-*Package\ Control.ca-list
-*Package\ Control.cache/
-*Package\ Control.last-run
-*Package\ Control.merged-ca-bundle
-*Package\ Control.system-ca-bundle
-*Package\ Control.user-ca-bundle
-# Git & Prettier Ignore File
-# https://git-scm.com/docs/gitignore
-# https://prettier.io/docs/en/ignore.html
-# This file is used by both Git (.gitignore) and Prettier (.prettierignore symlink)
-AppSupport
-bh_unicode_properties.cache
-bun.lockb
-dotfiles/.config/argocd
-dotfiles/.config/configstore
-dotfiles/.config/containers
-dotfiles/.config/flipperdevices.com
-dotfiles/.config/fontforge
-dotfiles/.config/karabiner
-dotfiles/.config/qBittorrent
-dotfiles/.config/raycast
-dotfiles/.config/syncthing
-dotfiles/.config/systemd
-dotfiles/.config/thefuck
-dotfiles/.config/wireshark
-dotfiles/.config/xnviewmp
-dotfiles/.vim/undodir/
-GitHub.sublime-settings
-Network\ Trash\ Folder
-node_modules
+
+# =============================================================================
+# Build Artifacts
+# =============================================================================
+# Lib binaries are built by CI, track them in git
+# lib/bin/ is NOT ignored - fzf and nvim binaries are committed
+# Neovim runtime files (downloaded via make lib, ~50MB per architecture)
+lib/bin/*/nvim-share/
+# Force-track treesitter parsers (overrides global *.so ignore)
+!lib/bin/*/nvim-lib/**/*.so
+
+# Large generated directories (not tracked)
+lib/mason-packages/
+lib/nvim-data/
+lib/nvim-share/
+
+# =============================================================================
+# Secrets & Credentials
+# =============================================================================
+*.pem
+*.key
+*.env
+.envrc
+
+# =============================================================================
+# Private Dotfiles (synced via Syncthing, never committed)
+# =============================================================================
+private/
+
+# =============================================================================
+# Node (if any tooling)
+# =============================================================================
 node_modules/
-oscrypto-ca-bundle.crt
 package-lock.json
-package.json
-profiles.json
-sftp-config.json
-Temporary\ Items
+bun.lockb
+
+# =============================================================================
+# Archive (keep for reference but don't need to track changes)
+# =============================================================================
+archive/
+
+# =============================================================================
+# Generated Documentation
+# =============================================================================
+.github/CHANGES.md
+.github/.commits-done
+
+# =============================================================================
+# Local copies
+# =============================================================================
+* copy.*

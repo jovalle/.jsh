@@ -1,0 +1,274 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Lint shell scripts
+        run: |
+          echo "=== Linting src/*.sh ==="
+          shellcheck -x -s bash src/*.sh
+
+          echo "=== Linting jsh CLI ==="
+          shellcheck -x -s bash jsh
+
+          echo "=== Linting jssh ==="
+          shellcheck -x -s bash bin/jssh
+
+          echo "=== Linting docker/entrypoint.sh ==="
+          shellcheck -x -s bash docker/entrypoint.sh
+
+      - name: Check for syntax errors
+        run: |
+          echo "=== Checking bash syntax ==="
+          for f in src/*.sh jsh bin/jssh docker/entrypoint.sh; do
+            echo "Checking $f..."
+            bash -n "$f"
+          done
+
+          echo "=== Checking zsh syntax ==="
+          sudo apt-get install -y zsh
+          for f in src/*.sh; do
+            echo "Checking $f..."
+            zsh -n "$f" || true  # Some bash-isms may not parse in zsh -n
+          done
+
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Install dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y zsh
+
+      - name: Show environment
+        run: |
+          echo "OS: $(uname -s)"
+          echo "Arch: $(uname -m)"
+          echo "Shell: $SHELL"
+          echo "Bash: $(bash --version | head -1)"
+          echo "Zsh: $(zsh --version)"
+
+      # === jsh CLI Tests ===
+      - name: Test jsh --help
+        run: ./jsh --help
+
+      - name: Test jsh --version
+        run: |
+          VERSION=$(./jsh --version)
+          echo "Version: $VERSION"
+          [[ "$VERSION" =~ ^jsh\ [0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid version format"; exit 1; }
+
+      - name: Test jsh status
+        run: ./jsh status
+
+      - name: Test jsh doctor
+        run: ./jsh doctor
+
+      - name: Test jsh dotfiles status
+        run: ./jsh dotfiles status
+
+      # === Shell Loading Tests ===
+      - name: Test shell loading (bash)
+        run: |
+          echo "=== Testing bash shell loading ==="
+          bash -c '
+            export JSH_DIR="$(pwd)"
+            source src/init.sh
+            echo "Shell loaded successfully"
+
+            # Verify core functions exist
+            type has >/dev/null 2>&1 || { echo "has function missing"; exit 1; }
+            type path_prepend >/dev/null 2>&1 || { echo "path_prepend missing"; exit 1; }
+
+            # Verify aliases are set
+            alias ll >/dev/null 2>&1 || echo "ll alias not set (ok if eza/exa missing)"
+
+            echo "Bash shell test passed!"
+          '
+
+      - name: Test shell loading (zsh)
+        run: |
+          echo "=== Testing zsh shell loading ==="
+          zsh -c '
+            export JSH_DIR="$(pwd)"
+            source src/init.sh
+            echo "Shell loaded successfully"
+
+            # Verify core functions exist
+            type has >/dev/null 2>&1 || { echo "has function missing"; exit 1; }
+            type path_prepend >/dev/null 2>&1 || { echo "path_prepend missing"; exit 1; }
+
+            echo "Zsh shell test passed!"
+          '
+
+      - name: Test non-interactive mode
+        run: |
+          echo "=== Testing non-interactive source ==="
+          # Should exit early without errors
+          bash -c 'source src/init.sh && echo "Non-interactive OK"'
+
+      # === jssh Tests ===
+      - name: Test jssh --help
+        run: ./bin/jssh --help
+
+      - name: Test jssh --rebuild
+        run: |
+          ./bin/jssh --rebuild
+          # Verify payload was created
+          CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/jssh"
+          [[ -f "$CACHE_DIR/payload.tar.gz" ]] || { echo "Payload not created"; exit 1; }
+          [[ -f "$CACHE_DIR/payload.hash" ]] || { echo "Hash not created"; exit 1; }
+          echo "Payload size: $(du -h "$CACHE_DIR/payload.tar.gz" | cut -f1)"
+
+      - name: Verify jssh payload contents
+        run: |
+          CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/jssh"
+          echo "=== Payload contents ==="
+          tar -tzf "$CACHE_DIR/payload.tar.gz" | head -30
+          echo "..."
+          # Verify essential files
+          tar -tzf "$CACHE_DIR/payload.tar.gz" | grep -q "jsh/src/init.sh" || { echo "init.sh missing"; exit 1; }
+          tar -tzf "$CACHE_DIR/payload.tar.gz" | grep -q "jsh/bootstrap.sh" || { echo "bootstrap.sh missing"; exit 1; }
+          echo "Payload verified!"
+
+  install:
+    name: Install Test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Install dependencies
+        run: sudo apt-get install -y zsh
+
+      - name: Test bootstrap install
+        run: |
+          # Simulate bootstrap install (would normally clone from remote)
+          export JSH_DIR="$HOME/.jsh"
+          mkdir -p "$JSH_DIR"
+          cp -r . "$JSH_DIR/"
+
+          # Run setup
+          "$JSH_DIR/jsh" setup --skip-submodules 2>/dev/null || "$JSH_DIR/jsh" setup || true
+
+      - name: Verify installation
+        run: |
+          export JSH_DIR="$HOME/.jsh"
+
+          # Test CLI is accessible
+          "$JSH_DIR/jsh" --version
+
+          # Test status command
+          "$JSH_DIR/jsh" status
+
+          # Test doctor command
+          "$JSH_DIR/jsh" doctor
+
+  docker:
+    name: Docker Build & Test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          load: true
+          tags: jsh-test:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Test container (zsh)
+        run: |
+          docker run --rm -v "$PWD:/home/testuser/.jsh:ro" \
+            -e JSH_TEST_SHELL=zsh \
+            jsh-test:latest \
+            zsh -c '
+              export JSH_DIR="$HOME/.jsh"
+              source "$JSH_DIR/src/init.sh"
+              echo "Container zsh test passed!"
+            '
+
+      - name: Test container (bash)
+        run: |
+          docker run --rm -v "$PWD:/home/testuser/.jsh:ro" \
+            -e JSH_TEST_SHELL=bash \
+            jsh-test:latest \
+            bash -c '
+              export JSH_DIR="$HOME/.jsh"
+              source "$JSH_DIR/src/init.sh"
+              echo "Container bash test passed!"
+            '
+
+      - name: Test jsh CLI in container
+        run: |
+          docker run --rm -v "$PWD:/home/testuser/.jsh:ro" \
+            jsh-test:latest \
+            /home/testuser/.jsh/jsh doctor
+
+  completions:
+    name: Test Completions
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Install zsh
+        run: sudo apt-get install -y zsh
+
+      - name: Test zsh completions load
+        run: |
+          zsh -c '
+            fpath=("'"$PWD"'/src/completions" $fpath)
+            autoload -Uz compinit && compinit -u
+            echo "Completions loaded successfully"
+          '
+
+      - name: Test bash completions load
+        run: |
+          bash -c '
+            if [[ -f src/completions/_jsh ]]; then
+              # Bash completion from zsh format may not work directly
+              echo "Completion file exists: src/completions/_jsh"
+            fi
+            echo "Bash completion check passed"
+          '

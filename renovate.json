@@ -1,16 +1,69 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
-  "git-submodules": {
-    "enabled": true
-  },
+  "labels": ["dependencies"],
+  "prHourlyLimit": 2,
+  "prConcurrentLimit": 5,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": ["^Makefile$"],
+      "matchStrings": ["NVIM_VERSION := (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "neovim/neovim",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": ["^Makefile$"],
+      "matchStrings": ["GITSTATUS_VERSION := (?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "romkatv/gitstatus",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    }
+  ],
   "packageRules": [
     {
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "automerge": true
+    },
+    {
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["neovim/neovim"],
+      "labels": ["dependencies", "lib-binaries"],
+      "automerge": false
+    },
+    {
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["romkatv/gitstatus"],
+      "labels": ["dependencies", "lib-binaries"],
+      "automerge": false,
+      "prBodyNotes": [
+        "**Important**: Before merging, verify pre-built binaries are available at https://github.com/romkatv/gitstatus/releases for all platforms (linux-x86_64, linux-aarch64, darwin-x86_64, darwin-arm64). After merging, run `make lib ACTION=build C=gitstatus` and update `lib/p10k/gitstatus/build.info` to match."
+      ]
+    },
+    {
       "matchManagers": ["git-submodules"],
-      "automerge": true,
-      "automergeType": "branch",
-      "ignoreTests": true,
-      "schedule": ["before 6am on monday"]
+      "matchPackageNames": ["junegunn/fzf"],
+      "labels": ["dependencies", "lib-binaries"],
+      "automerge": false,
+      "description": "fzf submodule - triggers build-fzf.yml workflow on merge"
+    },
+    {
+      "matchManagers": ["git-submodules"],
+      "matchPackageNames": ["romkatv/powerlevel10k"],
+      "labels": ["dependencies", "zsh-theme"],
+      "automerge": false
+    },
+    {
+      "matchManagers": ["git-submodules"],
+      "matchPackagePatterns": ["^zsh-users/", "^agkozak/zsh-z$"],
+      "groupName": "zsh-plugins",
+      "labels": ["dependencies", "zsh-plugins"],
+      "automerge": true
     }
-  ]
+  ],
+  "git-submodules": {
+    "enabled": true
+  }
 }

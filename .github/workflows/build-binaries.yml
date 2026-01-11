@@ -1,0 +1,322 @@
+name: Update Binaries
+
+on:
+  schedule:
+    - cron: '0 6 * * 0'  # Weekly on Sundays at 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Component to update'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - gitstatus
+          - nvim
+
+permissions:
+  contents: write
+
+jobs:
+  update-gitstatus:
+    name: Update gitstatus
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.component == 'all' || github.event.inputs.component == 'gitstatus' || github.event_name == 'schedule' }}
+    outputs:
+      updated: ${{ steps.download.outputs.updated }}
+      version: ${{ steps.download.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          lfs: true
+
+      - name: Get latest gitstatus release
+        id: release
+        run: |
+          LATEST=$(curl -sL https://api.github.com/repos/romkatv/gitstatus/releases/latest | jq -r .tag_name)
+          echo "version=${LATEST}" >> $GITHUB_OUTPUT
+          echo "Latest gitstatus: ${LATEST}"
+
+      - name: Download gitstatus binaries
+        id: download
+        run: |
+          VERSION="${{ steps.release.outputs.version }}"
+          BASE_URL="https://github.com/romkatv/gitstatus/releases/download/${VERSION}"
+          updated=false
+
+          declare -A platforms=(
+            ["linux-amd64"]="gitstatusd-linux-x86_64"
+            ["linux-arm64"]="gitstatusd-linux-aarch64"
+            ["darwin-amd64"]="gitstatusd-darwin-x86_64"
+            ["darwin-arm64"]="gitstatusd-darwin-arm64"
+          )
+
+          for platform in "${!platforms[@]}"; do
+            binary="${platforms[$platform]}"
+            target_dir="lib/bin/${platform}"
+            target_file="${target_dir}/${binary}"
+
+            mkdir -p "${target_dir}"
+
+            # Download tarball
+            echo "Downloading ${binary}..."
+            curl -sL "${BASE_URL}/${binary}.tar.gz" -o "/tmp/${binary}.tar.gz"
+
+            # Extract (gitstatus tarballs contain just the binary)
+            tar -xzf "/tmp/${binary}.tar.gz" -C "/tmp"
+
+            # Check if binary changed
+            if [[ -f "${target_file}" ]]; then
+              old_hash=$(sha256sum "${target_file}" | cut -d' ' -f1)
+              new_hash=$(sha256sum "/tmp/${binary}" | cut -d' ' -f1)
+              if [[ "${old_hash}" != "${new_hash}" ]]; then
+                updated=true
+              fi
+            else
+              updated=true
+            fi
+
+            mv "/tmp/${binary}" "${target_file}"
+            chmod +x "${target_file}"
+            echo "Installed: ${target_file}"
+          done
+
+          echo "updated=${updated}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitstatus-binaries
+          path: lib/bin/*/gitstatusd-*
+          retention-days: 1
+
+  update-nvim:
+    name: Update nvim
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.component == 'all' || github.event.inputs.component == 'nvim' || github.event_name == 'schedule' }}
+    outputs:
+      updated: ${{ steps.download.outputs.updated }}
+      version: ${{ steps.download.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          lfs: true
+
+      - name: Get latest nvim release
+        id: release
+        run: |
+          # Get latest stable release (not nightly)
+          LATEST=$(curl -sL https://api.github.com/repos/neovim/neovim/releases/latest | jq -r .tag_name)
+          echo "version=${LATEST}" >> $GITHUB_OUTPUT
+          echo "Latest nvim: ${LATEST}"
+
+      - name: Download nvim binaries
+        id: download
+        run: |
+          VERSION="${{ steps.release.outputs.version }}"
+          BASE_URL="https://github.com/neovim/neovim/releases/download/${VERSION}"
+          updated=false
+
+          # Platform mappings: our name -> nvim release name
+          declare -A platforms=(
+            ["linux-amd64"]="nvim-linux-x86_64"
+            ["linux-arm64"]="nvim-linux-arm64"
+            ["darwin-amd64"]="nvim-macos-x86_64"
+            ["darwin-arm64"]="nvim-macos-arm64"
+          )
+
+          for platform in "${!platforms[@]}"; do
+            nvim_name="${platforms[$platform]}"
+            target_dir="lib/bin/${platform}"
+            target_file="${target_dir}/nvim"
+            target_lib="${target_dir}/nvim-lib"
+
+            mkdir -p "${target_dir}" "${target_lib}"
+
+            echo "Downloading ${nvim_name}..."
+            curl -sL "${BASE_URL}/${nvim_name}.tar.gz" -o "/tmp/${nvim_name}.tar.gz"
+
+            # Extract
+            rm -rf "/tmp/${nvim_name}"
+            tar -xzf "/tmp/${nvim_name}.tar.gz" -C "/tmp"
+
+            # Find the extracted directory (naming varies)
+            extracted_dir=$(find /tmp -maxdepth 1 -type d -name "${nvim_name}*" | head -1)
+            if [[ -z "${extracted_dir}" ]]; then
+              # Try alternate naming
+              extracted_dir=$(find /tmp -maxdepth 1 -type d -name "nvim-*" | head -1)
+            fi
+
+            if [[ -z "${extracted_dir}" || ! -d "${extracted_dir}" ]]; then
+              echo "Warning: Could not find extracted nvim directory for ${platform}"
+              continue
+            fi
+
+            # Check if binary changed
+            new_binary="${extracted_dir}/bin/nvim"
+            if [[ -f "${target_file}" && -f "${new_binary}" ]]; then
+              old_hash=$(sha256sum "${target_file}" | cut -d' ' -f1)
+              new_hash=$(sha256sum "${new_binary}" | cut -d' ' -f1)
+              if [[ "${old_hash}" != "${new_hash}" ]]; then
+                updated=true
+              fi
+            else
+              updated=true
+            fi
+
+            # Install binary
+            cp "${new_binary}" "${target_file}"
+            chmod +x "${target_file}"
+
+            # Install lib (parsers, etc.)
+            if [[ -d "${extracted_dir}/lib/nvim" ]]; then
+              rm -rf "${target_lib}/nvim"
+              cp -R "${extracted_dir}/lib/nvim" "${target_lib}/"
+            fi
+
+            echo "Installed: ${target_file}"
+            rm -rf "${extracted_dir}"
+          done
+
+          echo "updated=${updated}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nvim-binaries
+          path: |
+            lib/bin/*/nvim
+            lib/bin/*/nvim-lib/
+          retention-days: 1
+
+  update-nvim-share:
+    name: Update nvim runtime
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.component == 'all' || github.event.inputs.component == 'nvim' || github.event_name == 'schedule' }}
+    outputs:
+      updated: ${{ steps.download.outputs.updated }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          lfs: true
+
+      - name: Get latest nvim release
+        id: release
+        run: |
+          LATEST=$(curl -sL https://api.github.com/repos/neovim/neovim/releases/latest | jq -r .tag_name)
+          echo "version=${LATEST}" >> $GITHUB_OUTPUT
+
+      - name: Download nvim runtime files
+        id: download
+        run: |
+          VERSION="${{ steps.release.outputs.version }}"
+          BASE_URL="https://github.com/neovim/neovim/releases/download/${VERSION}"
+          updated=false
+
+          # Use linux-x86_64 for shared runtime files (they're the same across platforms)
+          echo "Downloading nvim-linux-x86_64 for runtime files..."
+          curl -sL "${BASE_URL}/nvim-linux-x86_64.tar.gz" -o "/tmp/nvim.tar.gz"
+          tar -xzf "/tmp/nvim.tar.gz" -C "/tmp"
+
+          extracted_dir=$(find /tmp -maxdepth 1 -type d -name "nvim-linux*" | head -1)
+
+          if [[ -d "${extracted_dir}/share" ]]; then
+            # Check if share directory changed
+            if [[ -d "lib/nvim-share" ]]; then
+              old_count=$(find lib/nvim-share -type f | wc -l)
+              new_count=$(find "${extracted_dir}/share" -type f | wc -l)
+              if [[ "${old_count}" != "${new_count}" ]]; then
+                updated=true
+              fi
+            else
+              updated=true
+            fi
+
+            rm -rf lib/nvim-share
+            mv "${extracted_dir}/share" lib/nvim-share
+            echo "Installed nvim runtime files"
+          fi
+
+          echo "updated=${updated}" >> $GITHUB_OUTPUT
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nvim-share
+          path: lib/nvim-share/
+          retention-days: 1
+
+  commit:
+    name: Commit Updates
+    runs-on: ubuntu-latest
+    needs: [update-gitstatus, update-nvim, update-nvim-share]
+    if: always() && (needs.update-gitstatus.outputs.updated == 'true' || needs.update-nvim.outputs.updated == 'true' || needs.update-nvim-share.outputs.updated == 'true')
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          lfs: true
+
+      - name: Setup Git LFS
+        run: git lfs install
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Install binaries
+        run: |
+          # Install gitstatus
+          if [[ -d "artifacts/gitstatus-binaries" ]]; then
+            cp -R artifacts/gitstatus-binaries/* lib/bin/ 2>/dev/null || true
+          fi
+
+          # Install nvim binaries
+          if [[ -d "artifacts/nvim-binaries" ]]; then
+            cp -R artifacts/nvim-binaries/* lib/bin/ 2>/dev/null || true
+          fi
+
+          # Install nvim-share
+          if [[ -d "artifacts/nvim-share" ]]; then
+            rm -rf lib/nvim-share
+            mv artifacts/nvim-share lib/nvim-share
+          fi
+
+          # Ensure binaries are executable
+          find lib/bin -type f \( -name "nvim" -o -name "gitstatusd-*" \) -exec chmod +x {} \;
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit changes
+        run: |
+          git add lib/bin/ lib/nvim-share/
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          # Build commit message
+          MSG="chore(deps): update binaries"
+          BODY=""
+
+          if [[ "${{ needs.update-gitstatus.outputs.updated }}" == "true" ]]; then
+            BODY="${BODY}\n- gitstatus: ${{ needs.update-gitstatus.outputs.version }}"
+          fi
+
+          if [[ "${{ needs.update-nvim.outputs.updated }}" == "true" ]]; then
+            BODY="${BODY}\n- nvim: ${{ needs.update-nvim.outputs.version }}"
+          fi
+
+          git commit -m "${MSG} [skip ci]" -m "$(echo -e "${BODY}")"
+          git push

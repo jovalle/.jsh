@@ -1,5 +1,8 @@
 name: Auto Version Bump
 
+# Runs on push to main (after PR merge).
+# CI runs on PRs, so branch protection ensures CI passed before merge.
+
 on:
   push:
     branches:
@@ -28,7 +31,12 @@ jobs:
       - name: Get current version
         id: current_version
         run: |
-          VERSION=$(cat VERSION | tr -d 'v' | tr -d '\n')
+          # Extract version from jsh script (line: VERSION="x.y.z")
+          VERSION=$(grep -E '^VERSION="[0-9]+\.[0-9]+\.[0-9]+"' jsh | head -1 | sed 's/VERSION="//;s/"//')
+          if [[ -z "$VERSION" ]]; then
+            echo "Failed to extract version from jsh"
+            exit 1
+          fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Current version: ${VERSION}"
 
@@ -97,40 +105,23 @@ jobs:
           echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
           echo "New version: ${NEW_VERSION}"
 
-      - name: Update version files
+      - name: Update version in jsh
         run: |
           NEW_VERSION="${{ steps.new_version.outputs.version }}"
 
-          # Update VERSION file
-          echo "v${NEW_VERSION}" > VERSION
+          # Update VERSION line in jsh script
+          sed -i "s/^VERSION=\"[0-9]*\.[0-9]*\.[0-9]*\"/VERSION=\"${NEW_VERSION}\"/" jsh
 
-          # Update bashly.yml
-          sed -i "s/^version: .*/version: ${NEW_VERSION}/" src/bashly.yml
-
-          # Update package.json
-          if [ -f package.json ]; then
-            sed -i "s/\"version\": \".*\"/\"version\": \"${NEW_VERSION}\"/" package.json
-          fi
-
-          echo "Updated version to ${NEW_VERSION} in all files"
-
-      - name: Install bashly
-        run: |
-          gem install bashly --user-install
-          echo "$HOME/.local/share/gem/ruby/3.2.0/bin" >> $GITHUB_PATH
-
-      - name: Regenerate jsh script
-        run: |
-          bashly generate
-          echo "Regenerated jsh script with new version"
+          # Verify the update
+          grep -E '^VERSION="' jsh
+          echo "Updated jsh to version ${NEW_VERSION}"
 
       - name: Commit version bump
         run: |
           NEW_VERSION="${{ steps.new_version.outputs.version }}"
           BUMP_TYPE="${{ steps.bump_type.outputs.bump }}"
 
-          git add VERSION src/bashly.yml jsh
-          [ -f package.json ] && git add package.json || true
+          git add jsh
 
           # Only commit if there are changes
           if git diff --staged --quiet; then
@@ -145,7 +136,11 @@ jobs:
         run: |
           NEW_VERSION="${{ steps.new_version.outputs.version }}"
 
-          # Create and push tag
-          git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
-          git push origin "v${NEW_VERSION}"
-          echo "Created and pushed tag v${NEW_VERSION}"
+          # Check if tag already exists
+          if git rev-parse "v${NEW_VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${NEW_VERSION} already exists, skipping"
+          else
+            git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
+            git push origin "v${NEW_VERSION}"
+            echo "Created and pushed tag v${NEW_VERSION}"
+          fi
