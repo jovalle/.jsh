@@ -41,7 +41,7 @@ jobs:
 
       - name: Setup Go
         if: steps.check.outputs.should_run == 'true'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: 'stable'
           cache-dependency-path: lib/fzf/go.sum
