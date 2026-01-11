@@ -1,7 +1,8 @@
-name: Auto Version Bump
+name: Release
 
 # Runs on push to main (after PR merge).
 # CI runs on PRs, so branch protection ensures CI passed before merge.
+# This workflow handles builds (if needed) and version bumping/tagging.
 
 on:
   push:
@@ -12,9 +13,120 @@ permissions:
   contents: write
 
 jobs:
-  version-bump:
+  # Build fzf binaries when submodule changes
+  build-fzf:
+    name: Build fzf
     runs-on: ubuntu-latest
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+          fetch-depth: 2
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if fzf changed
+        id: check
+        run: |
+          # Check if lib/fzf or .gitmodules changed in this push
+          if git diff --name-only HEAD~1 HEAD | grep -qE '^(lib/fzf|\.gitmodules)'; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "fzf submodule changed, will build"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "fzf submodule unchanged, skipping build"
+          fi
+
+      - name: Setup Go
+        if: steps.check.outputs.should_run == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache-dependency-path: lib/fzf/go.sum
+
+      - name: Get fzf version
+        if: steps.check.outputs.should_run == 'true'
+        id: version
+        run: |
+          cd lib/fzf
+          VERSION=$(git describe --tags --always)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building fzf $VERSION"
+
+      - name: Build binaries
+        if: steps.check.outputs.should_run == 'true'
+        run: |
+          cd lib/fzf
+
+          # Build for all target platforms
+          platforms=(
+            "darwin/amd64"
+            "darwin/arm64"
+            "linux/amd64"
+            "linux/arm64"
+          )
+
+          for platform in "${platforms[@]}"; do
+            GOOS="${platform%/*}"
+            GOARCH="${platform#*/}"
+            output_dir="../../lib/bin/${GOOS}-${GOARCH}"
+            output_name="fzf"
+
+            echo "Building for $GOOS/$GOARCH..."
+            mkdir -p "$output_dir"
+
+            VERSION="${{ steps.version.outputs.version }}"
+            REVISION=$(git rev-parse --short HEAD)
+            LDFLAGS="-s -w -X main.version=${VERSION} -X main.revision=${REVISION}"
+
+            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
+              -ldflags="${LDFLAGS}" \
+              -o "${output_dir}/${output_name}" \
+              .
+
+            echo "Built: ${output_dir}/${output_name}"
+          done
+
+      - name: Verify binaries
+        if: steps.check.outputs.should_run == 'true'
+        run: |
+          echo "Built binaries:"
+          find lib/bin -name "fzf" -exec ls -lh {} \;
+          echo ""
+          echo "Version check (native binary):"
+          lib/bin/linux-amd64/fzf --version
+
+      - name: Configure git
+        if: steps.check.outputs.should_run == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit binaries
+        if: steps.check.outputs.should_run == 'true'
+        run: |
+          git add lib/bin/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update fzf binaries to ${{ steps.version.outputs.version }} [skip ci]
+
+          Built for: darwin-amd64, darwin-arm64, linux-amd64, linux-arm64"
+            git push
+          fi
+
+  # Version bump and tag - only runs after builds succeed (or were skipped)
+  version-bump:
+    name: Version Bump
+    runs-on: ubuntu-latest
+    needs: [build-fzf]
+    # Run if: not skip-ci AND (build-fzf succeeded OR was skipped because paths didn't match)
+    if: |
+      always() &&
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      (needs.build-fzf.result == 'success' || needs.build-fzf.result == 'skipped')
 
     steps:
       - name: Checkout repository
@@ -22,6 +134,11 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull latest changes
+        run: |
+          # Pull any changes made by build-fzf job
+          git pull --rebase origin main || true
 
       - name: Configure Git
         run: |
@@ -42,35 +159,50 @@ jobs:
 
       - name: Determine version bump type
         id: bump_type
-        env:
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          # Use commit message from environment variable (safe from injection)
-          echo "Commit message: ${COMMIT_MSG}"
+          # Get the last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          echo "Last tag: ${LAST_TAG:-none}"
 
-          # Extract conventional commit type (everything before first colon or opening paren)
-          TYPE=$(echo "${COMMIT_MSG}" | grep -oP '^[a-z]+' || echo "")
-          echo "Commit type: ${TYPE}"
+          # Get all commit messages since last tag (or all if no tags)
+          if [[ -n "$LAST_TAG" ]]; then
+            COMMITS=$(git log "${LAST_TAG}..HEAD" --pretty=format:"%s" 2>/dev/null || echo "")
+          else
+            COMMITS=$(git log --pretty=format:"%s" 2>/dev/null || echo "")
+          fi
 
-          # Determine bump type based on conventional commit
-          case "${TYPE}" in
-            # Breaking changes (major)
-            break|breaking)
+          echo "Analyzing commits since ${LAST_TAG:-beginning}:"
+          echo "$COMMITS" | head -20
+
+          # Analyze ALL commits to determine bump type
+          BUMP="patch"
+          HAS_FEAT=false
+
+          while IFS= read -r msg; do
+            [[ -z "$msg" ]] && continue
+
+            # Check for breaking change indicators:
+            # 1. type!: prefix (e.g., refactor!:, feat!:)
+            # 2. BREAKING CHANGE in body
+            if echo "$msg" | grep -qE '^[a-z]+!:' || echo "$msg" | grep -qi "BREAKING CHANGE"; then
+              echo "  BREAKING: $msg"
               BUMP="major"
-              ;;
-            # Features and enhancements (minor)
-            feat|feature|add|enhance|improvement)
-              BUMP="minor"
-              ;;
-            # Everything else (patch)
-            fix|docs|style|refactor|perf|test|build|ci|chore|revert|*)
-              BUMP="patch"
-              ;;
-          esac
+              break  # Major takes precedence, no need to check more
+            fi
 
-          # Check for BREAKING CHANGE in commit body (forces major)
-          if echo "${COMMIT_MSG}" | grep -qi "BREAKING CHANGE"; then
-            BUMP="major"
+            # Check for features (only matters if not already major)
+            if [[ "$BUMP" != "major" ]]; then
+              TYPE=$(echo "$msg" | grep -oE '^[a-z]+' || echo "")
+              if [[ "$TYPE" =~ ^(feat|feature|add|enhance|improvement)$ ]]; then
+                echo "  FEATURE: $msg"
+                HAS_FEAT=true
+              fi
+            fi
+          done <<< "$COMMITS"
+
+          # Set to minor if we found features but no breaking changes
+          if [[ "$BUMP" != "major" && "$HAS_FEAT" == "true" ]]; then
+            BUMP="minor"
           fi
 
           echo "bump=${BUMP}" >> $GITHUB_OUTPUT
