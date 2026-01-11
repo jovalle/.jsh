@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 JSH_REPO="${JSH_REPO:-https://github.com/jovalle/jsh.git}"
 JSH_BRANCH="${JSH_BRANCH:-main}"
 JSH_DIR="${JSH_DIR:-${HOME}/.jsh}"
