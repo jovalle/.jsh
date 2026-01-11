@@ -1,0 +1,24 @@
+# local/init.sh - Complex local overrides
+# Copy to init.sh (without .example) to use
+#
+# This file is for complex setups where you need multiple files
+# or conditional logic. For simple exports, use .jshrc instead.
+
+# Example: Source additional local files
+# source "${JSH_DIR}/local/work.sh"
+# source "${JSH_DIR}/local/secrets.sh"
+
+# Example: Machine-specific aliases
+# alias vpn='sudo openconnect vpn.company.com'
+# alias db='pgcli -h localhost -U dev mydb'
+
+# Example: Conditional loading
+# if [[ "$(hostname)" == "work-laptop" ]]; then
+#     source "${JSH_DIR}/local/work-specific.sh"
+# fi
+
+# Example: Override functions
+# serve() {
+#     # Custom implementation
+#     python3 -m http.server "${1:-8000}" --bind 0.0.0.0
+# }

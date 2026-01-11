@@ -1,185 +1,634 @@
 #!/usr/bin/env bash
-# jssh - SSH with jsh config injection
-# Part of jsh: https://github.com/jovalle/jsh
-#
-# Usage: jssh [ssh_options] user@host
-#
-# Connects to remote host via SSH and injects minimal jsh configuration.
-# Your aliases, colors, and core functions will be available on the remote.
-
-# shellcheck source=../src/lib/ssh.sh
-# shellcheck source=../src/lib/graceful.sh
+# shellcheck shell=bash
+# jssh - SSH with portable JSH environment
+# Streams your shell config to any remote host for a seamless experience
+# Usage: jssh [ssh-options] user@host
 
 set -euo pipefail
 
-VERSION="0.1.0"
-JSH_ROOT="${JSH:-${HOME}/.jsh}"
+# =============================================================================
+# Configuration
+# =============================================================================
 
-# Source the SSH library
-if [[ -f "${JSH_ROOT}/src/lib/ssh.sh" ]]; then
-  source "${JSH_ROOT}/src/lib/ssh.sh"
-else
-  echo "Error: jsh SSH library not found at ${JSH_ROOT}/src/lib/ssh.sh" >&2
-  exit 1
-fi
+JSH_DIR="${JSH_DIR:-$HOME/.jsh}"
+JSSH_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/jssh"
+JSSH_PAYLOAD="${JSSH_CACHE_DIR}/payload.tar.gz"
+JSSH_HASH="${JSSH_CACHE_DIR}/payload.hash"
+JSSH_TTL="${JSSH_TTL:-3600}"  # Rebuild if older than 1 hour
 
-# Also source graceful.sh for debug support
-if [[ -f "${JSH_ROOT}/src/lib/graceful.sh" ]]; then
-  source "${JSH_ROOT}/src/lib/graceful.sh"
-fi
+# Remote settings
+JSSH_PREFER_ZSH="${JSSH_PREFER_ZSH:-1}"
+JSSH_DEBUG="${JSSH_DEBUG:-0}"
+JSSH_TARGET_PLATFORM="${JSSH_TARGET_PLATFORM:-linux-amd64}"  # Target platform for nvim/binaries
+JSSH_LITE="${JSSH_LITE:-0}"  # Lite mode: skip nvim plugins/mason for smaller payload
 
-usage() {
-  cat <<EOF
-jssh - SSH with jsh config injection
+# =============================================================================
+# Helpers
+# =============================================================================
 
-USAGE:
-    jssh [options] [user@]hostname
+die() { echo "jssh: $*" >&2; exit 1; }
+debug() { [[ "${JSSH_DEBUG}" == "1" ]] && echo "jssh: $*" >&2 || true; }
 
-OPTIONS:
-    -h, --help      Show this help message
-    -v, --version   Show version
-    --debug         Enable debug output
+# Colors for output
+_c_reset="\033[0m"
+_c_dim="\033[2m"
+_c_cyan="\033[36m"
+_c_green="\033[32m"
+_c_bold="\033[1m"
 
-    All other options are passed through to ssh.
+# Size tracking for payload breakdown (bash 3.2 compatible)
+# Format: name|human_size|bytes
+_size_breakdown=""
+JSSH_VERBOSE="${JSSH_VERBOSE:-0}"
 
-EXAMPLES:
-    jssh user@server.com
-    jssh -p 2222 user@server.com
-    jssh -i ~/.ssh/mykey user@server.com
-
-DESCRIPTION:
-    jssh wraps ssh and injects minimal jsh configuration into the remote
-    session. Your essential aliases, color functions, and core utilities
-    will be available without installing anything on the remote host.
-
-    The injected config is stored in a temporary directory that is
-    automatically cleaned up when the session ends.
-
-REQUIREMENTS:
-    Local:  bash, tar, base64
-    Remote: bash, tar, base64 (standard on most systems)
-EOF
+_dir_size() {
+    # Returns size in human-readable format
+    du -sh "$1" 2>/dev/null | cut -f1
 }
 
-main() {
-  local debug=0
-  local ssh_args=()
+_dir_size_bytes() {
+    # Returns size in KB (for sorting)
+    du -sk "$1" 2>/dev/null | cut -f1
+}
 
-  # Parse arguments
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      -h|--help)
-        usage
-        exit 0
-        ;;
-      -v|--version)
-        echo "jssh version ${VERSION}"
-        exit 0
-        ;;
-      --debug)
-        debug=1
-        export JSH_DEBUG=1
-        shift
-        ;;
-      *)
-        # Accumulate all other args for ssh
-        ssh_args+=("$1")
-        shift
-        ;;
-    esac
-  done
-
-  # Must have at least a host
-  if [[ ${#ssh_args[@]} -eq 0 ]]; then
-    echo "Error: No host specified" >&2
-    usage >&2
-    exit 1
-  fi
-
-  # Check dependencies
-  if ! _jsh_ssh_check_deps; then
-    exit 1
-  fi
-
-  # Bundle config
-  local payload
-  if ! payload=$(_jsh_ssh_bundle); then
-    echo "Error: Failed to bundle jsh config" >&2
-    exit 1
-  fi
-
-  [[ ${debug} -eq 1 ]] && echo "[jssh] Payload size: $(echo -n "${payload}" | wc -c | tr -d ' ') bytes" >&2
-
-  # Extract host from ssh_args (last argument typically)
-  # Find the host - it's the argument that looks like [user@]hostname
-  local host=""
-  local other_args=()
-
-  for arg in "${ssh_args[@]}"; do
-    # Skip options and their values
-    if [[ "${arg}" =~ ^- ]]; then
-      other_args+=("${arg}")
-    elif [[ -z "${host}" && ! "${arg}" =~ ^- ]]; then
-      # First non-option argument is likely the host
-      # Check if previous was an option expecting a value
-      if [[ ${#other_args[@]} -gt 0 ]]; then
-        local last_opt="${other_args[-1]}"
-        # Options that take arguments
-        if [[ "${last_opt}" =~ ^-(p|i|l|F|J|o|c|m|O|w|W|b|D|L|R|e|S|Q)$ ]]; then
-          other_args+=("${arg}")
-          continue
-        fi
-      fi
-      host="${arg}"
-    else
-      other_args+=("${arg}")
+_track_size() {
+    local name="$1"
+    local dir="$2"
+    local size bytes
+    size=$(_dir_size "$dir")
+    bytes=$(_dir_size_bytes "$dir")
+    if [[ -n "$size" && -n "$bytes" ]]; then
+        _size_breakdown="${_size_breakdown}${name}|${size}|${bytes}"$'\n'
     fi
-  done
+}
 
-  if [[ -z "${host}" ]]; then
-    echo "Error: Could not determine host from arguments" >&2
-    exit 1
-  fi
+_show_size_breakdown() {
+    local tmp_root="$1"  # Uncompressed staging dir
+    local payload="$2"   # Compressed tarball
 
-  [[ ${debug} -eq 1 ]] && echo "[jssh] Host: ${host}, Other args: ${other_args[*]:-}" >&2
+    # Get compressed size
+    local compressed_size compressed_bytes
+    compressed_size=$(du -h "${payload}" | cut -f1)
+    compressed_bytes=$(du -s "${payload}" | cut -f1)
 
-  # Construct remote command
-  # This command:
-  # 1. Creates temp directory for jsh config
-  # 2. Decodes and extracts the payload
-  # 3. Sets up cleanup trap on exit
-  # 4. Starts bash with our config as rcfile
-  #
-  # Note: Single quotes are intentional - variables expand on remote, not local
-  # shellcheck disable=SC2016
-  local remote_script='
-JSHHOME=$(mktemp -d)
-export JSHHOME
-trap "rm -rf \"$JSHHOME\"" EXIT
-echo "$JSH_PAYLOAD" | base64 -d | tar xzf - -C "$JSHHOME" 2>/dev/null
-bash --rcfile "$JSHHOME/.jshrc.ssh"
-'
+    # Get uncompressed size
+    local uncompressed_size uncompressed_bytes
+    uncompressed_size=$(du -sh "${tmp_root}" | cut -f1)
+    uncompressed_bytes=$(du -s "${tmp_root}" | cut -f1)
 
-  # Build and execute the SSH command
-  # Use -t for interactive TTY
-  local ssh_cmd=("ssh" "-t")
+    # Calculate reduction percentage
+    local reduction=0
+    if [[ "${uncompressed_bytes}" -gt 0 ]]; then
+        reduction=$(( (uncompressed_bytes - compressed_bytes) * 100 / uncompressed_bytes ))
+    fi
 
-  # Add any additional SSH arguments
-  if [[ ${#other_args[@]} -gt 0 ]]; then
-    ssh_cmd+=("${other_args[@]}")
-  fi
+    printf "\n"
+    printf "  ${_c_bold}%-24s %8s${_c_reset}\n" "Component" "Size"
+    printf "  ${_c_dim}%s${_c_reset}\n" "────────────────────────────────"
 
-  # Add host
-  ssh_cmd+=("${host}")
+    # Sort by bytes (3rd field) descending, limit to 20 unless verbose
+    local sorted_breakdown limit count=0 total_items
+    sorted_breakdown=$(echo "$_size_breakdown" | sort -t'|' -k3 -rn)
+    total_items=$(echo "$sorted_breakdown" | grep -c '|' || echo 0)
 
-  # Add remote command with payload
-  # The payload is exported as JSH_PAYLOAD, then bash executes our setup script
-  ssh_cmd+=("export JSH_PAYLOAD=\"${payload}\"; bash -c '${remote_script}'")
+    if [[ "${JSSH_VERBOSE}" == "1" ]]; then
+        limit=999
+    else
+        limit=20
+    fi
 
-  [[ ${debug} -eq 1 ]] && echo "[jssh] Executing: ${ssh_cmd[*]}" >&2
+    # Print each component from the sorted breakdown string
+    while IFS='|' read -r name size bytes; do
+        [[ -z "$name" ]] && continue
+        count=$((count + 1))
+        [[ $count -gt $limit ]] && break
+        printf "  ${_c_cyan}%-24s${_c_reset} %8s\n" "$name" "$size"
+    done <<< "$sorted_breakdown"
 
-  # Execute SSH
-  exec "${ssh_cmd[@]}"
+    # Show "and X more..." if truncated
+    if [[ $total_items -gt $limit ]]; then
+        local remaining=$((total_items - limit))
+        printf "  ${_c_dim}... and %d more (use JSSH_VERBOSE=1)${_c_reset}\n" "$remaining"
+    fi
+
+    printf "  ${_c_dim}%s${_c_reset}\n" "────────────────────────────────"
+    printf "  %-24s %8s\n" "Uncompressed" "$uncompressed_size"
+    printf "  ${_c_green}${_c_bold}%-24s %8s${_c_reset}  ${_c_dim}(%d%% reduction)${_c_reset}\n" \
+           "Compressed (gzip)" "$compressed_size" "$reduction"
+    printf "\n"
+}
+
+# Progress indicator
+_progress_pid=""
+_progress_start() {
+    local msg="$1"
+    printf '%s' "$msg" >&2
+    (
+        while true; do
+            printf '. ' >&2
+            sleep 0.4
+        done
+    ) &
+    _progress_pid=$!
+    disown  # Remove from job table to suppress "Terminated" message
+}
+
+_progress_stop() {
+    if [[ -n "${_progress_pid}" ]]; then
+        kill "${_progress_pid}" 2>/dev/null
+        wait "${_progress_pid}" 2>/dev/null  # Reap silently
+    fi
+    _progress_pid=""
+    printf '\n' >&2
+}
+
+# Map platform to gitstatus binary name (called during local script generation)
+_gitstatusd_binary_name() {
+    case "${JSSH_TARGET_PLATFORM}" in
+        linux-amd64)  echo "gitstatusd-linux-x86_64" ;;
+        linux-arm64)  echo "gitstatusd-linux-aarch64" ;;
+        darwin-amd64) echo "gitstatusd-darwin-x86_64" ;;
+        darwin-arm64) echo "gitstatusd-darwin-arm64" ;;
+        *)            echo "" ;;
+    esac
+}
+
+# =============================================================================
+# Payload Generation
+# =============================================================================
+
+_hash_sources() {
+    # Generate hash of source files for cache invalidation
+    local hash_cmd=""
+    if command -v md5sum >/dev/null 2>&1; then
+        hash_cmd="md5sum"
+    elif command -v md5 >/dev/null 2>&1; then
+        hash_cmd="md5 -r"
+    elif command -v shasum >/dev/null 2>&1; then
+        hash_cmd="shasum"
+    else
+        # Fallback: use modification times
+        find "${JSH_DIR}/src" "${JSH_DIR}/core" -type f 2>/dev/null | \
+            while read -r f; do stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null; done | \
+            sort | tr '\n' '-'
+        return
+    fi
+
+    # Hash ALL bundled files: shell scripts, dotfiles, and target platform
+    {
+        echo "${JSSH_TARGET_PLATFORM}"  # Include platform in hash
+        echo "${JSSH_LITE}"  # Include lite mode in hash
+        find "${JSH_DIR}/src" -type f -name "*.sh" -exec cat {} \; 2>/dev/null
+        find "${JSH_DIR}/src/fzf" -type f \( -name "*.bash" -o -name "*.zsh" \) -exec cat {} \; 2>/dev/null || true
+        find "${JSH_DIR}/core" -type f -exec cat {} \; 2>/dev/null || true
+        # Include lazy plugins lock file in hash (for full mode)
+        if [[ "${JSSH_LITE}" != "1" ]]; then
+            cat "${HOME}/.local/share/nvim/lazy/lazy-lock.json" 2>/dev/null || true
+        fi
+    } | $hash_cmd | cut -d' ' -f1
+}
+
+_needs_rebuild() {
+    [[ ! -f "${JSSH_PAYLOAD}" ]] && return 0
+    [[ ! -f "${JSSH_HASH}" ]] && return 0
+
+    # Check age
+    local mtime now age
+    if stat -f%m "${JSSH_PAYLOAD}" >/dev/null 2>&1; then
+        mtime=$(stat -f%m "${JSSH_PAYLOAD}")
+    else
+        mtime=$(stat -c%Y "${JSSH_PAYLOAD}" 2>/dev/null || echo 0)
+    fi
+    now=$(date +%s)
+    age=$((now - mtime))
+    [[ "${age}" -gt "${JSSH_TTL}" ]] && return 0
+
+    # Check hash
+    local current stored
+    current="$(_hash_sources)"
+    stored="$(cat "${JSSH_HASH}" 2>/dev/null)"
+    [[ "${current}" != "${stored}" ]] && return 0
+
+    return 1
+}
+
+_build_payload() {
+    debug "Building payload..."
+    mkdir -p "${JSSH_CACHE_DIR}"
+
+    local tmp
+    tmp="$(mktemp -d)"
+    # shellcheck disable=SC2064 # Intentional: capture $tmp value now, not at signal time
+    trap "rm -rf '${tmp}'" EXIT
+
+    local root="${tmp}/jsh"
+    mkdir -p "${root}"
+
+    # ---------------------------------------------------------------------------
+    # Mirror the local jsh structure for exact parity
+    # ---------------------------------------------------------------------------
+
+    # Reset size tracking
+    _size_breakdown=""
+
+    # Shell scripts (src/ directory)
+    if [[ -d "${JSH_DIR}/src" ]]; then
+        cp -R "${JSH_DIR}/src" "${root}/"
+        _track_size "Shell scripts" "${root}/src"
+    fi
+
+    # Core dotfiles (p10k.zsh, inputrc, gitconfig, tmux.conf, etc.)
+    if [[ -d "${JSH_DIR}/core" ]]; then
+        cp -R "${JSH_DIR}/core" "${root}/"
+        _track_size "Core dotfiles" "${root}/core"
+    fi
+
+    # Vendor: p10k theme, zsh plugins
+    mkdir -p "${root}/lib"
+    if [[ -d "${JSH_DIR}/lib/p10k" ]]; then
+        cp -R "${JSH_DIR}/lib/p10k" "${root}/lib/"
+        _track_size "PowerLevel10k" "${root}/lib/p10k"
+    fi
+    # Zsh plugins
+    for plugin in zsh-autosuggestions zsh-syntax-highlighting zsh-history-substring-search zsh-completions zsh-z; do
+        if [[ -d "${JSH_DIR}/lib/${plugin}" ]]; then
+            cp -R "${JSH_DIR}/lib/${plugin}" "${root}/lib/"
+        fi
+    done
+    # Calculate combined zsh plugins size using a temp directory reference
+    local zsh_total_kb=0
+    for plugin in zsh-autosuggestions zsh-syntax-highlighting zsh-history-substring-search zsh-completions zsh-z; do
+        if [[ -d "${root}/lib/${plugin}" ]]; then
+            zsh_total_kb=$((zsh_total_kb + $(du -sk "${root}/lib/${plugin}" 2>/dev/null | cut -f1)))
+        fi
+    done
+    if [[ "${zsh_total_kb}" -gt 0 ]]; then
+        # du -sk gives KB, convert to human readable
+        local zsh_human
+        if [[ "${zsh_total_kb}" -ge 1024 ]]; then
+            zsh_human="$((zsh_total_kb / 1024))M"
+        else
+            zsh_human="${zsh_total_kb}K"
+        fi
+        _size_breakdown="${_size_breakdown}Zsh plugins|${zsh_human}|${zsh_total_kb}"$'\n'
+    fi
+
+    # Gitstatus (used by p10k, may be symlinked - copy actual directory)
+    if [[ -d "${JSH_DIR}/lib/p10k/gitstatus" ]]; then
+        cp -R "${JSH_DIR}/lib/p10k/gitstatus" "${root}/lib/"
+        _track_size "Gitstatus" "${root}/lib/gitstatus"
+    fi
+
+    # Platform-specific binaries (fzf, nvim, nvim-lib, nvim-share) - only target platform
+    if [[ -d "${JSH_DIR}/lib/bin/${JSSH_TARGET_PLATFORM}" ]]; then
+        mkdir -p "${root}/lib/bin"
+        cp -R "${JSH_DIR}/lib/bin/${JSSH_TARGET_PLATFORM}" "${root}/lib/bin/"
+        _track_size "Platform binaries" "${root}/lib/bin/${JSSH_TARGET_PLATFORM}"
+    fi
+
+    # FZF scripts (fzf-tmux, fzf-preview.sh)
+    if [[ -d "${JSH_DIR}/lib/fzf/bin" ]]; then
+        mkdir -p "${root}/lib/fzf"
+        cp -R "${JSH_DIR}/lib/fzf/bin" "${root}/lib/fzf/"
+        _track_size "FZF scripts" "${root}/lib/fzf"
+    fi
+
+    # Neovim shared runtime files (lua modules, syntax, ftplugin, etc.)
+    if [[ -d "${JSH_DIR}/lib/nvim-share" ]]; then
+        cp -R "${JSH_DIR}/lib/nvim-share" "${root}/lib/"
+        _track_size "Neovim runtime" "${root}/lib/nvim-share"
+    fi
+
+    # ---------------------------------------------------------------------------
+    # Full mode: Include nvim plugins and tools for offline experience
+    # ---------------------------------------------------------------------------
+    if [[ "${JSSH_LITE}" != "1" ]]; then
+        debug "Full mode: bundling nvim plugins and tools..."
+
+        # LazyVim plugins (from local nvim data)
+        local lazy_dir="${HOME}/.local/share/nvim/lazy"
+        if [[ -d "${lazy_dir}" ]]; then
+            debug "  Copying lazy plugins..."
+            mkdir -p "${root}/data/nvim"
+            cp -R "${lazy_dir}" "${root}/data/nvim/"
+
+            # Replace blink.cmp native binary with platform-specific version
+            local blink_src="${JSH_DIR}/lib/nvim-data/blink.cmp/${JSSH_TARGET_PLATFORM}"
+            local blink_dest="${root}/data/nvim/lazy/blink.cmp/target/release"
+            if [[ -d "${blink_src}" ]]; then
+                debug "  Copying blink.cmp binary for ${JSSH_TARGET_PLATFORM}..."
+                mkdir -p "${blink_dest}"
+                cp "${blink_src}"/* "${blink_dest}/" 2>/dev/null || true
+            fi
+            _track_size "LazyVim plugins" "${root}/data/nvim/lazy"
+        fi
+
+        # Mason tools (platform-specific LSP servers, formatters)
+        local mason_src="${JSH_DIR}/lib/mason-packages/${JSSH_TARGET_PLATFORM}"
+        if [[ -d "${mason_src}" ]]; then
+            debug "  Copying mason tools for ${JSSH_TARGET_PLATFORM}..."
+            mkdir -p "${root}/data/nvim/mason/packages"
+            cp -R "${mason_src}"/* "${root}/data/nvim/mason/packages/"
+
+            # Create mason bin symlinks
+            mkdir -p "${root}/data/nvim/mason/bin"
+            for pkg_dir in "${root}/data/nvim/mason/packages"/*; do
+                [[ ! -d "${pkg_dir}" ]] && continue
+                local pkg_name
+                pkg_name=$(basename "${pkg_dir}")
+                # Find executable in package and symlink it
+                case "${pkg_name}" in
+                    lua-language-server)
+                        ln -sf "../packages/${pkg_name}/lua-language-server" "${root}/data/nvim/mason/bin/lua-language-server"
+                        ;;
+                    stylua)
+                        ln -sf "../packages/${pkg_name}/stylua" "${root}/data/nvim/mason/bin/stylua"
+                        ;;
+                    shfmt)
+                        ln -sf "../packages/${pkg_name}/shfmt" "${root}/data/nvim/mason/bin/shfmt"
+                        ;;
+                    tree-sitter-cli)
+                        ln -sf "../packages/${pkg_name}/tree-sitter" "${root}/data/nvim/mason/bin/tree-sitter"
+                        ;;
+                esac
+            done
+            _track_size "Mason packages" "${root}/data/nvim/mason"
+        fi
+    fi
+
+    # Create tarball (strip macOS metadata completely)
+    # Remove extended attributes and resource forks
+    if command -v xattr >/dev/null 2>&1; then
+        xattr -cr "${root}" 2>/dev/null || true
+    fi
+    # Remove any ._* AppleDouble files and .DS_Store
+    find "${root}" -name '._*' -delete 2>/dev/null || true
+    find "${root}" -name '.DS_Store' -delete 2>/dev/null || true
+    # Create tarball with COPYFILE_DISABLE to prevent new metadata
+    COPYFILE_DISABLE=1 tar -czf "${JSSH_PAYLOAD}" -C "${tmp}" jsh
+    _hash_sources > "${JSSH_HASH}"
+
+    # Show size breakdown (before cleanup)
+    _show_size_breakdown "${root}" "${JSSH_PAYLOAD}"
+
+    debug "Payload built: $(du -h "${JSSH_PAYLOAD}" | cut -f1)"
+
+    trap - EXIT
+    rm -rf "${tmp}"
+}
+
+_get_payload() {
+    if _needs_rebuild; then
+        _build_payload
+    fi
+    echo "${JSSH_PAYLOAD}"
+}
+
+# =============================================================================
+# Remote Execution Script
+# =============================================================================
+
+# Phase 1: Setup script - extracts payload, outputs session path
+_remote_setup_script() {
+    cat << 'SETUP'
+set -e
+
+# Safety: hardcoded prefix prevents accidents
+SAFE_PREFIX="/tmp/.jsh-portable"
+
+# Generate unique session ID
+if [ -r /dev/urandom ]; then
+    RAND=$(head -c 6 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n')
+else
+    RAND="$$-$(date +%s)"
+fi
+[ -z "${RAND}" ] && RAND="$$-$(date +%s)"
+
+# Session directory
+JSH_TMP="${SAFE_PREFIX}-${USER:-anon}-${RAND}"
+
+# Create session directory with marker
+mkdir -p "${JSH_TMP}"
+touch "${JSH_TMP}/.jssh-marker"
+
+# Extract payload from stdin (filter macOS xattr warnings)
+tar -xzf - -C "${JSH_TMP}" 2>&1 | grep -v 'LIBARCHIVE.xattr' >&2 || true
+
+JSH_EPHEMERAL="${JSH_TMP}/jsh"
+
+# Verify extraction
+[ ! -d "${JSH_EPHEMERAL}" ] && echo "jssh: extraction failed" >&2 && exit 1
+[ ! -f "${JSH_EPHEMERAL}/src/init.sh" ] && echo "jssh: src/init.sh missing" >&2 && exit 1
+
+# Output session path for phase 2
+echo "${JSH_TMP}"
+SETUP
+}
+
+# Phase 2: Shell script - launches interactive shell (receives session path as arg)
+_remote_shell_script() {
+    local session_path="$1"
+
+    cat << SHELL
+JSH_TMP="${session_path}"
+export JSH_EPHEMERAL="\${JSH_TMP}/jsh"
+
+# Verify session exists
+[ ! -d "\${JSH_EPHEMERAL}" ] && echo "jssh: session not found" >&2 && exit 1
+
+# Cleanup function with safety checks
+cleanup() {
+    local t="\$1"
+    [ -z "\$t" ] && return 1
+    case "\$t" in /tmp/.jsh-portable-*) ;; *) return 1 ;; esac
+    [ "\$t" = "/tmp/.jsh-portable-" ] && return 1
+    [ ! -d "\$t" ] && return 0
+    [ ! -f "\$t/.jssh-marker" ] && return 1
+    rm -rf "\$t"
+}
+trap 'cleanup "\${JSH_TMP}"' EXIT INT TERM HUP
+
+# Detect best available shell
+SHELL_CMD=""
+if [ "${JSSH_PREFER_ZSH}" = "1" ] && command -v zsh >/dev/null 2>&1; then
+    SHELL_CMD="zsh"
+elif command -v bash >/dev/null 2>&1; then
+    SHELL_CMD="bash"
+else
+    SHELL_CMD="sh"
+fi
+
+# Export environment
+export JSH_DIR="\${JSH_EPHEMERAL}"
+export JSH_ENV="ssh"
+export JSH_SHELL="\${SHELL_CMD}"
+export JSH_PLATFORM="${JSSH_TARGET_PLATFORM}"
+export XDG_CONFIG_HOME="\${JSH_EPHEMERAL}/core/.config"
+export XDG_DATA_HOME="\${JSH_EPHEMERAL}/data"
+export XDG_CACHE_HOME="\${JSH_EPHEMERAL}/cache"
+
+# Set GITSTATUS_DAEMON to bundled binary (platform resolved at script generation time)
+_gitstatus_bin="\${JSH_EPHEMERAL}/lib/bin/${JSSH_TARGET_PLATFORM}/$(_gitstatusd_binary_name)"
+if [ -x "\$_gitstatus_bin" ]; then
+    export GITSTATUS_DAEMON="\$_gitstatus_bin"
+fi
+
+# Set VIMRUNTIME to bundled nvim runtime files
+_nvim_runtime="\${JSH_EPHEMERAL}/lib/nvim-share/nvim/runtime"
+if [ -d "\$_nvim_runtime" ]; then
+    export VIMRUNTIME="\$_nvim_runtime"
+fi
+
+# Create XDG directories
+mkdir -p "\${XDG_DATA_HOME}" "\${XDG_CACHE_HOME}"
+
+# Copy bundled nvim data (lazy plugins, mason tools) if present
+if [ -d "\${JSH_EPHEMERAL}/data/nvim" ]; then
+    cp -R "\${JSH_EPHEMERAL}/data/nvim" "\${XDG_DATA_HOME}/"
+fi
+
+# Launch shell using bundled dotfiles directly (no exec - let trap handle cleanup)
+case "\${SHELL_CMD}" in
+    zsh)
+        # Use bundled core/.zshrc directly
+        export ZDOTDIR="\${JSH_EPHEMERAL}/core"
+        zsh -i
+        ;;
+    bash)
+        # Use bundled core/.bashrc directly
+        bash --rcfile "\${JSH_EPHEMERAL}/core/.bashrc" -i
+        ;;
+    *)
+        . "\${JSH_EPHEMERAL}/src/init.sh"
+        sh -i
+        ;;
+esac
+
+# Cleanup happens via EXIT trap
+SHELL
+}
+
+# =============================================================================
+# Main
+# =============================================================================
+
+main() {
+    case "${1:-}" in
+        -h|--help)
+            cat << 'HELP'
+jssh - SSH with portable JSH environment
+
+Usage: jssh [ssh-options] [user@]hostname
+
+Connects via SSH and streams your JSH shell environment to the remote
+host. The environment is ephemeral - extracted to a temp directory
+and automatically cleaned up when you disconnect.
+
+Options:
+  --lite        Lite mode: smaller payload (~16MB), no nvim plugins
+  --rebuild     Force payload rebuild
+  --size        Show payload size
+  -h, --help    Show this help
+
+Environment:
+  JSSH_DEBUG=1              Enable debug output
+  JSSH_VERBOSE=1            Show all components in size breakdown
+  JSSH_PREFER_ZSH=0         Prefer bash over zsh on remote
+  JSSH_TTL=3600             Payload cache TTL in seconds
+  JSSH_TARGET_PLATFORM=X    Target platform (linux-amd64, linux-arm64, etc.)
+  JSSH_LITE=1               Enable lite mode (smaller payload)
+
+What's included:
+  Full mode (default, ~150MB):
+  - Shell configuration (aliases, functions, vi-mode, prompt)
+  - FZF integration with bundled fzf binary
+  - Git status in prompt (async for large repos)
+  - Full neovim with LazyVim plugins (offline)
+  - LSP servers and formatters via mason
+  - tmux configuration
+
+  Lite mode (--lite, ~16MB):
+  - Shell configuration only
+  - FZF integration
+  - Basic neovim (plugins download on first use)
+
+Examples:
+  jssh server.example.com           # Full mode
+  jssh --lite server.example.com    # Lite mode (smaller)
+  jssh -p 2222 user@server
+  jssh --lite --rebuild             # Rebuild lite payload
+  JSSH_DEBUG=1 jssh server
+HELP
+            exit 0
+            ;;
+        --rebuild)
+            echo "Rebuilding payload..."
+            rm -f "${JSSH_PAYLOAD}" "${JSSH_HASH}"
+            _build_payload
+            exit 0
+            ;;
+        --size)
+            if [[ -f "${JSSH_PAYLOAD}" ]]; then
+                du -h "${JSSH_PAYLOAD}"
+            else
+                echo "No cached payload. Run jssh --rebuild to create."
+            fi
+            exit 0
+            ;;
+        --lite)
+            JSSH_LITE=1
+            shift
+            ;;
+    esac
+
+    # Handle --lite combined with other flags (e.g., jssh --lite --rebuild)
+    case "${1:-}" in
+        --rebuild)
+            echo "Rebuilding payload (lite mode)..."
+            rm -f "${JSSH_PAYLOAD}" "${JSSH_HASH}"
+            _build_payload
+            exit 0
+            ;;
+    esac
+
+    # Need at least a hostname
+    [[ $# -eq 0 ]] && die "Usage: jssh [ssh-options] [user@]hostname"
+
+    # Cleanup progress on interrupt
+    trap '_progress_stop' INT TERM
+
+    # Extract display host (last argument)
+    local display_host="${!#}"
+
+    # Get/build payload
+    _progress_start "Preparing environment"
+    local payload
+    payload="$(_get_payload)"
+    _progress_stop
+    [[ ! -f "${payload}" ]] && die "Failed to create payload"
+
+    debug "Payload: $(du -h "${payload}" | cut -f1)"
+    debug "Connecting: $*"
+
+    # Two-phase approach: data transfer (no TTY) then interactive (with TTY)
+    # Phase 1: Transfer payload via stdin (no PTY, clean binary transfer)
+    local setup_script
+    setup_script="$(_remote_setup_script)"
+
+    _progress_start "Connecting to ${display_host}"
+    debug "Transferring payload..."
+    local session_info
+    session_info=$(ssh "$@" "sh -c '$(printf '%s' "${setup_script}" | sed "s/'/'\\\\''/g")'" < "${payload}")
+    _progress_stop
+
+    [[ -z "${session_info}" ]] && die "Failed to setup remote session"
+    debug "Session: ${session_info}"
+
+    # Phase 2: Interactive shell (with PTY)
+    local shell_script
+    shell_script="$(_remote_shell_script "${session_info}")"
+    trap - INT TERM  # Reset trap before interactive shell
+    ssh -t "$@" "sh -c '$(printf '%s' "${shell_script}" | sed "s/'/'\\\\''/g")'"
 }
 
 main "$@"

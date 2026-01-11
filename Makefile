@@ -1,548 +1,523 @@
-.PHONY: help
-.DEFAULT_GOAL := help
-SHELL := /bin/bash
+# JSH Makefile
+# Automation for development, CI, and maintenance
 
-# Colors for output
-CYAN := \033[0;36m
-GREEN := \033[0;32m
-YELLOW := \033[0;33m
-RED := \033[0;31m
-GRAY := \033[0;90m
+SHELL := /bin/bash
+.DEFAULT_GOAL := help
+
+# Paths
+JSH_DIR := $(shell pwd)
+LIB_DIR := $(JSH_DIR)/lib
+CONFIG_DIR := $(JSH_DIR)/config
+SRC_DIR := $(JSH_DIR)/src
+
+# Colors
+CYAN := \033[36m
+GREEN := \033[32m
+YELLOW := \033[33m
+RED := \033[31m
 RESET := \033[0m
 
-# Tool versions (can be overridden)
-PYTHON := python3
-SHFMT_VERSION := latest
-YAMLLINT_CONFIG := .yamllint
-
-# Format function: formats files and prints per-file output with timing
-# Usage: $(call format_files,file_list,format_command,type_name)
-# Example: $(call format_files,$(SHELL_FILES),shfmt -w -i 2 -ci -sr,Shell scripts)
-define format_files
-	errors=0; \
-	for file in $(1); do \
-		tmp=$$(mktemp); \
-		cp "$${file}" "$$tmp"; \
-		start=$$($(PYTHON) -c 'import time; print(int(time.time() * 1000))'); \
-		if ! $(2) "$${file}"; then \
-			errors=$$((errors + 1)); \
-			rm -f "$$tmp"; \
-			continue; \
-		fi; \
-		end=$$($(PYTHON) -c 'import time; print(int(time.time() * 1000))'); \
-		duration=$$((end - start)); \
-		if cmp -s "$${file}" "$$tmp"; then \
-			status="(unchanged)"; \
-		else \
-			status="(formatted)"; \
-		fi; \
-		rm -f "$$tmp"; \
-		echo -e "$(GRAY)$${file}$(RESET) $${duration}ms $$status"; \
-		unset status; \
-	done; \
-	if [ $$errors -eq 0 ]; then \
-		echo -e "$(GREEN)✓ $(3) formatted$(RESET)"; \
-	else \
-		echo -e "$(RED)✗ $(3) formatting failed$(RESET)"; \
-		exit 1; \
-	fi
+# Output helpers (matches src/core.sh style - colored text, no prefixes)
+define print_info
+@printf "$(CYAN)%s$(RESET)\n" "$(1)"
 endef
 
-# Format function for find-based iteration (YAML, JSON, Markdown)
-# Usage: $(call format_files_find,find_pattern,format_command,type_name)
-define format_files_find
-	$(1) -print0 | while IFS= read -r -d '' file; do \
-		tmp=$$(mktemp); \
-		cp "$${file}" "$$tmp"; \
-		start=$$($(PYTHON) -c 'import time; print(int(time.time() * 1000))'); \
-		if ! $(2) "$${file}" > /dev/null 2>&1; then \
-			rm -f "$$tmp"; \
-			continue; \
-		fi; \
-		end=$$($(PYTHON) -c 'import time; print(int(time.time() * 1000))'); \
-		duration=$$((end - start)); \
-		if cmp -s "$${file}" "$$tmp"; then \
-			status="(unchanged)"; \
-		else \
-			status="(formatted)"; \
-		fi; \
-		rm -f "$$tmp"; \
-		echo -e "$(GRAY)$${file}$(RESET) $${duration}ms $$status"; \
-		unset status; \
-	done && \
-	echo -e "$(GREEN)✓ $(3) formatted$(RESET)"
+define print_success
+@printf "$(GREEN)%s$(RESET)\n" "$(1)"
 endef
 
-# Find files by type
-# Shell files: Find by .sh extension OR by shebang in bin/ directory
-SHELL_FILES := $(shell find . -type f -name "*.sh" ! -path "*/node_modules/*" ! -path "*/.git/*" ! -path "*/.fzf/*" ! -path "*/.vscode/*" ! -path "*/.config/nvim/*" ! -path "*/.config/*" ! -path "*/src/*"; \
-	find dotfiles -type f \( -name ".bashrc" -o -name ".jshrc" \); \
-	find bin -type f 2>/dev/null | while read -r f; do \
-		shebang=$$(head -n1 "$$f" 2>/dev/null); \
-		echo "$$shebang" | grep -qE '^\#!/.*zsh' && continue; \
-		echo "$$shebang" | grep -qE '^\#!/.*(ba)?sh' && echo "$$f"; \
-	done)
-PYTHON_FILES := $(shell find . -type f -name "*.py" ! -path "*/\.*" ! -path "*/node_modules/*" ! -path "*/.venv/*")
-YAML_FILES := $(shell find . -type f \( -name "*.yaml" -o -name "*.yml" \) ! -path "*/\.*" ! -path "*/node_modules/*")
-JSON_FILES := $(shell find . -type f -name "*.json" ! -path "*/\.*" ! -path "*/node_modules/*" ! -path "*/package*.json")
-MD_FILES := $(shell find . -type f -name "*.md" ! -path "*/\.*" ! -path "*/node_modules/*")
+define print_warn
+@printf "$(YELLOW)%s$(RESET)\n" "$(1)"
+endef
 
-help: ## Show this help message
-	@echo -e "$(CYAN)Available targets:$(RESET)"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(RESET) %s\n", $$1, $$2}'
+define print_error
+@printf "$(RED)%s$(RESET)\n" "$(1)" >&2
+endef
 
-##@ Setup
+# Prefixed output helpers (for status lists, validation results)
+BLUE := \033[34m
 
-install-tools: ## Install required development tools
-	@echo -e "$(CYAN)Installing development tools...$(RESET)"
-	@command -v brew >/dev/null 2>&1 || { echo -e "$(RED)Homebrew not found. Please install it first.$(RESET)"; exit 1; }
-	@echo -e "$(CYAN)Installing Homebrew packages...$(RESET)"
-	@brew list shfmt >/dev/null 2>&1 || brew install shfmt
-	@brew list hadolint >/dev/null 2>&1 || brew install hadolint
-	@brew list pre-commit >/dev/null 2>&1 || brew install pre-commit
-	@brew list ruby >/dev/null 2>&1 || brew install ruby
-	@echo -e "$(CYAN)Installing Ruby gems (using Homebrew Ruby)...$(RESET)"
-	@BREW_RUBY="$$(brew --prefix ruby)/bin"; \
-	BREW_GEM="$$BREW_RUBY/gem"; \
-	RUBY_VERSION=$$("$$BREW_RUBY/ruby" -e 'puts RUBY_VERSION'); \
-	export GEM_HOME="$$(brew --prefix)/lib/ruby/gems/$$RUBY_VERSION"; \
-	export GEM_PATH="$$GEM_HOME"; \
-	"$$BREW_GEM" list -i '^bashly$$' >/dev/null 2>&1 || "$$BREW_GEM" install bashly
-	@echo -e "$(CYAN)Installing Node.js packages...$(RESET)"
-	@if ! command -v bun >/dev/null 2>&1; then \
-		echo -e "$(CYAN)Bun not found, installing...$(RESET)"; \
-		if command -v brew >/dev/null 2>&1; then \
-			brew install oven-sh/bun/bun && echo -e "$(GREEN)✓ bun installed via Homebrew$(RESET)"; \
-		else \
-			echo -e "$(YELLOW)⚠ Cannot install bun without Homebrew. Install manually from https://bun.sh$(RESET)"; \
-			exit 1; \
-		fi; \
-	fi
-	@command -v commitizen >/dev/null 2>&1 || bun install -g commitizen cz-conventional-changelog
-	@command -v commitlint >/dev/null 2>&1 || bun install -g @commitlint/cli @commitlint/config-conventional
-	@command -v eslint >/dev/null 2>&1 || bun install -g eslint eslint-config-google
-	@echo -e "$(CYAN)Installing Python packages...$(RESET)"
-	@pip3 install --upgrade black pylint autopep8 2>/dev/null || echo -e "$(YELLOW)Python tools skipped (pip3 not available)$(RESET)"
-	@echo -e "$(CYAN)Setting up pre-commit hooks...$(RESET)"
-	@pre-commit install --install-hooks 2>/dev/null || echo -e "$(YELLOW)Pre-commit hooks setup skipped$(RESET)"
-	@echo -e "$(GREEN)✓ All tools installed$(RESET)"
+define prefix_info
+@printf "$(BLUE)◆$(RESET) %s\n" "$(1)"
+endef
 
-check-tools: ## Check if required tools are installed
-	@echo -e "$(CYAN)Checking for required tools...$(RESET)"
-	@errors=0; \
-	for tool in shfmt black pylint eslint pre-commit; do \
-		if command -v $$tool >/dev/null 2>&1; then \
-			echo -e "$(GREEN)✓$(RESET) $$tool"; \
-		else \
-			echo -e "$(RED)✗$(RESET) $$tool (missing)"; \
-			errors=$$((errors + 1)); \
-		fi; \
-	done; \
-	if [ $$errors -gt 0 ]; then \
-		echo -e "$(YELLOW)Run 'make install-tools' to install missing tools$(RESET)"; \
-		exit 1; \
-	fi
+define prefix_success
+@printf "$(GREEN)✔$(RESET) %s\n" "$(1)"
+endef
 
-ensure-tools: ## Ensure all tools are installed
-	@$(MAKE) check-tools >/dev/null 2>&1 || $(MAKE) install-tools
+define prefix_warn
+@printf "$(YELLOW)⚠$(RESET) %s\n" "$(1)"
+endef
 
-##@ Formatting
+define prefix_error
+@printf "$(RED)✘$(RESET) %s\n" "$(1)" >&2
+endef
 
-fmt: fmt-shell fmt-python fmt-yaml fmt-json fmt-markdown ## Format all files
+# Lib components
+NVIM_VERSION := 0.11.5
+GITSTATUS_VERSION := v1.5.4
+NVIM_PLATFORMS := linux-amd64:linux-x86_64 linux-arm64:linux-arm64 darwin-amd64:macos-x86_64 darwin-arm64:macos-arm64
+GITSTATUS_PLATFORMS := linux-amd64:linux-x86_64 linux-arm64:linux-aarch64 darwin-amd64:darwin-x86_64 darwin-arm64:darwin-arm64
+PLATFORMS := linux-amd64 linux-arm64 darwin-amd64 darwin-arm64
 
-fmt-shell: ## Format shell scripts
-	@echo -e "$(CYAN)Formatting shell scripts...$(RESET)"
-	@if [ -n "$(SHELL_FILES)" ]; then \
-		$(call format_files,$(SHELL_FILES),shfmt -w -i 2 -ci -sr,Shell scripts); \
-	else \
-		echo -e "$(YELLOW)No shell files found$(RESET)"; \
-	fi
+# Lib command defaults
+ACTION ?= status
+C ?= all
 
-fmt-python: ## Format Python files
-	@echo -e "$(CYAN)Formatting Python files...$(RESET)"
-	@if [ -n "$(PYTHON_FILES)" ]; then \
-		$(call format_files,$(PYTHON_FILES),black --line-length 100 --quiet,Python files); \
-	else \
-		echo -e "$(YELLOW)No Python files found$(RESET)"; \
-	fi
+# Docker
+DOCKER_IMAGE := jsh-test
+DOCKER_FILE := docker/Dockerfile
 
-fmt-yaml: ## Format YAML files
-	@echo -e "$(CYAN)Formatting YAML files...$(RESET)"
-	@if [ -n "$(YAML_FILES)" ]; then \
-		pre-commit run prettier --files $(YAML_FILES) || true; \
-		echo -e "$(GREEN)✓ YAML files formatted$(RESET)"; \
-	else \
-		echo -e "$(YELLOW)No YAML files found$(RESET)"; \
-	fi
+# Helper: run command if tool exists
+define run-if-exists
+@if command -v $(1) >/dev/null 2>&1; then $(2); else printf "$(YELLOW)⚠$(RESET) $(1) not installed\n"; fi
+endef
 
-fmt-json: ## Format JSON files
-	@echo -e "$(CYAN)Formatting JSON files...$(RESET)"
-	@if [ -n "$(JSON_FILES)" ]; then \
-		pre-commit run prettier --files $(JSON_FILES) || true; \
-		echo -e "$(GREEN)✓ JSON files formatted$(RESET)"; \
-	else \
-		echo -e "$(YELLOW)No JSON files found$(RESET)"; \
-	fi
+# =============================================================================
+# Help
+# =============================================================================
 
-fmt-markdown: ## Format Markdown files
-	@echo -e "$(CYAN)Formatting Markdown files...$(RESET)"
-	@if [ -n "$(MD_FILES)" ]; then \
-		pre-commit run prettier --files $(MD_FILES) || true; \
-		echo -e "$(GREEN)✓ Markdown files formatted$(RESET)"; \
-	else \
-		echo -e "$(YELLOW)No Markdown files found$(RESET)"; \
-	fi
+.PHONY: help
+help: ## Show this help
+	@printf "\n$(CYAN)JSH Makefile$(RESET)\n\n"
+	@printf "$(YELLOW)Usage:$(RESET) make [target]\n\n"
+	@printf "$(YELLOW)Targets:$(RESET)\n"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-20s$(RESET) %s\n", $$1, $$2}'
+	@printf "\n"
 
-##@ Syntax Checking
+# =============================================================================
+# Installation
+# =============================================================================
 
-check-syntax: check-shell-syntax check-python-syntax check-yaml-syntax check-json-syntax ## Check syntax of all files
+.PHONY: install
+install: submodules ## Install jsh (init submodules, link dotfiles)
+	@./jsh install
 
-check-shell-syntax: ## Check shell script syntax
-	@echo -e "$(CYAN)Checking shell script syntax...$(RESET)"
-	@if [ -n "$(SHELL_FILES)" ]; then \
-		errors=0; \
-		for file in $(SHELL_FILES); do \
-			bash -n "$$file" 2>&1 || errors=$$((errors + 1)); \
-		done; \
-		if [ $$errors -eq 0 ]; then \
-			echo -e "$(GREEN)✓ All shell scripts have valid syntax$(RESET)"; \
-		else \
-			echo -e "$(RED)✗ Found $$errors shell script(s) with syntax errors$(RESET)"; \
-			exit 1; \
-		fi; \
-	else \
-		echo -e "$(YELLOW)No shell files found$(RESET)"; \
-	fi
+.PHONY: uninstall
+uninstall: ## Uninstall jsh (remove symlinks)
+	@./jsh uninstall
 
-check-python-syntax: ## Check Python syntax
-	@echo -e "$(CYAN)Checking Python syntax...$(RESET)"
-	@if [ -n "$(PYTHON_FILES)" ]; then \
-		errors=0; \
-		for file in $(PYTHON_FILES); do \
-			$(PYTHON) -m py_compile "$$file" 2>&1 || errors=$$((errors + 1)); \
-		done; \
-		if [ $$errors -eq 0 ]; then \
-			echo -e "$(GREEN)✓ All Python files have valid syntax$(RESET)"; \
-		else \
-			echo -e "$(RED)✗ Found $$errors Python file(s) with syntax errors$(RESET)"; \
-			exit 1; \
-		fi; \
-	else \
-		echo -e "$(YELLOW)No Python files found$(RESET)"; \
-	fi
+.PHONY: submodules
+submodules: ## Initialize/update git submodules
+	$(call print_info,Initializing submodules...)
+	@git submodule update --init --depth 1
 
-check-yaml-syntax: ## Check YAML syntax
-	@echo -e "$(CYAN)Checking YAML syntax...$(RESET)"
-	@if [ -n "$(YAML_FILES)" ]; then \
-		pre-commit run yamllint --files $(YAML_FILES) && \
-		echo -e "$(GREEN)✓ All YAML files have valid syntax$(RESET)"; \
-	else \
-		echo -e "$(YELLOW)No YAML files found$(RESET)"; \
-	fi
+.PHONY: update
+update: ## Update jsh and all submodules
+	$(call print_info,Updating jsh...)
+	@git pull --rebase || true
+	@git submodule update --remote --merge
+	$(call print_success,Updated!)
 
-check-json-syntax: ## Check JSON syntax
-	@echo -e "$(CYAN)Checking JSON syntax...$(RESET)"
-	@if [ -n "$(JSON_FILES)" ]; then \
-		errors=0; \
-		for file in $(JSON_FILES); do \
-			$(PYTHON) -m json.tool "$$file" > /dev/null 2>&1 || errors=$$((errors + 1)); \
-		done; \
-		if [ $$errors -eq 0 ]; then \
-			echo -e "$(GREEN)✓ All JSON files have valid syntax$(RESET)"; \
-		else \
-			echo -e "$(RED)✗ Found $$errors JSON file(s) with syntax errors$(RESET)"; \
-			exit 1; \
-		fi; \
-	else \
-		echo -e "$(YELLOW)No JSON files found$(RESET)"; \
-	fi
+# =============================================================================
+# Development
+# =============================================================================
 
-##@ Linting
-
-check-lint-deps: ## Check if linting dependencies are installed
-	@echo -e "$(CYAN)Checking linting dependencies...$(RESET)"
-	@missing=0; \
-	echo -e "$(BLUE)Required tools:$(RESET)"; \
-	for tool in pre-commit shellcheck yamllint bun; do \
-		if command -v $$tool >/dev/null 2>&1; then \
-			echo -e "  ${GREEN}✓${RESET} $$tool"; \
-		else \
-			echo -e "  ${RED}✗${RESET} $$tool (missing)"; \
-			missing=$$((missing + 1)); \
-		fi; \
-	done; \
-	if [ $$missing -gt 0 ]; then \
-		echo -e "\n$(YELLOW)Run 'make install-lint-deps' to install missing dependencies$(RESET)"; \
-		exit 1; \
-	else \
-		echo -e "\n$(GREEN)✓ All linting dependencies are installed$(RESET)"; \
-	fi
-
-install-lint-deps: ## Install linting dependencies (pre-commit, shellcheck, yamllint, bun)
-	@echo -e "$(CYAN)Installing linting dependencies...$(RESET)"
-	@echo ""
-	@echo -e "$(BLUE)Installing pre-commit...$(RESET)"
-	@if ! command -v pre-commit >/dev/null 2>&1; then \
-		pip3 install --user pre-commit 2>/dev/null || pip install --user pre-commit || \
-		{ echo -e "$(RED)Failed to install pre-commit. Please install Python and pip first.$(RESET)"; exit 1; }; \
-		echo -e "$(GREEN)✓ pre-commit installed$(RESET)"; \
-	else \
-		echo -e "$(GREEN)✓ pre-commit already installed$(RESET)"; \
-	fi
-	@echo ""
-	@echo -e "$(BLUE)Installing shellcheck...$(RESET)"
-	@if ! command -v shellcheck >/dev/null 2>&1; then \
-		if command -v brew >/dev/null 2>&1; then \
-			brew install shellcheck && echo -e "$(GREEN)✓ shellcheck installed via Homebrew$(RESET)"; \
-		elif command -v apt-get >/dev/null 2>&1; then \
-			echo -e "$(YELLOW)Installing shellcheck requires sudo...$(RESET)"; \
-			sudo apt-get update && sudo apt-get install -y shellcheck && \
-			echo -e "$(GREEN)✓ shellcheck installed via apt$(RESET)"; \
-		else \
-			echo -e "$(YELLOW)⚠ Cannot auto-install shellcheck. Please install manually:$(RESET)"; \
-			echo -e "  macOS: brew install shellcheck"; \
-			echo -e "  Linux: sudo apt-get install shellcheck"; \
-		fi; \
-	else \
-		echo -e "$(GREEN)✓ shellcheck already installed$(RESET)"; \
-	fi
-	@echo ""
-	@echo -e "$(BLUE)Installing yamllint...$(RESET)"
-	@if ! command -v yamllint >/dev/null 2>&1; then \
-		pip3 install --user yamllint 2>/dev/null || pip install --user yamllint || \
-		echo -e "$(YELLOW)⚠ Failed to install yamllint via pip$(RESET)"; \
-		if command -v yamllint >/dev/null 2>&1; then \
-			echo -e "$(GREEN)✓ yamllint installed$(RESET)"; \
-		fi; \
-	else \
-		echo -e "$(GREEN)✓ yamllint already installed$(RESET)"; \
-	fi
-	@echo ""
-	@echo -e "$(BLUE)Checking bun...$(RESET)"
-	@if ! command -v bun >/dev/null 2>&1; then \
-		if command -v brew >/dev/null 2>&1; then \
-			brew install oven-sh/bun/bun && echo -e "$(GREEN)✓ bun installed via Homebrew$(RESET)"; \
-		else \
-			echo -e "$(YELLOW)⚠ bun not found. markdownlint requires bun.$(RESET)"; \
-			echo -e "  Install Bun from: https://bun.sh/"; \
-			echo -e "  Or via curl: curl -fsSL https://bun.sh/install | bash"; \
-			exit 1; \
-		fi; \
-	else \
-		echo -e "$(GREEN)✓ bun already installed$(RESET)"; \
-	fi
-	@echo ""
-	@echo -e "$(GREEN)✓ Dependency installation complete!$(RESET)"
-	@echo -e "$(CYAN)Note: markdownlint-cli and prettier will be installed automatically via bunx$(RESET)"
-
-ensure-lint-deps: ## Ensure linting dependencies are installed (auto-install if needed)
-	@$(MAKE) check-lint-deps >/dev/null 2>&1 || $(MAKE) install-lint-deps
-
-lint: ensure-lint-deps ## Lint all files using pre-commit
-	@echo -e "$(CYAN)Running pre-commit on all files...$(RESET)"
-	@pre-commit run --all-files && \
-		echo -e "$(GREEN)✓ All linting checks passed$(RESET)" || \
-		(echo -e "$(RED)✗ Some linting checks failed$(RESET)"; exit 1)
-
-lint-shell: ## Lint shell scripts with shellcheck
-	@echo -e "$(CYAN)Linting shell scripts...$(RESET)"
-	@if ! command -v pre-commit >/dev/null 2>&1; then \
-		echo -e "$(YELLOW)Installing pre-commit via pip...$(RESET)"; \
-		pip3 install --user pre-commit 2>/dev/null || pip install --user pre-commit; \
-	fi
-	@if [ -n "$(SHELL_FILES)" ]; then \
-		pre-commit run shellcheck --files $(SHELL_FILES) && \
-		echo -e "$(GREEN)✓ Shell scripts passed linting$(RESET)"; \
-	else \
-		echo -e "$(YELLOW)No shell files found$(RESET)"; \
-	fi
-
-lint-python: ## Lint Python files with pre-commit
-	@echo -e "$(CYAN)Linting Python files...$(RESET)"
-	@if ! command -v pre-commit >/dev/null 2>&1; then \
-		echo -e "$(YELLOW)Installing pre-commit via pip...$(RESET)"; \
-		pip3 install --user pre-commit 2>/dev/null || pip install --user pre-commit; \
-	fi
-	@if [ -n "$(PYTHON_FILES)" ]; then \
-		pre-commit run --files $(PYTHON_FILES) && \
-		echo -e "$(GREEN)✓ Python files passed linting$(RESET)"; \
-	else \
-		echo -e "$(YELLOW)No Python files found$(RESET)"; \
-	fi
-
-lint-yaml: ## Lint YAML files with yamllint
-	@echo -e "$(CYAN)Linting YAML files...$(RESET)"
-	@if ! command -v pre-commit >/dev/null 2>&1; then \
-		echo -e "$(YELLOW)Installing pre-commit via pip...$(RESET)"; \
-		pip3 install --user pre-commit 2>/dev/null || pip install --user pre-commit; \
-	fi
-	@if [ -n "$(YAML_FILES)" ]; then \
-		pre-commit run yamllint --files $(YAML_FILES) && \
-		echo -e "$(GREEN)✓ YAML files passed linting$(RESET)"; \
-	else \
-		echo -e "$(YELLOW)No YAML files found$(RESET)"; \
-	fi
-
-lint-markdown: ## Lint Markdown files with markdownlint
-	@echo -e "$(CYAN)Linting Markdown files...$(RESET)"
-	@if ! command -v pre-commit >/dev/null 2>&1; then \
-		echo -e "$(YELLOW)Installing pre-commit via pip...$(RESET)"; \
-		pip3 install --user pre-commit 2>/dev/null || pip install --user pre-commit; \
-	fi
-	@if [ -n "$(MD_FILES)" ]; then \
-		pre-commit run markdownlint --files $(MD_FILES) && \
-		echo -e "$(GREEN)✓ Markdown files passed linting$(RESET)"; \
-	else \
-		echo -e "$(YELLOW)No Markdown files found$(RESET)"; \
-	fi
-
-lint-js: ## Lint JavaScript files with prettier via pre-commit
-	@echo -e "$(CYAN)Linting JavaScript files...$(RESET)"
-	@if ! command -v pre-commit >/dev/null 2>&1; then \
-		echo -e "$(YELLOW)Installing pre-commit via pip...$(RESET)"; \
-		pip3 install --user pre-commit 2>/dev/null || pip install --user pre-commit; \
-	fi
-	@JS_FILES=$$(find . -type f -name "*.js" ! -path "*/\.*" ! -path "*/node_modules/*" ! -path "*/.eslintrc.json"); \
-	if [ -n "$$JS_FILES" ]; then \
-		pre-commit run prettier --files $$JS_FILES --hook-stage manual && \
-		echo -e "$(GREEN)✓ JavaScript files passed linting$(RESET)"; \
-	else \
-		echo -e "$(YELLOW)No JavaScript files found$(RESET)"; \
-	fi
-
-##@ Git Commits
-
-commit: ## Create a conventional commit with commitizen
-	@echo -e "$(CYAN)Creating conventional commit...$(RESET)"
-	@if command -v cz >/dev/null 2>&1; then \
-		cz commit; \
-	elif command -v git-cz >/dev/null 2>&1; then \
-		git-cz; \
-	else \
-		echo -e "$(RED)Commitizen not installed. Run 'make install-tools' first.$(RESET)"; \
-		exit 1; \
-	fi
-
-commit-msg-check: ## Check last commit message follows conventional commits
-	@echo -e "$(CYAN)Checking commit message...$(RESET)"
-	@if command -v commitlint >/dev/null 2>&1; then \
-		git log -1 --pretty=format:"%s" | commitlint && \
-		echo -e "$(GREEN)✓ Commit message is valid$(RESET)"; \
-	else \
-		echo -e "$(YELLOW)commitlint not installed. Skipping check.$(RESET)"; \
-	fi
-
-##@ Pre-commit Checks
-
-pre-commit-run: ## Run pre-commit hooks on all files
-	@echo -e "$(CYAN)Running pre-commit hooks...$(RESET)"
+.PHONY: lint
+lint: ## Run all linting (pre-commit or fallback to shellcheck)
+	$(call print_info,Linting...)
 	@if command -v pre-commit >/dev/null 2>&1; then \
 		pre-commit run --all-files; \
 	else \
-		echo -e "$(RED)pre-commit not installed. Run 'make install-tools' first.$(RESET)"; \
-		exit 1; \
+		$(MAKE) lint-shell lint-yaml; \
 	fi
 
-pre-commit: check-syntax lint ## Run all pre-commit checks (syntax + lint)
-	@echo -e "$(GREEN)✓ All pre-commit checks passed$(RESET)"
+.PHONY: lint-shell
+lint-shell: ## Lint shell scripts with shellcheck
+	$(call run-if-exists,shellcheck,find $(SRC_DIR) -name "*.sh" -exec shellcheck -x {} \; && shellcheck -x jsh bin/jssh)
 
-ci: check-syntax lint ## Run CI checks (syntax + lint)
-	@echo -e "$(GREEN)✓ All CI checks passed$(RESET)"
+.PHONY: lint-yaml
+lint-yaml: ## Lint YAML files with yamllint
+	$(call run-if-exists,yamllint,yamllint --config-file .yamllint .)
 
-##@ Build
-
-fmt-src: ## Format source files (before build)
-	@echo -e "$(CYAN)Formatting source files...$(RESET)"
+.PHONY: fmt
+fmt: ## Format code with prettier and shfmt
+	$(call print_info,Formatting...)
 	@if command -v shfmt >/dev/null 2>&1; then \
-		for file in src/*.sh src/lib/*.sh; do \
-			[ -f "$$file" ] || continue; \
-			if shfmt -d "$$file" >/dev/null 2>&1 || shfmt "$$file" >/dev/null 2>&1; then \
-				shfmt -w -i 2 -ci -sr "$$file" 2>/dev/null && \
-				echo -e "$(GRAY)$$file$(RESET) (formatted)"; \
+		find $(SRC_DIR) -name "*.sh" -exec shfmt -w -i 2 {} \; ; \
+	fi
+	@if command -v bunx >/dev/null 2>&1; then \
+		bunx --bun prettier --write --ignore-unknown "**/*.{json,yaml,yml,md}" 2>/dev/null || true; \
+	elif command -v npx >/dev/null 2>&1; then \
+		npx --yes prettier --write --ignore-unknown "**/*.{json,yaml,yml,md}" 2>/dev/null || true; \
+	fi
+
+.PHONY: test
+test: ## Run tests (requires Docker)
+	@command -v docker >/dev/null 2>&1 || { printf "$(RED)✘$(RESET) Docker not installed\n" >&2; exit 1; }
+	$(call print_info,Building Docker test image...)
+	@docker build -t $(DOCKER_IMAGE) -f $(DOCKER_FILE) .
+	$(call print_info,Testing jsh in Docker...)
+	@docker run --rm -e JSH_TEST_SHELL=zsh -v "$(JSH_DIR):/home/testuser/.jsh:ro" $(DOCKER_IMAGE)
+	@printf "\n"
+	$(call print_success,All tests passed!)
+
+.PHONY: pre-commit-install
+pre-commit-install: ## Install pre-commit hooks
+	$(call print_info,Installing pre-commit hooks...)
+	@if command -v pre-commit >/dev/null 2>&1; then \
+		pre-commit install && pre-commit install --hook-type commit-msg; \
+		printf "$(GREEN)✔$(RESET) Pre-commit hooks installed!\n"; \
+	else \
+		printf "$(YELLOW)⚠$(RESET) pre-commit not installed. Run: pip install pre-commit\n"; \
+	fi
+
+# =============================================================================
+# Lib Management (ACTION=build|clean|status C=fzf|nvim|all)
+# =============================================================================
+
+.PHONY: lib
+lib: ## Manage lib components (ACTION=build|clean|status C=fzf|nvim|all)
+	@case "$(ACTION)" in \
+		build) $(MAKE) --no-print-directory _lib-build-$(C);; \
+		clean) $(MAKE) --no-print-directory _lib-clean-$(C);; \
+		status|*) $(MAKE) --no-print-directory _lib-status;; \
+	esac
+
+# Internal build targets
+.PHONY: _lib-build-all _lib-build-fzf _lib-build-nvim _lib-build-gitstatus
+_lib-build-all: _lib-build-fzf _lib-build-nvim _lib-build-gitstatus
+	$(call print_success,All lib components built!)
+
+_lib-build-fzf:
+	$(call print_info,Building fzf from source...)
+	@command -v go >/dev/null 2>&1 || { printf "$(RED)✘$(RESET) Go not installed (requires 1.23+)\n" >&2; exit 1; }
+	@mkdir -p $(LIB_DIR)/bin/{linux-amd64,linux-arm64,darwin-amd64,darwin-arm64}
+	@cd $(LIB_DIR)/fzf && \
+		VERSION=$$(git describe --tags --always 2>/dev/null || echo "dev") && \
+		REVISION=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown") && \
+		printf "  $(YELLOW)Version: $$VERSION ($$REVISION)$(RESET)\n" && \
+		for platform in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do \
+			GOOS=$${platform%/*}; GOARCH=$${platform#*/}; \
+			OUT="../bin/$${GOOS}-$${GOARCH}/fzf"; \
+			printf "  $(YELLOW)$${GOOS}-$${GOARCH}$(RESET)\n"; \
+			CGO_ENABLED=0 GOOS=$$GOOS GOARCH=$$GOARCH go build \
+				-ldflags="-s -w -X main.version=$$VERSION -X main.revision=$$REVISION" \
+				-o "$$OUT" . || exit 1; \
+		done
+	$(call print_success,fzf built!)
+
+_lib-build-nvim:
+	$(call print_info,Downloading nvim $(NVIM_VERSION)...)
+	@mkdir -p $(LIB_DIR)/bin/{linux-amd64,linux-arm64,darwin-amd64,darwin-arm64}
+	@for mapping in $(NVIM_PLATFORMS); do \
+		platform=$${mapping%:*}; archive=$${mapping#*:}; \
+		printf "  $(YELLOW)$$platform$(RESET)\n"; \
+		rm -rf $(LIB_DIR)/bin/$$platform/nvim $(LIB_DIR)/bin/$$platform/nvim-lib $(LIB_DIR)/bin/$$platform/nvim-share; \
+		curl -sL "https://github.com/neovim/neovim/releases/download/v$(NVIM_VERSION)/nvim-$$archive.tar.gz" | \
+			tar -xz -C /tmp && \
+			mv /tmp/nvim-$$archive/bin/nvim $(LIB_DIR)/bin/$$platform/ && \
+			mv /tmp/nvim-$$archive/lib $(LIB_DIR)/bin/$$platform/nvim-lib && \
+			mv /tmp/nvim-$$archive/share $(LIB_DIR)/bin/$$platform/nvim-share && \
+			rm -rf /tmp/nvim-$$archive || exit 1; \
+	done
+	$(call print_success,nvim $(NVIM_VERSION) downloaded!)
+
+_lib-build-gitstatus:
+	$(call print_info,Downloading gitstatusd $(GITSTATUS_VERSION)...)
+	@mkdir -p $(LIB_DIR)/bin/{linux-amd64,linux-arm64,darwin-amd64,darwin-arm64}
+	@for mapping in $(GITSTATUS_PLATFORMS); do \
+		platform=$${mapping%:*}; archive=$${mapping#*:}; \
+		printf "  $(YELLOW)$$platform$(RESET)\n"; \
+		curl -sL "https://github.com/romkatv/gitstatus/releases/download/$(GITSTATUS_VERSION)/gitstatusd-$$archive.tar.gz" | \
+			tar -xz -C $(LIB_DIR)/bin/$$platform/ || exit 1; \
+	done
+	$(call print_success,gitstatusd $(GITSTATUS_VERSION) downloaded!)
+	$(call print_warn,Update lib/p10k/gitstatus/build.info if version changed)
+
+# Internal clean targets
+.PHONY: _lib-clean-all _lib-clean-fzf _lib-clean-nvim _lib-clean-gitstatus
+_lib-clean-all: _lib-clean-fzf _lib-clean-nvim _lib-clean-gitstatus
+	$(call print_success,Lib binaries cleaned!)
+
+_lib-clean-fzf:
+	$(call print_info,Removing fzf binaries...)
+	@rm -rf $(LIB_DIR)/bin/*/fzf
+
+_lib-clean-nvim:
+	$(call print_info,Removing nvim binaries...)
+	@rm -rf $(LIB_DIR)/bin/*/nvim $(LIB_DIR)/bin/*/nvim-lib $(LIB_DIR)/bin/*/nvim-share
+
+_lib-clean-gitstatus:
+	$(call print_info,Removing gitstatusd binaries...)
+	@rm -rf $(LIB_DIR)/bin/*/gitstatusd-*
+
+# Internal status target
+.PHONY: _lib-status
+_lib-status:
+	@printf "$(CYAN)Lib Components:$(RESET)\n"
+	@printf "\n$(YELLOW)Submodules:$(RESET)\n"
+	@git submodule status
+	@printf "\n$(YELLOW)Binaries:$(RESET)\n"
+	@for platform in $(PLATFORMS); do \
+		printf "  $(YELLOW)$$platform:$(RESET)\n"; \
+		for bin in fzf nvim; do \
+			if [[ -f "$(LIB_DIR)/bin/$$platform/$$bin" ]]; then \
+				size=$$(du -h "$(LIB_DIR)/bin/$$platform/$$bin" | cut -f1); \
+				printf "    $(GREEN)✔$(RESET) $$bin ($$size)\n"; \
 			else \
-				echo -e "$(GRAY)$$file$(RESET) (skipped - zsh syntax)"; \
+				printf "    $(RED)✘$(RESET) $$bin\n"; \
 			fi; \
 		done; \
-		echo -e "$(GREEN)✓ Source files formatted$(RESET)"; \
-	else \
-		echo -e "$(YELLOW)shfmt not installed, skipping source formatting$(RESET)"; \
-	fi
+		gitstatusd=$$(ls "$(LIB_DIR)/bin/$$platform"/gitstatusd-* 2>/dev/null | head -1); \
+		if [[ -n "$$gitstatusd" ]]; then \
+			size=$$(du -h "$$gitstatusd" | cut -f1); \
+			printf "    $(GREEN)✔$(RESET) gitstatusd ($$size)\n"; \
+		else \
+			printf "    $(RED)✘$(RESET) gitstatusd\n"; \
+		fi; \
+	done
 
-build: fmt-src ## Regenerate jsh CLI from bashly sources
-	@echo -e "$(CYAN)Regenerating jsh CLI...$(RESET)"
-	@if ! command -v bashly >/dev/null 2>&1; then \
-		echo -e "$(RED)bashly not installed. Run 'make install-tools' first.$(RESET)"; \
+# =============================================================================
+# Nvim Tools (for jssh offline support)
+# =============================================================================
+
+# blink.cmp version (from lazy-lock.json)
+BLINK_VERSION := v1.7.0
+BLINK_BASE_URL := https://github.com/Saghen/blink.cmp/releases/download/$(BLINK_VERSION)
+
+.PHONY: nvim-tools
+nvim-tools: nvim-tools-blink nvim-tools-mason ## Download nvim tools for offline jssh
+
+.PHONY: nvim-tools-blink
+nvim-tools-blink: ## Download blink.cmp fuzzy library for all platforms
+	$(call print_info,Downloading blink.cmp $(BLINK_VERSION) fuzzy library...)
+	@mkdir -p $(LIB_DIR)/nvim-data/blink.cmp/{darwin-arm64,darwin-amd64,linux-amd64,linux-arm64}
+	@printf "  $(YELLOW)darwin-arm64$(RESET)\n"
+	@curl -sL "$(BLINK_BASE_URL)/aarch64-apple-darwin.dylib" \
+		-o $(LIB_DIR)/nvim-data/blink.cmp/darwin-arm64/libblink_cmp_fuzzy.dylib
+	@printf "  $(YELLOW)darwin-amd64$(RESET)\n"
+	@curl -sL "$(BLINK_BASE_URL)/x86_64-apple-darwin.dylib" \
+		-o $(LIB_DIR)/nvim-data/blink.cmp/darwin-amd64/libblink_cmp_fuzzy.dylib
+	@printf "  $(YELLOW)linux-amd64$(RESET)\n"
+	@curl -sL "$(BLINK_BASE_URL)/x86_64-unknown-linux-gnu.so" \
+		-o $(LIB_DIR)/nvim-data/blink.cmp/linux-amd64/libblink_cmp_fuzzy.so
+	@printf "  $(YELLOW)linux-arm64$(RESET)\n"
+	@curl -sL "$(BLINK_BASE_URL)/aarch64-unknown-linux-gnu.so" \
+		-o $(LIB_DIR)/nvim-data/blink.cmp/linux-arm64/libblink_cmp_fuzzy.so
+	$(call print_success,blink.cmp fuzzy library downloaded!)
+
+.PHONY: nvim-tools-mason
+nvim-tools-mason: ## Download mason tools for all platforms
+	@$(JSH_DIR)/scripts/download-mason-tools.sh
+
+.PHONY: nvim-tools-clean
+nvim-tools-clean: ## Remove downloaded nvim tools
+	$(call print_info,Removing nvim tools...)
+	@rm -rf $(LIB_DIR)/nvim-data $(LIB_DIR)/mason-packages
+	$(call print_success,nvim tools removed)
+
+.PHONY: nvim-tools-status
+nvim-tools-status: ## Show nvim tools status
+	@printf "$(CYAN)Nvim Tools:$(RESET)\n"
+	@printf "\n$(YELLOW)blink.cmp:$(RESET)\n"
+	@for platform in $(PLATFORMS); do \
+		if ls "$(LIB_DIR)/nvim-data/blink.cmp/$$platform/libblink_cmp_fuzzy"* >/dev/null 2>&1; then \
+			size=$$(du -h "$(LIB_DIR)/nvim-data/blink.cmp/$$platform/"* 2>/dev/null | tail -1 | cut -f1); \
+			printf "  $(GREEN)✔$(RESET) $$platform ($$size)\n"; \
+		else \
+			printf "  $(RED)✘$(RESET) $$platform\n"; \
+		fi; \
+	done
+	@printf "\n$(YELLOW)mason-packages:$(RESET)\n"
+	@for platform in $(PLATFORMS); do \
+		if [[ -d "$(LIB_DIR)/mason-packages/$$platform" ]]; then \
+			size=$$(du -sh "$(LIB_DIR)/mason-packages/$$platform" 2>/dev/null | cut -f1); \
+			printf "  $(GREEN)✔$(RESET) $$platform ($$size)\n"; \
+		else \
+			printf "  $(RED)✘$(RESET) $$platform\n"; \
+		fi; \
+	done
+
+# =============================================================================
+# Build & Release
+# =============================================================================
+
+.PHONY: build
+build: submodules ## Build (initialize everything)
+	$(call print_success,Build complete)
+
+.PHONY: release
+release: ## Create a release (VERSION=x.y.z)
+	@if [[ -z "$(VERSION)" ]]; then \
+		printf "$(RED)✘$(RESET) VERSION not set. Use: make release VERSION=x.y.z\n" >&2; \
 		exit 1; \
 	fi
-	@bashly generate && \
-		echo -e "$(GREEN)✓ jsh CLI regenerated successfully$(RESET)"
+	$(call print_info,Creating release v$(VERSION)...)
+	@git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
+	@git push origin "v$(VERSION)"
+	$(call print_success,Released v$(VERSION))
 
-##@ Testing & Validation
+# =============================================================================
+# Utilities
+# =============================================================================
 
-test: pre-commit ## Run all tests and validation
-	@echo -e "$(GREEN)✓ All tests passed$(RESET)"
+.PHONY: status
+status: ## Show jsh status
+	@./jsh status
 
-validate: check-syntax ## Validate all file syntax
-	@echo -e "$(GREEN)✓ All files validated$(RESET)"
+.PHONY: doctor
+doctor: ## Run diagnostics
+	@./jsh doctor
 
-##@ Cleanup
+.PHONY: clean
+clean: ## Clean caches and temporary files
+	$(call print_info,Cleaning...)
+	@rm -rf ~/.cache/jsh ~/.cache/jssh ~/.cache/zsh
+	$(call print_success,Cleaned!)
 
-clean: ## Remove temporary files and caches
-	@echo -e "$(CYAN)Cleaning up...$(RESET)"
-	@find . -type f -name "*.pyc" -delete
-	@find . -type d -name "__pycache__" -delete
-	@find . -type d -name ".pytest_cache" -delete
-	@find . -type d -name ".mypy_cache" -delete
-	@SYNC_FILES=$$(find . -type f -name "*.sync-conflict-*" 2>/dev/null | wc -l | tr -d ' '); \
-	if [ $$SYNC_FILES -gt 0 ]; then \
-		echo -e "$(YELLOW)Found $$SYNC_FILES sync-conflict file(s)$(RESET)"; \
-		find . -type f -name "*.sync-conflict-*" 2>/dev/null; \
-		read -p "Delete sync-conflict files? [y/N] " -n 1 -r; \
-		echo; \
-		if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-			find . -type f -name "*.sync-conflict-*" -delete; \
-			echo -e "$(GREEN)✓ Sync-conflict files deleted$(RESET)"; \
-		else \
-			echo -e "$(YELLOW)Sync-conflict files kept$(RESET)"; \
-		fi; \
+.PHONY: shell
+shell: ## Debug shell with JSH_DEBUG=1
+	@JSH_DEBUG=1 $(SHELL)
+
+.PHONY: install-tools
+install-tools: ## Install development tools (linters, formatters)
+	$(call print_info,Installing development tools...)
+ifeq ($(shell uname), Darwin)
+	@brew install shellcheck shfmt yamllint pre-commit || true
+	@pip3 install --user pre-commit || true
+else
+	$(call print_warn,Install manually: shellcheck shfmt yamllint pre-commit)
+endif
+	$(call print_success,Done! Run 'make pre-commit-install' to set up git hooks)
+
+.PHONY: docker-shell
+docker-shell: ## Interactive Docker shell (SHELL_TYPE=zsh|bash)
+	@command -v docker >/dev/null 2>&1 || { printf "$(RED)✘$(RESET) Docker not installed\n" >&2; exit 1; }
+	@docker build -t $(DOCKER_IMAGE) -f $(DOCKER_FILE) . >/dev/null 2>&1
+	$(call print_info,Launching interactive Docker shell...)
+	@docker run --rm -it -e JSH_TEST_SHELL=$(or $(SHELL_TYPE),zsh) -v "$(JSH_DIR):/home/testuser/.jsh" $(DOCKER_IMAGE)
+
+.PHONY: strategy
+strategy: ## Generate/update commit strategy at .github/CHANGES.md
+	$(call print_info,Analyzing changes...)
+	@mkdir -p $(JSH_DIR)/.github
+	@if [ -f "$(JSH_DIR)/.github/CHANGES.md" ]; then \
+		claude --print "OUTPUT FORMAT: Raw markdown ONLY. No preamble, no 'Here is...', no questions, no commentary. \
+Start directly with '# Commit Strategy' or similar heading. \
+\
+You are updating an existing commit strategy document. \
+\
+EXISTING DOCUMENT: \
+$$(cat $(JSH_DIR)/.github/CHANGES.md) \
+\
+CURRENT GIT STATUS: \
+$$(git status --porcelain) \
+\
+TASK: Update the existing document - do NOT replace it entirely. \
+1. Preserve the existing structure, insights, and commit sequence \
+2. Mark commits that have already been executed (check git log) as DONE \
+3. Add any NEW changes detected in git status that are not yet covered \
+4. Update file counts and metrics if they have changed \
+5. Remove commits for changes that no longer exist \
+6. Keep all helper sections (Partial Commits, Verification, etc.) \
+7. Do NOT include Co-Authored-By footers in commit messages \
+8. PARTIAL COMMITS ARE MANDATORY for modified files: \
+   - For each 'M' file, inspect diff for multiple logical purposes \
+   - If yes: use git diff -U0 + git apply --cached to split into separate commits \
+   - If no: document WHY the entire file belongs to one commit \
+   - Never use plain 'git add <file>' for modified files without justification \
+\
+If a commit has been partially completed, note which files remain. \
+I will handle the actual git commands later and I expect being able to copy paste a partial file \
+commit without issue. \
+\
+REMINDER: Output ONLY the markdown document. No conversational text." > $(JSH_DIR)/.github/CHANGES.md & \
+		_pid=$$!; \
+		frames='⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏'; \
+		elapsed=0; \
+		while kill -0 $$_pid 2>/dev/null; do \
+			for frame in $$frames; do \
+				kill -0 $$_pid 2>/dev/null || break 2; \
+				elapsed=$$((elapsed + 1)); \
+				printf '\r\033[36m%s Updating strategy... %ds\033[0m' "$$frame" "$$((elapsed / 10))"; \
+				sleep 0.1; \
+			done; \
+		done; \
+		printf '\r\033[K'; \
+		wait $$_pid; \
+	else \
+		claude --print "OUTPUT FORMAT: Raw markdown ONLY. No preamble, no 'Here is...', no questions, no commentary. \
+Start directly with '# Commit Strategy' heading. \
+\
+Generate a detailed commit strategy document for the current git changes. \
+\
+CURRENT GIT STATUS: \
+$$(git status --porcelain) \
+\
+Requirements: \
+1. Group changes logically by feature, component, or concern - NOT by conventional commit type \
+2. Be verbose - highlight what each change introduces or improves \
+3. Create granular commits (prefer more smaller commits over fewer large ones) \
+4. For each commit provide a one-liner git command with 'git add' for the chunks/files/dirs/etc. \
+and 'git commit' with conventional commit message \
+5. Include multi-line commit bodies explaining the 'why' and listing affected files \
+6. Order: cleanup/removal first, then infrastructure, then features, then config updates \
+7. Include a summary table of key enhancements at the top \
+\
+PARTIAL COMMITS (MANDATORY FOR MODIFIED FILES): \
+For each file marked 'M' (modified) in git status, you MUST: \
+- Inspect the diff to identify if changes serve multiple logical purposes \
+- If yes: use partial staging to split them into separate commits \
+- If no: document WHY the entire file belongs to one commit \
+\
+Never use plain 'git add <file>' for modified files without justification. \
+\
+Techniques for partial staging: \
+\
+8. Line-range staging with git apply: \
+   git diff -U0 <file> | head -n <end_line> | tail -n +<start_line> | git apply --cached \
+   \
+9. Hunk-based staging (extract specific diff hunks): \
+   git diff <file> | awk '/^@@.*@@/{p=0} /<pattern>/{p=1} p||/^diff --git/' | git apply --cached \
+   \
+10. Stage-then-unstage workflow: \
+    git add <file> && git diff --cached <file> | grep -v '<unwanted>' | git apply --cached -R \
+    \
+11. For each partial commit, include the EXACT git diff + git apply --cached pipeline \
+\
+Example partial commit block: \
+\`\`\`bash \
+# Stage only the function rename (lines 45-52) \
+git diff -U0 src/core.sh | sed -n '1,/^@@/p; /rename_func/,/^@@/p' | git apply --cached \
+git commit -m \"refactor(core): rename internal function\" \
+\`\`\` \
+\
+Additional sections to include: \
+- Partial Commits Reference: document git diff + sed/awk + git apply --cached patterns \
+- Batch alternatives for simpler workflows (when atomicity is less critical) \
+- Verification commands (git diff --cached --stat, git diff --cached <file>) \
+\
+Do NOT include Co-Authored-By footers in commit messages. \
+Note: GitHub adds copy buttons to fenced code blocks automatically. \
+Working directory: $(JSH_DIR) \
+\
+REMINDER: Output ONLY the markdown document. No conversational text." > $(JSH_DIR)/.github/CHANGES.md & \
+		_pid=$$!; \
+		frames='⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏'; \
+		elapsed=0; \
+		while kill -0 $$_pid 2>/dev/null; do \
+			for frame in $$frames; do \
+				kill -0 $$_pid 2>/dev/null || break 2; \
+				elapsed=$$((elapsed + 1)); \
+				printf '\r\033[36m%s Generating strategy... %ds\033[0m' "$$frame" "$$((elapsed / 10))"; \
+				sleep 0.1; \
+			done; \
+		done; \
+		printf '\r\033[K'; \
+		wait $$_pid; \
 	fi
-	@echo -e "$(GREEN)✓ Cleanup complete$(RESET)"
+	$(call print_success,Strategy written to .github/CHANGES.md)
 
-##@ Docker Testing
+.PHONY: commit
+commit: ## Interactive commit executor (fzf-based)
+	@$(JSH_DIR)/scripts/commit-wizard.sh
 
-# Docker configuration
-DOCKER_IMAGE := jsh-test
-DOCKER_TAG := latest
-JSH_TEST_SHELL ?= zsh
+.PHONY: commit-reset
+commit-reset: ## Reset commit wizard state (start over)
+	@$(JSH_DIR)/scripts/commit-wizard.sh --reset
 
-docker-build: ## Build the jsh test container
-	@echo -e "$(CYAN)Building jsh test container...$(RESET)"
-	@docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) -f docker/test.Dockerfile . && \
-		echo -e "$(GREEN)✓ Docker image built: $(DOCKER_IMAGE):$(DOCKER_TAG)$(RESET)"
-
-docker-test: docker-build ## Run interactive jsh test container (use JSH_TEST_SHELL=bash for bash)
-	@echo -e "$(CYAN)Starting jsh test container with $(JSH_TEST_SHELL)...$(RESET)"
-	@docker run --rm -it \
-		-e JSH_TEST_SHELL=$(JSH_TEST_SHELL) \
-		-v "$(CURDIR):/home/testuser/.jsh:ro" \
-		$(DOCKER_IMAGE):$(DOCKER_TAG)
-
-docker-test-bash: ## Run interactive jsh test container with bash
-	@$(MAKE) docker-test JSH_TEST_SHELL=bash
-
-docker-test-zsh: ## Run interactive jsh test container with zsh (default)
-	@$(MAKE) docker-test JSH_TEST_SHELL=zsh
-
-docker-clean: ## Remove jsh test Docker image
-	@echo -e "$(CYAN)Removing jsh test Docker image...$(RESET)"
-	@docker rmi $(DOCKER_IMAGE):$(DOCKER_TAG) 2>/dev/null && \
-		echo -e "$(GREEN)✓ Docker image removed$(RESET)" || \
-		echo -e "$(YELLOW)Image not found or already removed$(RESET)"
-
-##@ Task Integration
-
-task-%: ## Run any taskfile task (e.g., make task-setup)
-	@task $(subst task-,,$@)
-
-tasks: ## List all available tasks from taskfile
-	@task --list
+.PHONY: commit-status
+commit-status: ## Show which commits have been completed
+	@$(JSH_DIR)/scripts/commit-wizard.sh --status
