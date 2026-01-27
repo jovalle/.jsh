@@ -256,7 +256,7 @@ _j_open_remote() {
         "${CYN:-}" "${remote_path}" "${RST:-}"
     [[ -n "${ssh_key}" ]] && printf '  %sKey:%s %s\n' "${DIM:-}" "${RST:-}" "${ssh_key}"
 
-    code --remote "ssh-remote+${ssh_target}" "${remote_path}"
+    _j_open_code --remote "ssh-remote+${ssh_target}" "${remote_path}"
 }
 
 # =============================================================================
@@ -495,6 +495,18 @@ _j_resolve_path() {
     return 1
 }
 
+# Helper function to safely open VS Code
+_j_open_code() {
+    local code_cmd
+    code_cmd=$(command -v code 2>/dev/null)
+    if [[ -z "${code_cmd}" ]]; then
+        printf '%s!%s VS Code command "code" not found in PATH\n' "${C_WARN:-}" "${RST:-}" >&2
+        printf '%sInstall it from VS Code: Cmd+Shift+P -> "Shell Command: Install code command in PATH"\n' "${DIM:-}" "${RST:-}" >&2
+        return 1
+    fi
+    "${code_cmd}" "$@"
+}
+
 # =============================================================================
 # Main j Function
 # =============================================================================
@@ -593,7 +605,9 @@ EOF
                 # Jump to previous directory
                 if [[ -n "${_J_PREV_DIR}" ]] && [[ -d "${_J_PREV_DIR}" ]]; then
                     _j_cd_hook "${_J_PREV_DIR}"
-                    [[ "${open_code}" == true ]] && code .
+                    if [[ "${open_code}" == true ]]; then
+                        _j_open_code . || return $?
+                    fi
                 else
                     printf '%s!%s No previous directory\n' "${C_WARN:-}" "${RST:-}" >&2
                     return 1
@@ -639,7 +653,9 @@ EOF
                 target_dir=$(cat "${cd_file}")
                 if [[ -n "${target_dir}" && -d "${target_dir}" ]]; then
                     _j_cd_hook "${target_dir}" || ret=1
-                    [[ "${open_code}" == true ]] && code .
+                    if [[ "${open_code}" == true ]]; then
+                        _j_open_code . || return $?
+                    fi
                 fi
             fi
 
@@ -664,7 +680,9 @@ EOF
         selected="$(_j_interactive)"
         if [[ -n "${selected}" ]]; then
             _j_cd_hook "${selected}"
-            [[ "${open_code}" == true ]] && code .
+            if [[ "${open_code}" == true ]]; then
+                _j_open_code . || return $?
+            fi
         fi
         return 0
     fi
@@ -685,7 +703,9 @@ EOF
         [[ "${verbose}" == true ]] && printf '%s[j]%s Found %d match(es) in database, best: %s%s%s\n' \
             "${DIM:-}" "${RST:-}" "${count}" "${CYN:-}" "$(_j_display_path "${path}")" "${RST:-}" >&2
         _j_cd_hook "${path}"
-        [[ "${open_code}" == true ]] && code .
+        if [[ "${open_code}" == true ]]; then
+            _j_open_code . || return $?
+        fi
         return 0
     fi
 
@@ -700,7 +720,9 @@ EOF
             [[ "${verbose}" == true ]] && printf '%s[j]%s Resolved path: %s%s%s\n' \
                 "${DIM:-}" "${RST:-}" "${CYN:-}" "$(_j_display_path "${resolved}")" "${RST:-}" >&2
             _j_cd_hook "${resolved}"
-            [[ "${open_code}" == true ]] && code .
+            if [[ "${open_code}" == true ]]; then
+                _j_open_code . || return $?
+            fi
             return 0
         fi
 
@@ -713,7 +735,9 @@ EOF
                 [[ "${verbose}" == true ]] && printf '%s[j]%s Found project: %s%s%s\n' \
                     "${DIM:-}" "${RST:-}" "${CYN:-}" "$(_j_display_path "${project_path}")" "${RST:-}" >&2
                 _j_cd_hook "${project_path}"
-                [[ "${open_code}" == true ]] && code .
+                if [[ "${open_code}" == true ]]; then
+                    _j_open_code . || return $?
+                fi
                 return 0
             fi
         fi
