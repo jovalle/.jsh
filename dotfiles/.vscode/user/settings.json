@@ -96,6 +96,7 @@
     "editor.tabSize": 2
   },
   "[yaml]": {
+    "diffEditor.ignoreTrimWhitespace": true,
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.formatOnSave": true,
     "editor.tabSize": 2
@@ -214,7 +215,7 @@
   },
   "dev.containers.executeInWSL": true,
   "diffEditor.ignoreTrimWhitespace": false,
-  "diffEditor.renderSideBySide": false,
+  "diffEditor.renderSideBySide": true,
   "diffEditor.useInlineViewWhenSpaceIsLimited": false,
   "diffEditor.wordWrap": "on",
   "editor.acceptSuggestionOnEnter": "off",
@@ -333,7 +334,7 @@
   "sync.autoUpload": true,
   "sync.quietSync": true,
   "telemetry.telemetryLevel": "off",
-  "terminal.external.osxExec": "Terminal.app",
+  "terminal.external.osxExec": "Ghostty.app",
   "terminal.external.windowsExec": "C:\\WINDOWS\\System32\\wsl.exe",
   "terminal.integrated.copyOnSelection": true,
   "terminal.integrated.defaultProfile.linux": "zsh",
@@ -407,12 +408,11 @@
     "terminal.selectionBackground": "#264F78",
     "terminalCursor.foreground": "#CCCCCC"
   },
-  "workbench.colorTheme": "Default Dark Modern",
   "workbench.editorAssociations": {
     "*.plist": "default"
   },
   "workbench.iconTheme": "material-icon-theme",
-  "workbench.preferredHighContrastColorTheme": "Default Dark+",
+  "workbench.preferredHighContrastColorTheme": "Dark+",
   "workbench.sideBar.location": "right",
   "workbench.startupEditor": "none",
   "workbench.tree.enableStickyScroll": true,
@@ -420,12 +420,5 @@
   "yaml.format.bracketSpacing": true,
   "yaml.format.enable": true,
   "yaml.format.singleQuote": false,
-  "yaml.validate": true,
-  "chat.tools.urls.autoApprove": {
-    "https://drydock.codeswhat.com": {
-      "approveRequest": false,
-      "approveResponse": true
-    }
-  },
-  "diffEditor.hideUnchangedRegions.enabled": true
+  "yaml.validate": true
 }
